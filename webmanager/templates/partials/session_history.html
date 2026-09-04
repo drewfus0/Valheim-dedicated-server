@@ -1,0 +1,95 @@
+<div id="session-history-panel" class="card" style="margin-top: 1.5rem;" hx-get="/partials/session-history" hx-trigger="every 15s" hx-swap="outerHTML">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
+            <span>📜</span> Viking Session History
+            <span class="badge" style="font-size: 0.72rem; background: rgba(234, 179, 8, 0.15); color: var(--nordic-gold); border: 1px solid rgba(234, 179, 8, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                {{ status.player_sessions|length if status.player_sessions else 0 }} Events
+            </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <!-- Height Presets & Controls -->
+            <div class="height-control-group" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--bg-surface-elevated); padding: 0.2rem 0.45rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <span style="font-size: 0.72rem; color: var(--text-muted); margin-right: 0.2rem; font-weight: 500;">Height:</span>
+                <button type="button" class="btn btn-secondary btn-sm height-preset-btn" onclick="setHistoryHeight('180px', this)" title="Compact Height (180px)">
+                    Compact
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm height-preset-btn" onclick="setHistoryHeight('320px', this)" title="Standard Height (320px)">
+                    Standard
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm height-preset-btn" onclick="setHistoryHeight('500px', this)" title="Tall Height (500px)">
+                    Tall
+                </button>
+            </div>
+
+            <!-- Manual Refresh Button -->
+            <button type="button"
+                    class="btn btn-secondary btn-sm"
+                    hx-get="/partials/session-history"
+                    hx-target="#session-history-panel"
+                    hx-swap="outerHTML"
+                    style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; font-size: 0.775rem;"
+                    title="Refresh Session History">
+                <span>🔄</span> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Resizable Session History Table Container -->
+    <div id="viking-session-history-scroll"
+         class="session-history-scroll-container"
+         style="resize: vertical; overflow-y: auto; min-height: 140px; max-height: 750px; height: 280px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+        {% if status.player_sessions and status.player_sessions|length > 0 %}
+            <table class="table data-table" style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
+                <thead style="position: sticky; top: 0; background: var(--bg-surface-elevated); z-index: 10; border-bottom: 1px solid var(--border-color); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);">
+                    <tr>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 25%;">🛡️ Viking</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 25%;">Activity</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 30%;">Timestamp</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: right; width: 20%;">Session Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in status.player_sessions %}
+                    <tr style="transition: background 0.15s ease;">
+                        <td style="padding: 0.6rem 0.85rem; font-weight: 600; color: var(--text-primary);">
+                            <span style="margin-right: 0.35rem;">🛡️</span> {{ event.player_name }}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem;">
+                            {% if event.event == 'login' %}
+                                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    🟢 Logged On
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    🔴 Logged Off
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.775rem;">
+                            {{ event.timestamp }}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 500; font-size: 0.775rem;">
+                            {% if event.duration_str == 'Active Now' %}
+                                <span style="color: #6ee7b7; font-weight: 600;">✨ Active Now</span>
+                            {% else %}
+                                {{ event.duration_str }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 160px; color: var(--text-muted); font-size: 0.875rem; font-style: italic; gap: 0.5rem;">
+                <span style="font-size: 1.75rem; opacity: 0.6;">📜</span>
+                <span>No player login or logout events logged yet.</span>
+            </div>
+        {% endif %}
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.65rem; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
+        <span>💡 Drag the bottom-right handle to customize height, or choose a preset above.</span>
+        <span>Scroll position is smoothly preserved across updates.</span>
+    </div>
+</div>

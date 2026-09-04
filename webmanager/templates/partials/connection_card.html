@@ -1,0 +1,111 @@
+<div id="connection-card-container" class="card" hx-get="/partials/connection" hx-trigger="configUpdated from:body, every 5s" hx-swap="outerHTML">
+    <div class="card-header">
+        <div class="card-title">
+            <span>🌐</span> Connection Information
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="copyJoinInfo()">
+            📋 Copy Join Info
+        </button>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.875rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">Server Name</span>
+            <strong id="info-server-name">{{ config.server_name }}</strong>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">Server Password</span>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span id="info-server-password" style="font-family: var(--font-mono); color: var(--nordic-gold); font-weight: 600; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.25); padding: 0.2rem 0.6rem; border-radius: var(--radius-sm);">{{ config.password }}</span>
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.45rem;" onclick="copyPassword()" title="Copy password">
+                    📋
+                </button>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">Playit.gg Tunnel (Public)</span>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                {% if config.playit_address and config.playit_address|trim|length > 0 %}
+                    <span id="info-playit-address" style="font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600;">{{ config.playit_address }}</span>
+                    {% if config.playit_auto_detected %}
+                        <span style="font-size: 0.72rem; color: var(--status-running); background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.1rem 0.4rem; border-radius: var(--radius-full);">Live</span>
+                    {% endif %}
+                    <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.45rem;" onclick="copyPlayit()" title="Copy Playit address">
+                        📋
+                    </button>
+                {% else %}
+                    <span id="info-playit-address" style="color: var(--text-muted); font-style: italic; font-size: 0.8rem;">
+                        Not configured (set in Configuration tab)
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">Direct Port / Steam Query</span>
+            <span style="font-family: var(--font-mono);">{{ config.port }} / {{ config.port | int + 1 }}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">Active World</span>
+            <strong id="info-world-name">{{ config.world_name }}</strong>
+        </div>
+
+        {% if config.world_seed %}
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--text-secondary);">World Seed</span>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span id="info-world-seed" style="font-family: var(--font-mono); color: var(--nordic-cyan); font-size: 0.85rem;">{{ config.world_seed }}</span>
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.75rem;" onclick="copySeed()" title="Copy World Seed">
+                    📋
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function copySeed() {
+            const seed = document.getElementById('info-world-seed').innerText.trim();
+            navigator.clipboard.writeText(seed).then(() => {
+                showToast('World seed copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy world seed', 'error');
+            });
+        }
+
+        function copyPassword() {
+            const pass = document.getElementById('info-server-password').innerText.trim();
+            navigator.clipboard.writeText(pass).then(() => {
+                showToast('Password copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy password', 'error');
+            });
+        }
+
+        function copyPlayit() {
+            const addr = document.getElementById('info-playit-address').innerText.trim();
+            navigator.clipboard.writeText(addr).then(() => {
+                showToast('Playit address copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy address', 'error');
+            });
+        }
+
+        function copyJoinInfo() {
+            const sName = document.getElementById('info-server-name').innerText.trim();
+            const pass = document.getElementById('info-server-password').innerText.trim();
+            const playitEl = document.getElementById('info-playit-address');
+            const playitAddr = (playitEl && !playitEl.innerText.includes('Not configured')) ? playitEl.innerText.trim() : '127.0.0.1:{{ config.port }}';
+            
+            const text = `⚔️ Valheim Server: ${sName}\n🌐 Address: ${playitAddr}\n🔑 Password: ${pass}`;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Join details copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy join info', 'error');
+            });
+        }
+    </script>
+</div>

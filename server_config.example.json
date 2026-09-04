@@ -1,0 +1,8 @@
+{
+    "server_name": "My Valheim Server",
+    "world_name": "Dedicated",
+    "password": "changeme123",
+    "port": "2456",
+    "playit_address": "",
+    "auto_restart": true
+}

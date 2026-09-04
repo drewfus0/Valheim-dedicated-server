@@ -1,0 +1,200 @@
+<div id="config-form-container" class="card">
+    <div class="card-header">
+        <div class="card-title">
+            <span>⚙️</span> Server Configuration
+        </div>
+        <div id="config-spinner" class="htmx-indicator">
+            <div class="spinner"></div>
+            <span>Saving configuration...</span>
+        </div>
+    </div>
+
+    <form {% if user and user.role == 'admin' %}hx-post="/api/config" hx-target="#config-form-container" hx-swap="outerHTML" hx-indicator="#config-spinner"{% endif %}>
+        {% if message %}
+            <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; {% if success %}background: rgba(16, 185, 129, 0.15); border: 1px solid var(--status-running); color: #6ee7b7;{% else %}background: rgba(239, 68, 68, 0.15); border: 1px solid var(--status-stopped); color: #fca5a5;{% endif %}">
+                {{ message }}
+            </div>
+        {% endif %}
+
+        {% set is_admin = (user and user.role == 'admin') %}
+
+        <div class="grid-2col">
+            <div class="form-group">
+                <label class="form-label" for="cfg_server_name">Server Name</label>
+                <input class="form-control" type="text" id="cfg_server_name" name="server_name" value="{{ config.server_name }}" required {% if not is_admin %}disabled{% endif %}>
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label class="form-label" for="cfg_world_name" style="margin-bottom: 0;">World Name</label>
+                    {% if is_admin %}
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleNewWorldModal(true)" style="padding: 0.15rem 0.55rem; font-size: 0.75rem; border-color: rgba(56, 189, 248, 0.4); color: var(--nordic-cyan); display: inline-flex; align-items: center; gap: 0.35rem;">
+                            <svg class="svg-swords" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="11" y1="14" y2="20"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
+                            New World / Seed
+                        </button>
+                    {% endif %}
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input class="form-control" type="text" id="cfg_world_name" name="world_name" value="{{ config.world_name }}" required {% if not is_admin %}disabled{% endif %}>
+                    {% if available_worlds and available_worlds|length > 0 and is_admin %}
+                        <select class="form-control" style="width: auto; max-width: 170px;" onchange="document.getElementById('cfg_world_name').value = this.value">
+                            <option value="" disabled selected>Select World</option>
+                            {% for w in available_worlds %}
+                                <option value="{{ w }}" {% if w == config.world_name %}selected{% endif %}>{{ w }}</option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2col">
+            <div class="form-group">
+                <label class="form-label" for="cfg_password">
+                    Server Password <span style="font-size: 0.75rem; color: var(--nordic-gold);">(min 5 characters)</span>
+                </label>
+                <input class="form-control" type="text" id="cfg_password" name="password" value="{{ config.password }}" minlength="5" required {% if not is_admin %}disabled{% endif %}>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="cfg_port">Port</label>
+                <input class="form-control" type="number" id="cfg_port" name="port" value="{{ config.port }}" required {% if not is_admin %}disabled{% endif %}>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="cfg_playit_address">
+                Playit.gg Public Address <span style="font-size: 0.75rem; color: var(--nordic-cyan);">(Optional &bull; e.g. domain.gl.joinmc.link:2456)</span>
+            </label>
+            <input class="form-control" type="text" id="cfg_playit_address" name="playit_address" value="{{ config.playit_address or '' }}" placeholder="e.g. your-tunnel.gl.joinmc.link:2456" {% if not is_admin %}disabled{% endif %}>
+        </div>
+
+        <div class="form-group" style="margin-top: 0.5rem;">
+            <label class="form-check">
+                <input type="checkbox" name="auto_restart" value="true" {% if config.auto_restart %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                <div>
+                    <strong>Auto-Restart on Crash</strong>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Automatically restart Valheim if the process exits unexpectedly (with crash-loop protection).</div>
+                </div>
+            </label>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;">
+            {% if is_admin %}
+                <button type="submit" class="btn btn-primary">
+                    💾 Save Configuration
+                </button>
+            {% else %}
+                <span style="color: var(--text-muted); font-size: 0.8125rem; font-style: italic;">
+                    🔒 Configuration editing is restricted to Administrators.
+                </span>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if is_admin %}
+    <!-- New World Creation Modal -->
+    <div id="new-world-modal" style="display: none; position: fixed; inset: 0; background: rgba(5, 7, 10, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="card" style="max-width: 520px; width: 100%; border: 1px solid var(--border-light); box-shadow: 0 20px 40px rgba(0,0,0,0.6); animation: fadeIn 0.2s ease;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="card-title" style="font-size: 1.1rem; color: var(--nordic-cyan); display: flex; align-items: center; gap: 0.5rem;">
+                    <svg class="svg-swords" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="11" y1="14" y2="20"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
+                    Create New Valheim World
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleNewWorldModal(false)" style="padding: 0.2rem 0.5rem; font-size: 0.9rem;">✕</button>
+            </div>
+
+            <form hx-post="/api/world/create" hx-target="#config-form-container" hx-swap="outerHTML" hx-indicator="#world-create-spinner">
+                <div style="padding: 1.25rem;">
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.4;">
+                        Generate a new world with a custom seed. Valheim will procedurally generate terrain and dungeons for this seed upon launch.
+                    </p>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" for="nw_name">World Name <span style="color: var(--nordic-gold); font-size: 0.75rem;">*</span></label>
+                        <input class="form-control" type="text" id="nw_name" name="new_world_name" placeholder="e.g. OdinRealm" required autocomplete="off">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label" for="nw_seed">
+                            World Seed <span style="font-size: 0.75rem; color: var(--text-muted);">(Alphanumeric &bull; e.g. W2Z5XQ7P9a)</span>
+                        </label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input class="form-control" type="text" id="nw_seed" name="new_world_seed" placeholder="Leave blank for random seed" style="font-family: var(--font-mono);">
+                            <button type="button" class="btn btn-secondary" onclick="fetchRandomSeed()" title="Generate Random Seed" style="white-space: nowrap;">
+                                🎲 Random
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <label class="form-check">
+                            <input type="checkbox" name="backup_current" value="true" checked>
+                            <div>
+                                <strong style="color: var(--nordic-cyan); font-size: 0.85rem;">🛡️ Backup current world first</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Creates a safety zip backup of the active world ({{ config.world_name }}) before switching.</div>
+                            </div>
+                        </label>
+
+                        <label class="form-check">
+                            <input type="checkbox" name="switch_active" value="true" checked>
+                            <div>
+                                <strong style="font-size: 0.85rem;">🔄 Switch active world</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Updates server configuration to immediately target this new world.</div>
+                            </div>
+                        </label>
+
+                        <label class="form-check">
+                            <input type="checkbox" name="restart_server" value="true" checked>
+                            <div>
+                                <strong style="font-size: 0.85rem;">🚀 Launch server on new world</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Gracefully saves current world, terminates, and launches server on the new world.</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; align-items: center;">
+                        <div id="world-create-spinner" class="htmx-indicator" style="margin-right: auto;">
+                            <div class="spinner"></div>
+                            <span style="font-size: 0.8rem; color: var(--nordic-cyan);">Creating world & backing up...</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="toggleNewWorldModal(false)">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <svg class="svg-swords" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="11" y1="14" y2="20"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
+                            Create &amp; Launch World
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        function toggleNewWorldModal(show) {
+            const modal = document.getElementById('new-world-modal');
+            if (modal) {
+                modal.style.display = show ? 'flex' : 'none';
+                if (show) {
+                    const nameInput = document.getElementById('nw_name');
+                    if (nameInput) nameInput.focus();
+                }
+            }
+        }
+
+        function fetchRandomSeed() {
+            fetch('/api/world/random-seed')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.seed) {
+                        const seedInput = document.getElementById('nw_seed');
+                        if (seedInput) {
+                            seedInput.value = data.seed;
+                            showToast('Random seed generated: ' + data.seed, 'info');
+                        }
+                    }
+                })
+                .catch(e => console.error('Failed to get seed', e));
+        }
+    </script>
+</div>

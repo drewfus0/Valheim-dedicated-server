@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valheim Server Manager</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+    <link rel="manifest" href="/static/site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/sse.js"></script>
+</head>
+<body hx-ext="sse">
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand-section">
+                <div class="brand-icon">
+                    <img src="/static/favicon.svg" alt="Valheim Dedicated Server Logo">
+                </div>
+                <div class="brand-titles">
+                    <h1>Valheim Server Manager</h1>
+                    <div class="brand-subtitle">Automated Linux Host Supervisor &bull; Fedora Framework 16</div>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div id="header-status-badge" hx-get="/partials/header-status" hx-trigger="load, statusChanged from:body, every 3s" hx-swap="innerHTML">
+                    {% include "partials/header_status.html" %}
+                </div>
+
+                {% if user %}
+                <div class="user-pill" style="display: flex; align-items: center; gap: 0.55rem; background: var(--bg-card); border: 1px solid var(--border-color); padding: 0.3rem 0.75rem; border-radius: var(--radius-full); font-size: 0.8125rem;">
+                    <span>👤</span>
+                    <strong style="color: var(--text-primary);">{{ user.username }}</strong>
+                    {% if user.role == 'admin' %}
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(234, 179, 8, 0.15); color: var(--nordic-gold); border: 1px solid rgba(234, 179, 8, 0.3); padding: 0.1rem 0.4rem;">🛡️ Admin</span>
+                    {% elif user.role == 'operator' %}
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.4rem; display: inline-flex; align-items: center; gap: 0.3rem;"><svg class="svg-swords" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="11" y1="14" y2="20"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg> Operator</span>
+                    {% else %}
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.3); padding: 0.1rem 0.4rem;">👁️ Viewer</span>
+                    {% endif %}
+                    
+                    <button class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.75rem;" onclick="openPasswordModal()" title="Change Password">
+                        🔑
+                    </button>
+                    
+                    <form action="/api/auth/logout" method="POST" style="margin: 0; display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.75rem;" title="Logout">
+                            🚪
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <nav class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-dashboard', this)">
+                📊 Dashboard
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-backups', this)">
+                💾 World Backups
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-config', this)">
+                ⚙️ Configuration
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-logs', this)">
+                📜 Live Console
+            </button>
+            {% if user and user.role == 'admin' %}
+            <button class="tab-btn" onclick="switchTab('tab-accounts', this)">
+                👥 Accounts
+            </button>
+            {% endif %}
+        </nav>
+
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="password-modal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="card" style="width: 100%; max-width: 380px; margin: 1rem; box-shadow: var(--shadow-xl);">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>🔑</span> Change Password
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closePasswordModal()">✕</button>
+            </div>
+            <form hx-post="/api/auth/change-password" hx-target="#password-modal-msg" hx-swap="innerHTML" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div id="password-modal-msg"></div>
+                <div class="form-group">
+                    <label class="form-label" for="new_pw">New Password</label>
+                    <input type="password" id="new_pw" name="new_password" class="form-control" placeholder="Minimum 4 characters" required minlength="4">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closePasswordModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const target = document.getElementById(tabId);
+            if (target) target.classList.add('active');
+            if (btn) btn.classList.add('active');
+        }
+
+        function openPasswordModal() {
+            const modal = document.getElementById('password-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('password-modal');
+            if (modal) modal.style.display = 'none';
+            const msg = document.getElementById('password-modal-msg');
+            if (msg) msg.innerHTML = '';
+            const inp = document.getElementById('new_pw');
+            if (inp) inp.value = '';
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Listen for HTMX custom events
+        document.body.addEventListener('showToast', function(e) {
+            if (e.detail && e.detail.value) {
+                showToast(e.detail.value, e.detail.type || 'info');
+            }
+        });
+
+        // Viking Session History Height & Scroll State Management
+        let _savedVikingHistoryScroll = 0;
+
+        function applyVikingHistoryHeight() {
+            const savedHeight = localStorage.getItem('viking_history_height');
+            const scrollEl = document.getElementById('viking-session-history-scroll');
+            if (scrollEl && savedHeight) {
+                scrollEl.style.height = savedHeight;
+                highlightMatchingHeightBtn(savedHeight);
+            }
+        }
+
+        function highlightMatchingHeightBtn(height) {
+            document.querySelectorAll('.height-preset-btn').forEach(btn => {
+                const btnText = btn.innerText.toLowerCase();
+                if ((height.includes('180') && btnText.includes('compact')) ||
+                    (height.includes('320') && btnText.includes('standard')) ||
+                    (height.includes('500') && btnText.includes('tall'))) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function setHistoryHeight(height, btn) {
+            const scrollEl = document.getElementById('viking-session-history-scroll');
+            if (scrollEl) {
+                scrollEl.style.height = height;
+                localStorage.setItem('viking_history_height', height);
+            }
+            document.querySelectorAll('.height-preset-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+        }
+
+        function initVikingResizeObserver() {
+            const scrollEl = document.getElementById('viking-session-history-scroll');
+            if (scrollEl && !scrollEl._resizeObserved) {
+                scrollEl._resizeObserved = true;
+                let resizeTimeout;
+                const observer = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        clearTimeout(resizeTimeout);
+                        resizeTimeout = setTimeout(() => {
+                            if (entry.target && entry.target.style.height) {
+                                localStorage.setItem('viking_history_height', entry.target.style.height);
+                                highlightMatchingHeightBtn(entry.target.style.height);
+                            }
+                        }, 150);
+                    }
+                });
+                observer.observe(scrollEl);
+            }
+        }
+
+        // Server Run History Height & Scroll State Management
+        let _savedServerHistoryScroll = 0;
+
+        function applyServerHistoryHeight() {
+            const savedHeight = localStorage.getItem('server_history_height');
+            const scrollEl = document.getElementById('server-history-scroll');
+            if (scrollEl && savedHeight) {
+                scrollEl.style.height = savedHeight;
+                highlightMatchingServerHeightBtn(savedHeight);
+            }
+        }
+
+        function highlightMatchingServerHeightBtn(height) {
+            document.querySelectorAll('.server-height-preset-btn').forEach(btn => {
+                const btnText = btn.innerText.toLowerCase();
+                if ((height.includes('180') && btnText.includes('compact')) ||
+                    (height.includes('320') && btnText.includes('standard')) ||
+                    (height.includes('500') && btnText.includes('tall'))) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function setServerHistoryHeight(height, btn) {
+            const scrollEl = document.getElementById('server-history-scroll');
+            if (scrollEl) {
+                scrollEl.style.height = height;
+                localStorage.setItem('server_history_height', height);
+            }
+            document.querySelectorAll('.server-height-preset-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+        }
+
+        function initServerResizeObserver() {
+            const scrollEl = document.getElementById('server-history-scroll');
+            if (scrollEl && !scrollEl._resizeObserved) {
+                scrollEl._resizeObserved = true;
+                let resizeTimeout;
+                const observer = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        clearTimeout(resizeTimeout);
+                        resizeTimeout = setTimeout(() => {
+                            if (entry.target && entry.target.style.height) {
+                                localStorage.setItem('server_history_height', entry.target.style.height);
+                                highlightMatchingServerHeightBtn(entry.target.style.height);
+                            }
+                        }, 150);
+                    }
+                });
+                observer.observe(scrollEl);
+            }
+        }
+
+        // Preserve scroll position during HTMX DOM swaps
+        document.addEventListener('htmx:beforeSwap', function(evt) {
+            const scrollEl = document.getElementById('viking-session-history-scroll');
+            if (scrollEl) {
+                _savedVikingHistoryScroll = scrollEl.scrollTop;
+            }
+            const serverScrollEl = document.getElementById('server-history-scroll');
+            if (serverScrollEl) {
+                _savedServerHistoryScroll = serverScrollEl.scrollTop;
+            }
+        });
+
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            const scrollEl = document.getElementById('viking-session-history-scroll');
+            if (scrollEl) {
+                applyVikingHistoryHeight();
+                scrollEl.scrollTop = _savedVikingHistoryScroll;
+                initVikingResizeObserver();
+            }
+            const serverScrollEl = document.getElementById('server-history-scroll');
+            if (serverScrollEl) {
+                applyServerHistoryHeight();
+                serverScrollEl.scrollTop = _savedServerHistoryScroll;
+                initServerResizeObserver();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            applyVikingHistoryHeight();
+            initVikingResizeObserver();
+            applyServerHistoryHeight();
+            initServerResizeObserver();
+        });
+    </script>
+</body>
+</html>

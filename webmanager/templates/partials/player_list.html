@@ -1,0 +1,49 @@
+<div id="players-panel" class="card" hx-get="/partials/players" hx-trigger="statusChanged from:body, every 5s" hx-swap="outerHTML">
+    <div class="card-header">
+        <div class="card-title">
+            <span>🛡️</span> Viking Roster & Activity
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="status-pill" style="font-family: var(--font-mono); font-size: 0.8rem;">
+                <span class="dot {% if status.players_count and status.players_count > 0 %}Running{% else %}Stopped{% endif %}"></span>
+                <strong>{{ status.players_count }}</strong> / {{ status.known_players_count }} Online
+            </span>
+        </div>
+    </div>
+
+    <!-- Known Vikings Roster Section -->
+    <div>
+        <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            Realm Adventurers
+        </div>
+        {% if status.all_players and status.all_players|length > 0 %}
+            <div style="display: flex; flex-wrap: wrap; gap: 0.65rem;">
+                {% for player in status.all_players %}
+                    <div class="player-roster-tag {% if player.is_online %}online{% else %}offline{% endif %}"
+                         title="First joined: {{ player.first_seen }} | Total Playtime: {{ player.total_playtime }} ({{ player.total_sessions }} sessions)">
+                        <span class="viking-pulse {% if player.is_online %}online{% else %}offline{% endif %}"></span>
+                        <span style="font-size: 0.95rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
+                        <strong style="color: var(--text-primary);">{{ player.name }}</strong>
+                        {% if player.is_online %}
+                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem; padding: 0.1rem 0.45rem;">
+                                Online{% if player.session_time %} ({{ player.session_time }}){% endif %}
+                            </span>
+                        {% else %}
+                            <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.7rem; padding: 0.1rem 0.45rem;">
+                                Offline
+                            </span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="color: var(--text-muted); font-size: 0.875rem; font-style: italic; padding: 0.75rem 0;">
+                {% if status.status == "Running" %}
+                    No Vikings currently roaming Midgard.
+                {% else %}
+                    Server is not active.
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>

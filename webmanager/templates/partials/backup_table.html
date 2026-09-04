@@ -1,0 +1,87 @@
+<div id="backup-table-container" class="card" hx-get="/partials/backups" hx-trigger="refreshBackups from:body" hx-swap="outerHTML">
+    <div class="card-header">
+        <div class="card-title">
+            <span>💾</span> World Backup Archives
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div id="backup-spinner" class="htmx-indicator">
+                <div class="spinner"></div>
+                <span>Creating compressed archive...</span>
+            </div>
+            {% if user and user.role in ('admin', 'operator') %}
+                <button class="btn btn-primary btn-sm"
+                        hx-post="/api/backups/create"
+                        hx-target="#backup-table-container"
+                        hx-swap="outerHTML"
+                        hx-indicator="#backup-spinner"
+                        hx-disabled-elt="this">
+                    ➕ Create Backup Now
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Archive Name</th>
+                    <th>Size</th>
+                    <th>Created</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if backups and backups|length > 0 %}
+                    {% for b in backups %}
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--nordic-gold);">
+                                {{ b.filename }}
+                            </td>
+                            <td>{{ b.size_mb }} MB</td>
+                            <td style="color: var(--text-secondary);">{{ b.created }}</td>
+                            <td style="text-align: right;">
+                                <div class="btn-group" style="justify-content: flex-end;">
+                                    {% if user and user.role in ('admin', 'operator') %}
+                                        <a href="/api/backups/download/{{ b.filename }}" class="btn btn-secondary btn-sm" title="Download zip">
+                                            ⬇️ Download
+                                        </a>
+                                        {% if user.role == 'admin' %}
+                                            <button class="btn btn-warning btn-sm"
+                                                    hx-post="/api/backups/restore/{{ b.filename }}"
+                                                    hx-confirm="Restore world from '{{ b.filename }}'? A safety snapshot will be created automatically before restoring."
+                                                    hx-target="#backup-table-container"
+                                                    hx-swap="outerHTML"
+                                                    hx-indicator="#backup-spinner"
+                                                    title="Restore backup">
+                                                ♻️ Restore
+                                            </button>
+                                            <button class="btn btn-danger btn-sm"
+                                                    hx-delete="/api/backups/delete/{{ b.filename }}"
+                                                    hx-confirm="Permanently delete '{{ b.filename }}'?"
+                                                    hx-target="#backup-table-container"
+                                                    hx-swap="outerHTML"
+                                                    title="Delete backup">
+                                                🗑️
+                                            </button>
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+                                            Downloads restricted
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
+                            No backup archives found. Click <strong>Create Backup Now</strong> to take a snapshot of your world.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>

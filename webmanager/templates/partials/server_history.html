@@ -1,0 +1,165 @@
+<div id="server-history-panel" class="card" style="margin-top: 1.5rem;" hx-get="/partials/server-history" hx-trigger="every 15s, serverHistoryUpdated from:body" hx-swap="outerHTML">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
+            <span>🖥️</span> Server Run History
+            <span class="badge" style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                {{ status.server_history.total_runs if status.server_history else 0 }} Sessions
+            </span>
+            {% if status.status == 'Running' %}
+                <span class="badge" style="font-size: 0.72rem; background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm);">
+                    🟢 Server Online
+                </span>
+            {% else %}
+                <span class="badge" style="font-size: 0.72rem; background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm);">
+                    ⏹️ Server Offline
+                </span>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+            <!-- Height Presets & Controls -->
+            <div class="height-control-group" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--bg-surface-elevated); padding: 0.2rem 0.45rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <span style="font-size: 0.72rem; color: var(--text-muted); margin-right: 0.2rem; font-weight: 500;">Height:</span>
+                <button type="button" class="btn btn-secondary btn-sm server-height-preset-btn" onclick="setServerHistoryHeight('180px', this)" title="Compact Height (180px)">
+                    Compact
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm server-height-preset-btn" onclick="setServerHistoryHeight('320px', this)" title="Standard Height (320px)">
+                    Standard
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm server-height-preset-btn" onclick="setServerHistoryHeight('500px', this)" title="Tall Height (500px)">
+                    Tall
+                </button>
+            </div>
+
+            <!-- View / Download Plain-Text Log -->
+            <a href="/api/server/history/log" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; font-size: 0.775rem; text-decoration: none;" title="View Raw Server Run History Log">
+                <span>📄</span> Raw Log
+            </a>
+
+            <!-- Manual Refresh Button -->
+            <button type="button"
+                    class="btn btn-secondary btn-sm"
+                    hx-get="/partials/server-history"
+                    hx-target="#server-history-panel"
+                    hx-swap="outerHTML"
+                    style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; font-size: 0.775rem;"
+                    title="Refresh Server Run History">
+                <span>🔄</span> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Statistics Metric Chips -->
+    <div class="server-history-metrics" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">⏱️ Total Recorded Uptime</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--nordic-gold); font-family: var(--font-mono);">
+                {{ status.server_history.total_uptime_str if status.server_history else '--' }}
+            </div>
+        </div>
+
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">🏆 Longest Run Session</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--nordic-cyan); font-family: var(--font-mono);">
+                {{ status.server_history.longest_run_str if status.server_history else '--' }}
+            </div>
+        </div>
+
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">📊 Total Sessions</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono);">
+                {{ status.server_history.total_runs if status.server_history else 0 }}
+            </div>
+        </div>
+
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">🟢 Current Session</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: #6ee7b7; font-family: var(--font-mono);">
+                {% if status.status == 'Running' and status.server_history and status.server_history.current_run %}
+                    {{ status.uptime }}
+                {% else %}
+                    <span style="color: var(--text-muted); font-size: 0.95rem;">Offline</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Resizable Server History Table Container -->
+    <div id="server-history-scroll"
+         class="session-history-scroll-container"
+         style="resize: vertical; overflow-y: auto; min-height: 140px; max-height: 750px; height: 280px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+        {% if status.server_history and status.server_history.recent_runs and status.server_history.recent_runs|length > 0 %}
+            <table class="table data-table" style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
+                <thead style="position: sticky; top: 0; background: var(--bg-surface-elevated); z-index: 10; border-bottom: 1px solid var(--border-color); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);">
+                    <tr>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 16%;">Status</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 20%;">Started</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 20%;">Stopped</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 15%;">Duration</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 14%;">World / Port</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 15%;">Exit Status / Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in status.server_history.recent_runs %}
+                    <tr style="transition: background 0.15s ease;">
+                        <td style="padding: 0.6rem 0.85rem;">
+                            {% if run.status == 'Running' %}
+                                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    🟢 Active Now
+                                </span>
+                            {% elif 'Clean' in run.exit_reason or 'Shutdown' in run.exit_reason %}
+                                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    ⏹️ Clean Stop
+                                </span>
+                            {% elif 'Unexpected' in run.exit_reason or 'code' in run.exit_reason or 'Crash' in run.exit_reason %}
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    ⚠️ Abnormal Exit
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background: rgba(148, 163, 184, 0.12); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.25); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    ⏹️ Stopped
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); color: var(--text-primary); font-size: 0.775rem;">
+                            {{ run.start_time }}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.775rem;">
+                            {% if run.status == 'Running' %}
+                                <span style="color: #6ee7b7; font-weight: 500;">✨ Running Now</span>
+                            {% else %}
+                                {{ run.stop_time if run.stop_time else '--' }}
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600; font-size: 0.775rem;">
+                            {% if run.status == 'Running' %}
+                                <span style="color: #6ee7b7; font-weight: 600;">{{ status.uptime if status.uptime != '--' else run.duration_str }}</span>
+                            {% else %}
+                                {{ run.duration_str }}
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-size: 0.775rem; color: var(--text-primary);">
+                            <span style="font-weight: 600;">{{ run.world_name }}</span>
+                            <span style="color: var(--text-muted); font-size: 0.72rem; font-family: var(--font-mono);">:{{ run.port }}</span>
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-size: 0.775rem; color: var(--text-secondary);">
+                            {{ run.exit_reason }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 160px; color: var(--text-muted); font-size: 0.875rem; font-style: italic; gap: 0.5rem;">
+                <span style="font-size: 1.75rem; opacity: 0.6;">🖥️</span>
+                <span>No server execution history logged yet.</span>
+            </div>
+        {% endif %}
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.65rem; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
+        <span>💡 Drag the bottom-right handle to customize height, or choose a preset above.</span>
+        <span>History is permanently logged to <code>logs/server_history.log</code> &amp; updated in real-time.</span>
+    </div>
+</div>

@@ -1,0 +1,37 @@
+<div class="terminal-wrapper" hx-ext="sse" sse-connect="/api/stream/logs">
+    <div class="terminal-header">
+        <div class="terminal-title">
+            <span>💻</span> valheim_server.log &bull; Live Stream
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <label class="form-check" style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">
+                <input type="checkbox" id="autoScrollCheck" checked>
+                Auto-scroll
+            </label>
+            <button class="btn btn-secondary btn-sm" onclick="clearTerminal()">
+                🗑️ Clear
+            </button>
+        </div>
+    </div>
+
+    <pre id="console-output" class="terminal-body" sse-swap="log-chunk" hx-swap="beforeend"></pre>
+
+    <script>
+        function clearTerminal() {
+            const terminal = document.getElementById('console-output');
+            if (terminal) terminal.innerHTML = '';
+        }
+
+        // Auto-scroll when new content arrives
+        const terminalEl = document.getElementById('console-output');
+        if (terminalEl) {
+            const observer = new MutationObserver(() => {
+                const autoScroll = document.getElementById('autoScrollCheck');
+                if (autoScroll && autoScroll.checked) {
+                    terminalEl.scrollTop = terminalEl.scrollHeight;
+                }
+            });
+            observer.observe(terminalEl, { childList: true, characterData: true, subtree: true });
+        }
+    </script>
+</div>

@@ -1,0 +1,128 @@
+<div id="status-card" class="card" hx-get="/partials/status" hx-trigger="every 2s" hx-swap="outerHTML">
+    <div class="card-header">
+        <div class="card-title">
+            <span>⚡</span> Server State & Telemetry
+        </div>
+        <div class="status-pill">
+            <span class="dot {{ status.status }}"></span>
+            <strong>{{ status.status }}</strong>
+            {% if status.pid %}
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);">(PID: {{ status.pid }})</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Telemetry Metrics Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+        <div class="metric-box">
+            <span class="metric-label">Valheim CPU</span>
+            <span class="metric-value" style="color: var(--nordic-cyan);">{{ status.cpu }}%</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Valheim RAM</span>
+            <span class="metric-value" style="color: var(--nordic-gold);">{{ status.mem }}</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Server Uptime</span>
+            <span class="metric-value">{{ status.uptime }}</span>
+        </div>
+        {% if status.cpu_freq and status.cpu_freq.max_mhz > 0 %}
+        <div class="metric-box" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
+            <span class="metric-label">Host CPU Clocks</span>
+            <span class="metric-value" style="font-size: 1.05rem; {% if status.cpu_freq.all_under_600 %}color: #ef4444; font-weight: 700;{% else %}color: #38bdf8;{% endif %}">
+                {{ status.cpu_freq.min_mhz }} - {{ status.cpu_freq.max_mhz }} <span style="font-size: 0.75rem; color: var(--text-secondary);">MHz</span>
+            </span>
+        </div>
+        {% endif %}
+        {% if status.power_status %}
+        <div class="metric-box" title="Profile: {{ status.power_status.profile }} | Sleep: {{ status.power_status.sleep_policy }} | Screen: {{ status.power_status.screen_behavior }}">
+            <span class="metric-label">Power Profile</span>
+            <span class="metric-value" style="font-size: 1.02rem; color: #10b981; text-transform: capitalize;">
+                ⚡ {{ status.power_status.profile }}
+            </span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Throttling Alert Banner -->
+    {% if status.cpu_freq and status.cpu_freq.all_under_600 %}
+    <div style="background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 0.75rem 1rem; border-radius: var(--radius-md); font-size: 0.85rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <div>
+            <strong>⚠️ CPU Throttling Detected:</strong> All {{ status.cpu_freq.cores_count }} cores capped under 600 MHz!
+            <div style="font-size: 0.75rem; color: #fecaca; margin-top: 0.15rem;">Server performance severely degraded. Reboot recommended to reset clock governor.</div>
+        </div>
+        {% if user and user.role in ('admin', 'operator') %}
+            <button class="btn btn-danger btn-sm"
+                    hx-post="/api/system/reboot"
+                    hx-target="#status-card"
+                    hx-swap="outerHTML"
+                    hx-confirm="⚡ Reboot the host machine now to clear CPU throttling? Valheim will be gracefully stopped and the host will restart immediately."
+                    hx-indicator="#action-indicator"
+                    hx-disabled-elt="this">
+                ⚡ Emergency Reboot Host
+            </button>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card-footer-controls" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div class="btn-group">
+            {% if user and user.role == 'viewer' %}
+                <span style="font-size: 0.8125rem; color: var(--text-muted); font-style: italic; display: flex; align-items: center; gap: 0.4rem;">
+                    👁️ Read-only viewer (Server controls restricted to Operators & Admins)
+                </span>
+            {% else %}
+                {% if status.status == "Stopped" %}
+                    <button class="btn btn-success"
+                            hx-post="/api/server/start"
+                            hx-target="#status-card"
+                            hx-swap="outerHTML"
+                            hx-indicator="#action-indicator"
+                            hx-disabled-elt="this">
+                        ▶️ Start Server
+                    </button>
+                {% elif status.status == "Running" %}
+                    <button class="btn btn-danger"
+                            hx-post="/api/server/stop"
+                            hx-target="#status-card"
+                            hx-swap="outerHTML"
+                            hx-indicator="#action-indicator"
+                            hx-disabled-elt="this">
+                        🛑 Stop Server
+                    </button>
+                    <button class="btn btn-warning"
+                            hx-post="/api/server/restart"
+                            hx-target="#status-card"
+                            hx-swap="outerHTML"
+                            hx-indicator="#action-indicator"
+                            hx-disabled-elt="this">
+                        🔄 Restart
+                    </button>
+                {% else %}
+                    <button class="btn btn-secondary" disabled>
+                        ⏳ {{ status.status }}...
+                    </button>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        {% if user and user.role == 'admin' and not (status.cpu_freq and status.cpu_freq.all_under_600) %}
+            <button class="btn btn-secondary btn-sm"
+                    hx-post="/api/system/reboot"
+                    hx-target="#status-card"
+                    hx-swap="outerHTML"
+                    hx-confirm="Reboot the host physical machine? The Valheim server will be gracefully stopped and the computer will restart immediately."
+                    hx-indicator="#action-indicator"
+                    hx-disabled-elt="this"
+                    style="color: var(--text-muted); border-color: rgba(239, 68, 68, 0.25);"
+                    title="Reboot Host Computer">
+                💻 Reboot Host
+            </button>
+        {% endif %}
+
+        <div id="action-indicator" class="htmx-indicator">
+            <div class="spinner"></div>
+            <span>Executing command...</span>
+        </div>
+    </div>
+</div>

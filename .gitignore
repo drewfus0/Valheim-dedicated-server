@@ -1,0 +1,70 @@
+# ==============================================================================
+# Valheim Dedicated Server & Web Manager - Git Ignore
+# ==============================================================================
+
+# --- Python & Virtual Environments ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.so.*
+.venv
+.venv/
+*/.venv
+*/.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Valheim Server Binaries & Unity Engine Data (Steam AppID 892970) ---
+valheim_server.x86_64
+valheim_server_Data/
+linux64/
+steam_appid.txt
+Valheim Dedicated Server Manual.pdf
+UnityPlayer.so
+libdecor-0.so.0
+libdecor-cairo.so
+libsteamwebrtc.so
+steamclient.so
+docker/steamclient.so
+
+# --- Runtime Logs & Performance Telemetry ---
+*.log
+logs/
+valheim_server.log
+valheim_performance.log
+
+# --- World Backups & Saved States ---
+backups/
+*.zip
+*.tar.gz
+
+# --- Runtime Server State & Credentials ---
+# Contains user passwords, salt, hash, and live tokens
+users.json
+# Contains server passwords and playit tunnel addresses
+server_config.json
+# Auto-generated runtime session histories
+player_history.json
+server_history.json
+
+# --- Temporary & Scratch Files ---
+*.tmp
+*.bak
+*.swp
+*~
+cookies.txt
+
+# --- Legacy / Generated Output ---
+/index.html
+
+# --- IDE & OS Metadata ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db

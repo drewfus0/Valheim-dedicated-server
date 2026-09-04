@@ -1,0 +1,8 @@
+<div class="status-pill">
+    <span class="dot {{ status.status }}"></span>
+    <span>{{ status.status }}</span>
+    {% if status.status == "Running" %}
+        <span style="color: var(--text-muted);">&bull;</span>
+        <span style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.8rem;">{{ status.uptime }}</span>
+    {% endif %}
+</div>

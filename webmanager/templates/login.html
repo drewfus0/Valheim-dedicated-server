@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login & Registration - Valheim Server Manager</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+    <link rel="manifest" href="/static/site.webmanifest">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/htmx.min.js"></script>
+    <style>
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: radial-gradient(circle at top, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%);
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2.25rem 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(12px);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .login-logo {
+            margin-bottom: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 0 16px rgba(234, 179, 8, 0.45));
+            transition: transform 0.3s ease;
+        }
+
+        .login-logo:hover {
+            transform: scale(1.06) rotate(3deg);
+        }
+
+        .login-logo img {
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+            border-radius: var(--radius-lg);
+            display: block;
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--nordic-gold);
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .login-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .auth-toggle-pills {
+            display: flex;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.25rem;
+            margin-bottom: 1.5rem;
+            gap: 0.25rem;
+        }
+
+        .auth-pill-btn {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .auth-pill-btn.active {
+            background: var(--bg-surface-elevated);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .login-error {
+            display: none;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            padding-left: 2.5rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all var(--transition-fast);
+        }
+
+        .input-wrapper input:focus {
+            outline: none;
+            border-color: var(--nordic-gold);
+            box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.2);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .role-notice {
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.8rem;
+            color: var(--nordic-cyan);
+            line-height: 1.4;
+        }
+
+        .login-footer {
+            margin-top: 1.75rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <img src="/static/favicon.svg" alt="Valheim Server Logo">
+                </div>
+                <h1 class="login-title">Valheim Server</h1>
+                <p class="login-subtitle">Management Console Authentication</p>
+            </div>
+
+            <!-- Toggle between Login and Register -->
+            <div class="auth-toggle-pills">
+                <button type="button" id="pill-login" class="auth-pill-btn active" onclick="setAuthMode('login')">
+                    🛡️ Sign In
+                </button>
+                <button type="button" id="pill-register" class="auth-pill-btn" onclick="setAuthMode('register')">
+                    ➕ Create Account
+                </button>
+            </div>
+
+            <div id="login-error-box" class="login-error"></div>
+
+            <!-- Sign In Form -->
+            <form id="form-login" hx-post="/api/auth/login" hx-target="#login-error-box" hx-swap="outerHTML">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">👤</span>
+                        <input type="text" id="username" name="username" placeholder="Enter username" required autofocus autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🔑</span>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login">
+                    <span>🛡️ Enter Great Hall</span>
+                </button>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="form-register" style="display: none;" hx-post="/api/auth/register" hx-target="#login-error-box" hx-swap="outerHTML">
+                <div class="role-notice">
+                    👁️ <strong>Viewer Access:</strong> New accounts are automatically granted <em>Viewer</em> role. An Administrator can promote you to <em>Operator</em> or <em>Admin</em>.
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-username">Desired Username</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">👤</span>
+                        <input type="text" id="reg-username" name="username" placeholder="Min 3 characters" minlength="3" autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-password">Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🔑</span>
+                        <input type="password" id="reg-password" name="password" placeholder="Min 4 characters" minlength="4" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login">
+                    <span>✨ Register & Enter</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <span>Valheim Dedicated Server Host Management</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setAuthMode(mode) {
+            const formLogin = document.getElementById('form-login');
+            const formRegister = document.getElementById('form-register');
+            const pillLogin = document.getElementById('pill-login');
+            const pillRegister = document.getElementById('pill-register');
+            const errorBox = document.getElementById('login-error-box');
+
+            if (errorBox) {
+                errorBox.style.display = 'none';
+                errorBox.innerHTML = '';
+            }
+
+            if (mode === 'register') {
+                formLogin.style.display = 'none';
+                formRegister.style.display = 'block';
+                pillLogin.classList.remove('active');
+                pillRegister.classList.add('active');
+                document.getElementById('username').removeAttribute('required');
+                document.getElementById('password').removeAttribute('required');
+                document.getElementById('reg-username').setAttribute('required', 'required');
+                document.getElementById('reg-password').setAttribute('required', 'required');
+                document.getElementById('reg-username').focus();
+            } else {
+                formLogin.style.display = 'block';
+                formRegister.style.display = 'none';
+                pillLogin.classList.add('active');
+                pillRegister.classList.remove('active');
+                document.getElementById('reg-username').removeAttribute('required');
+                document.getElementById('reg-password').removeAttribute('required');
+                document.getElementById('username').setAttribute('required', 'required');
+                document.getElementById('password').setAttribute('required', 'required');
+                document.getElementById('username').focus();
+            }
+        }
+    </script>
+</body>
+</html>
