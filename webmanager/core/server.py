@@ -56,6 +56,8 @@ class ValheimServerManager:
                 port=self.config.get("port", 2456),
                 start_time_ts=self.start_time,
             )
+        else:
+            SERVER_HISTORY.reconcile_with_server_state(server_running=False)
 
         # Start background monitor thread
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
@@ -99,7 +101,7 @@ class ValheimServerManager:
             uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
         p_summary = PLAYER_TRACKER.get_summary(server_running=(state == "Running"))
-        s_summary = SERVER_HISTORY.get_summary(server_running=(state == "Running"))
+        s_summary = SERVER_HISTORY.get_summary(server_running=(state == "Running"), pid=pid)
 
         playit_addr = cfg.get("playit_address")
         is_auto = False

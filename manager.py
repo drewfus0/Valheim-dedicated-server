@@ -34,4 +34,5 @@ if __name__ == "__main__":
         app_dir=str(WEB_DIR),
         proxy_headers=True,
         forwarded_allow_ips="*",
+        timeout_graceful_shutdown=3,
     )

@@ -890,7 +890,7 @@ async def stream_logs(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     return StreamingResponse(
-        log_stream_generator(),
+        log_stream_generator(request=request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

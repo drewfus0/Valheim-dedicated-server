@@ -371,9 +371,73 @@ class ServerHistoryTracker:
             print(f"[ServerHistory] {log_msg}")
             self._append_to_plain_log(log_msg)
 
-    def get_summary(self, server_running: bool = False) -> Dict[str, Any]:
+    def reconcile_with_server_state(
+        self,
+        server_running: bool,
+        pid: Optional[int] = None,
+    ) -> None:
+        """Reconcile tracked runs with actual server execution state."""
+        with self.lock:
+            modified = False
+            now_dt = datetime.datetime.now()
+            now_ts = now_dt.timestamp()
+
+            if not server_running:
+                # If server is not running, no run should be marked 'Running'
+                for r in self.runs:
+                    if r.get("status") == "Running":
+                        r["status"] = "Stopped"
+                        # Use GAME_LOG mtime if reasonable for more accurate stop timestamp
+                        stop_ts = now_ts
+                        if GAME_LOG.exists():
+                            try:
+                                log_mtime = GAME_LOG.stat().st_mtime
+                                if log_mtime >= r.get("start_timestamp", 0):
+                                    stop_ts = log_mtime
+                            except Exception:
+                                pass
+                        stop_dt = datetime.datetime.fromtimestamp(stop_ts)
+                        r["stop_time"] = format_dt(stop_dt)
+                        r["stop_timestamp"] = stop_ts
+                        start_ts = r.get("start_timestamp", stop_ts)
+                        dur = max(0, int(stop_ts - start_ts))
+                        r["duration_seconds"] = dur
+                        r["duration_str"] = format_duration(dur)
+                        if not r.get("exit_reason") or "Active" in r.get("exit_reason", ""):
+                            r["exit_reason"] = "Stopped / Terminated"
+                        modified = True
+
+                        log_msg = (
+                            f"[{r['stop_time']}] [STOPPED] Server run '{r.get('id')}' stopped. "
+                            f"Duration: {r['duration_str']} | Reason: {r['exit_reason']}"
+                        )
+                        print(f"[ServerHistory] {log_msg}")
+                        self._append_to_plain_log(log_msg)
+            else:
+                if pid:
+                    has_active = False
+                    for r in reversed(self.runs):
+                        if r.get("status") == "Running":
+                            if not has_active:
+                                r["pid"] = pid
+                                has_active = True
+                            else:
+                                r["status"] = "Stopped"
+                                r["stop_time"] = format_dt(now_dt)
+                                r["stop_timestamp"] = now_ts
+                                dur = max(0, int(now_ts - r.get("start_timestamp", now_ts)))
+                                r["duration_seconds"] = dur
+                                r["duration_str"] = format_duration(dur)
+                                r["exit_reason"] = "Closed prior to new start"
+                                modified = True
+
+            if modified:
+                self._save_to_disk()
+
+    def get_summary(self, server_running: bool = False, pid: Optional[int] = None) -> Dict[str, Any]:
         """Compute aggregated server uptime metrics and formatted run list."""
         with self.lock:
+            self.reconcile_with_server_state(server_running, pid=pid)
             now_ts = time.time()
             total_runs = len(self.runs)
             total_seconds = 0

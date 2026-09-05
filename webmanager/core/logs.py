@@ -2,7 +2,7 @@ import asyncio
 import html
 import os
 from pathlib import Path
-from typing import AsyncGenerator, List, Tuple
+from typing import Any, AsyncGenerator, List, Optional, Tuple
 
 from core.paths import GAME_LOG
 
@@ -51,6 +51,7 @@ def parse_players() -> Tuple[int, List[str]]:
 
 async def log_stream_generator(
     initial_lines: int = 50,
+    request: Optional[Any] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE generator streaming live log chunks to HTMX."""
     # Send initial tail if available
@@ -67,6 +68,13 @@ async def log_stream_generator(
         last_pos = GAME_LOG.stat().st_size
 
     while True:
+        if request:
+            try:
+                if await request.is_disconnected():
+                    break
+            except Exception:
+                break
+
         await asyncio.sleep(0.5)
         if not GAME_LOG.exists():
             continue
