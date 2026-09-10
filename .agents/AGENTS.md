@@ -67,13 +67,24 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - **Crash-Loop Throttling**: Tracks crash timestamps in `self.crash_history`. If 3 crashes occur within a 60-second window, `auto_restart` is paused to avoid rapid crash loops.
   - **Memory Metrics**: Queries process RSS via `ps -p <PID> -o %cpu,rss` and formats RAM as `MB` (if <1024MB) or `GB` (if >=1024MB).
 
-### 2. Valheim Launch & Password Constraints
+### 2. Valheim Launch, Password & World Modifier Constraints
 - **Launch Command**:
   ```bash
-  LD_LIBRARY_PATH="./linux64:$LD_LIBRARY_PATH" SteamAppId="892970" ./valheim_server.x86_64 -name "<server_name>" -port <port> -world "<world_name>" -password "<password>"
+  LD_LIBRARY_PATH="./linux64:$LD_LIBRARY_PATH" SteamAppId="892970" ./valheim_server.x86_64 -name "<server_name>" -port <port> -world "<world_name>" -password "<password>" [-resetmodifiers] [-preset <preset>] [-modifier <category> <value>]... [-setkey <key>]...
   ```
 - **CRITICAL PASSWORD RULE**: Valheim dedicated server requires passwords to be **at least 5 characters long**. Passwords under 5 characters cause immediate engine abort (`ZNet OnDestroy`). Both `start_server()` and `update_config()` enforce `len(password) >= 5`.
 - **CRITICAL NETWORK RULE**: **Do NOT include `-crossplay`**. Playit.gg routes UDP traffic to `127.0.0.1:2456`. Enabling `-crossplay` breaks local loopback routing.
+- **WORLD MODIFIERS SPECIFICATION**:
+  - `-preset <value>`: `normal`, `casual`, `easy`, `hard`, `hardcore`, `immersive`, `hammer`. Preset must precede specific modifiers so it does not overwrite them.
+  - `-modifier <category> <value>`:
+    - `combat`: `veryeasy`, `easy`, `hard`, `veryhard`
+    - `deathpenalty`: `casual`, `veryeasy`, `easy`, `hard`, `hardcore`
+    - `resources`: `muchless`, `less`, `more`, `muchmore`, `most`
+    - `raids`: `none`, `muchless`, `less`, `more`, `muchmore`
+    - `portals`: `casual`, `hard`, `veryhard`
+  - `-setkey <key>`: `nobuildcost`, `playerevents`, `passivemobs`, `nomap`
+  - `-resetmodifiers`: wipes active world modifiers back to game defaults on start.
+  - Valheim persists modifiers into the active `.db`/`.fwl` world save once initialized. `webmanager/core/server.py` builds the CLI vector via `build_valheim_command()`.
 
 ### 3. Systemd Integration (`valheim.service`) & Power Management
 - Service location: `~/.config/systemd/user/valheim.service`

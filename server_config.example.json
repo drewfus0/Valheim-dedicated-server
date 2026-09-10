@@ -4,5 +4,18 @@
     "password": "changeme123",
     "port": "2456",
     "playit_address": "",
-    "auto_restart": true
+    "auto_restart": true,
+    "modifiers": {
+        "preset": "normal",
+        "combat": "easy",
+        "death_penalty": "casual",
+        "resources": "more",
+        "raids": "less",
+        "portals": "casual",
+        "nobuildcost": false,
+        "playerevents": false,
+        "passivemobs": false,
+        "nomap": false,
+        "reset_modifiers": false
+    }
 }

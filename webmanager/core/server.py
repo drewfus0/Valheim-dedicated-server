@@ -28,7 +28,54 @@ def find_existing_pid() -> Optional[int]:
             return pids[0]
     except Exception:
         pass
-    return None
+def build_valheim_command(cfg: Dict[str, Any]) -> List[str]:
+    """Build the Valheim dedicated server CLI argument vector including world modifiers."""
+    cmd = [
+        str(SERVER_BIN),
+        "-name", str(cfg.get("server_name", "ValheimTest")),
+        "-port", str(cfg.get("port", "2456")),
+        "-world", str(cfg.get("world_name", "ValheimTest")),
+        "-password", str(cfg.get("password", "tester")),
+    ]
+
+    mods = cfg.get("modifiers")
+    if isinstance(mods, dict):
+        # 1. Reset world modifiers if requested
+        if mods.get("reset_modifiers"):
+            cmd.append("-resetmodifiers")
+
+        # 2. Preset (must precede individual modifiers to avoid overriding them)
+        preset = str(mods.get("preset", "")).strip().lower()
+        if preset and preset not in ("default", "custom"):
+            cmd.extend(["-preset", preset])
+
+        # 3. Graduated modifiers
+        combat = str(mods.get("combat", "")).strip().lower()
+        if combat and combat != "default":
+            cmd.extend(["-modifier", "combat", combat])
+
+        death = str(mods.get("death_penalty", "")).strip().lower()
+        if death and death != "default":
+            cmd.extend(["-modifier", "deathpenalty", death])
+
+        res = str(mods.get("resources", "")).strip().lower()
+        if res and res != "default":
+            cmd.extend(["-modifier", "resources", res])
+
+        raids = str(mods.get("raids", "")).strip().lower()
+        if raids and raids != "default":
+            cmd.extend(["-modifier", "raids", raids])
+
+        portals = str(mods.get("portals", "")).strip().lower()
+        if portals and portals != "default":
+            cmd.extend(["-modifier", "portals", portals])
+
+        # 4. Binary key toggles (-setkey)
+        for key in ("nobuildcost", "playerevents", "passivemobs", "nomap"):
+            if mods.get(key):
+                cmd.extend(["-setkey", key])
+
+    return cmd
 
 
 class ValheimServerManager:
@@ -139,6 +186,7 @@ class ValheimServerManager:
                 "playit_address": playit_addr or "",
                 "playit_auto_detected": is_auto,
                 "masked_password": "•" * len(str(cfg.get("password", ""))),
+                "modifiers": cfg.get("modifiers", {}),
             },
         }
 
@@ -184,13 +232,16 @@ class ValheimServerManager:
                 env["LD_LIBRARY_PATH"] = f"{LINUX64_DIR}:" + env.get("LD_LIBRARY_PATH", "")
                 env["SteamAppId"] = "892970"
 
-                cmd = [
-                    str(SERVER_BIN),
-                    "-name", str(self.config.get("server_name", "ValheimTest")),
-                    "-port", str(self.config.get("port", "2456")),
-                    "-world", str(self.config.get("world_name", "ValheimTest")),
-                    "-password", str(self.config.get("password", "tester")),
-                ]
+                cmd = build_valheim_command(self.config)
+
+                # If one-time reset_modifiers flag was active, clear it for subsequent starts
+                mods = self.config.get("modifiers")
+                if isinstance(mods, dict) and mods.get("reset_modifiers"):
+                    cleaned_mods = mods.copy()
+                    cleaned_mods["reset_modifiers"] = False
+                    save_config({"modifiers": cleaned_mods})
+                    with self.lock:
+                        self.config = load_config()
 
                 print(f"[Manager] Launching Valheim dedicated server: {' '.join(cmd)}")
                 with open(GAME_LOG, "w", encoding="utf-8") as f:

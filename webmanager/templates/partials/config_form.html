@@ -79,6 +79,145 @@
             </label>
         </div>
 
+        {% set mods = config.modifiers or {} %}
+
+        <!-- World Modifiers & Rules Section -->
+        <div style="margin-top: 1.5rem; background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1rem; color: var(--nordic-cyan); display: flex; align-items: center; gap: 0.5rem;">
+                        <span>🌍</span> World Modifiers &amp; Difficulty
+                    </h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">
+                        Configure server difficulty presets, combat multipliers, death penalties, raid frequency, and global keys.
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label class="form-label" for="cfg_mod_preset" style="margin: 0; font-size: 0.8rem; white-space: nowrap; color: var(--nordic-gold);">Preset:</label>
+                    <select class="form-control" id="cfg_mod_preset" name="mod_preset" style="font-size: 0.825rem; padding: 0.25rem 0.5rem; width: auto;" onchange="applyModifierPreset(this.value)" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.preset %}selected{% endif %}>Custom / Manual</option>
+                        <option value="normal" {% if mods.preset == 'normal' %}selected{% endif %}>Normal (Standard)</option>
+                        <option value="casual" {% if mods.preset == 'casual' %}selected{% endif %}>Casual (Relaxed)</option>
+                        <option value="easy" {% if mods.preset == 'easy' %}selected{% endif %}>Easy</option>
+                        <option value="hard" {% if mods.preset == 'hard' %}selected{% endif %}>Hard</option>
+                        <option value="hardcore" {% if mods.preset == 'hardcore' %}selected{% endif %}>Hardcore (Brutal)</option>
+                        <option value="immersive" {% if mods.preset == 'immersive' %}selected{% endif %}>Immersive (No Map/Portals)</option>
+                        <option value="hammer" {% if mods.preset == 'hammer' %}selected{% endif %}>Hammer (Creative/Free Build)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Granular Modifiers Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.85rem; margin-bottom: 1.25rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="cfg_mod_combat" style="font-size: 0.775rem;">⚔️ Combat Difficulty</label>
+                    <select class="form-control" id="cfg_mod_combat" name="mod_combat" style="font-size: 0.8rem;" onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.combat %}selected{% endif %}>Default (Normal)</option>
+                        <option value="veryeasy" {% if mods.combat == 'veryeasy' %}selected{% endif %}>Very Easy (Enemies weaker)</option>
+                        <option value="easy" {% if mods.combat == 'easy' %}selected{% endif %}>Easy</option>
+                        <option value="hard" {% if mods.combat == 'hard' %}selected{% endif %}>Hard (Enemies deal more dmg)</option>
+                        <option value="veryhard" {% if mods.combat == 'veryhard' %}selected{% endif %}>Very Hard (Extreme dmg)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="cfg_mod_death" style="font-size: 0.775rem;">💀 Death Penalty</label>
+                    <select class="form-control" id="cfg_mod_death" name="mod_death_penalty" style="font-size: 0.8rem;" onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.death_penalty %}selected{% endif %}>Default (Normal: drop tombstone)</option>
+                        <option value="casual" {% if mods.death_penalty == 'casual' %}selected{% endif %}>Casual (Keep equipment &amp; items)</option>
+                        <option value="veryeasy" {% if mods.death_penalty == 'veryeasy' %}selected{% endif %}>Very Easy (Minimal 1% skill loss)</option>
+                        <option value="easy" {% if mods.death_penalty == 'easy' %}selected{% endif %}>Easy (Reduced skill loss)</option>
+                        <option value="hard" {% if mods.death_penalty == 'hard' %}selected{% endif %}>Hard (Increased skill loss)</option>
+                        <option value="hardcore" {% if mods.death_penalty == 'hardcore' %}selected{% endif %}>Hardcore (Items destroyed &amp; 100% loss)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="cfg_mod_resources" style="font-size: 0.775rem;">⛏️ Resource Rate</label>
+                    <select class="form-control" id="cfg_mod_resources" name="mod_resources" style="font-size: 0.8rem;" onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.resources %}selected{% endif %}>Default (Normal 1.0x)</option>
+                        <option value="muchless" {% if mods.resources == 'muchless' %}selected{% endif %}>Much Less (0.25x drops)</option>
+                        <option value="less" {% if mods.resources == 'less' %}selected{% endif %}>Less (0.5x drops)</option>
+                        <option value="more" {% if mods.resources == 'more' %}selected{% endif %}>More (1.5x drops)</option>
+                        <option value="muchmore" {% if mods.resources == 'muchmore' %}selected{% endif %}>Much More (2.0x drops)</option>
+                        <option value="most" {% if mods.resources == 'most' %}selected{% endif %}>Most (3.0x drops)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="cfg_mod_raids" style="font-size: 0.775rem;">🔥 Raid Frequency</label>
+                    <select class="form-control" id="cfg_mod_raids" name="mod_raids" style="font-size: 0.8rem;" onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.raids %}selected{% endif %}>Default (Normal raids)</option>
+                        <option value="none" {% if mods.raids == 'none' %}selected{% endif %}>None (Raids disabled)</option>
+                        <option value="muchless" {% if mods.raids == 'muchless' %}selected{% endif %}>Much Less</option>
+                        <option value="less" {% if mods.raids == 'less' %}selected{% endif %}>Less</option>
+                        <option value="more" {% if mods.raids == 'more' %}selected{% endif %}>More</option>
+                        <option value="muchmore" {% if mods.raids == 'muchmore' %}selected{% endif %}>Much More (Frequent raids)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="cfg_mod_portals" style="font-size: 0.775rem;">🌀 Portals</label>
+                    <select class="form-control" id="cfg_mod_portals" name="mod_portals" style="font-size: 0.8rem;" onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <option value="" {% if not mods.portals %}selected{% endif %}>Default (Normal: metal restrictions)</option>
+                        <option value="casual" {% if mods.portals == 'casual' %}selected{% endif %}>Casual (Teleport everything &amp; metals)</option>
+                        <option value="hard" {% if mods.portals == 'hard' %}selected{% endif %}>Hard (No boss items via portals)</option>
+                        <option value="veryhard" {% if mods.portals == 'veryhard' %}selected{% endif %}>Very Hard (Portals disabled)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Global Key Flags & Checkboxes -->
+            <div style="background: rgba(10, 15, 29, 0.6); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: var(--radius-sm); padding: 0.75rem 1rem;">
+                <div style="font-size: 0.75rem; font-weight: 600; color: var(--nordic-cyan); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem;">
+                    ⚙️ World Rules &amp; Global Keys
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem;">
+                    <label class="form-check" style="font-size: 0.8rem;">
+                        <input type="checkbox" id="cfg_mod_nobuildcost" name="mod_nobuildcost" value="true" {% if mods.nobuildcost %}checked{% endif %} onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <div>
+                            <strong>No Build Cost</strong>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">Free building &amp; crafting; no workbenches or resources needed.</div>
+                        </div>
+                    </label>
+
+                    <label class="form-check" style="font-size: 0.8rem;">
+                        <input type="checkbox" id="cfg_mod_playerevents" name="mod_playerevents" value="true" {% if mods.playerevents %}checked{% endif %} onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <div>
+                            <strong>Player-Based Raids</strong>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">Base raids depend on individual player boss progress.</div>
+                        </div>
+                    </label>
+
+                    <label class="form-check" style="font-size: 0.8rem;">
+                        <input type="checkbox" id="cfg_mod_passivemobs" name="mod_passivemobs" value="true" {% if mods.passivemobs %}checked{% endif %} onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <div>
+                            <strong>Passive Enemies</strong>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">Creatures and bosses will not attack unless struck first.</div>
+                        </div>
+                    </label>
+
+                    <label class="form-check" style="font-size: 0.8rem;">
+                        <input type="checkbox" id="cfg_mod_nomap" name="mod_nomap" value="true" {% if mods.nomap %}checked{% endif %} onchange="onManualModifierChange()" {% if not is_admin %}disabled{% endif %}>
+                        <div>
+                            <strong>No Map / Minimap</strong>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">World map and mini-map disabled. Navigate by landscape.</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); margin-top: 0.75rem; padding-top: 0.6rem;">
+                    <label class="form-check" style="font-size: 0.8rem;">
+                        <input type="checkbox" id="cfg_mod_reset" name="mod_reset_modifiers" value="true" {% if mods.reset_modifiers %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                        <div>
+                            <strong style="color: #fca5a5;">⚠️ Reset Modifiers on Next Server Start</strong>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">Passes <code>-resetmodifiers</code> on launch to wipe previously baked world modifiers back to vanilla defaults.</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;">
             {% if is_admin %}
                 <button type="submit" class="btn btn-primary">
@@ -195,6 +334,57 @@
                     }
                 })
                 .catch(e => console.error('Failed to get seed', e));
+        }
+
+        function applyModifierPreset(preset) {
+            if (!preset) return;
+            const presetsMap = {
+                'normal': { combat: '', death: '', resources: '', raids: '', portals: '', nobuildcost: false, playerevents: false, passivemobs: false, nomap: false },
+                'casual': { combat: 'veryeasy', death: 'casual', resources: '', raids: 'none', portals: '', nobuildcost: false, playerevents: false, passivemobs: true, nomap: false },
+                'easy': { combat: 'easy', death: '', resources: '', raids: 'muchless', portals: '', nobuildcost: false, playerevents: false, passivemobs: false, nomap: false },
+                'hard': { combat: 'hard', death: '', resources: '', raids: 'more', portals: '', nobuildcost: false, playerevents: false, passivemobs: false, nomap: false },
+                'hardcore': { combat: 'veryhard', death: 'hardcore', resources: '', raids: 'muchmore', portals: 'veryhard', nobuildcost: false, playerevents: false, passivemobs: false, nomap: true },
+                'immersive': { combat: '', death: '', resources: '', raids: '', portals: 'veryhard', nobuildcost: false, playerevents: false, passivemobs: false, nomap: true },
+                'hammer': { combat: '', death: '', resources: '', raids: 'none', portals: '', nobuildcost: true, playerevents: false, passivemobs: true, nomap: false },
+            };
+
+            const cfg = presetsMap[preset];
+            if (!cfg) return;
+
+            const combatEl = document.getElementById('cfg_mod_combat');
+            if (combatEl) combatEl.value = cfg.combat;
+
+            const deathEl = document.getElementById('cfg_mod_death');
+            if (deathEl) deathEl.value = cfg.death;
+
+            const resEl = document.getElementById('cfg_mod_resources');
+            if (resEl) resEl.value = cfg.resources;
+
+            const raidsEl = document.getElementById('cfg_mod_raids');
+            if (raidsEl) raidsEl.value = cfg.raids;
+
+            const portalsEl = document.getElementById('cfg_mod_portals');
+            if (portalsEl) portalsEl.value = cfg.portals;
+
+            const nobuildEl = document.getElementById('cfg_mod_nobuildcost');
+            if (nobuildEl) nobuildEl.checked = cfg.nobuildcost;
+
+            const playereventsEl = document.getElementById('cfg_mod_playerevents');
+            if (playereventsEl) playereventsEl.checked = cfg.playerevents;
+
+            const passiveEl = document.getElementById('cfg_mod_passivemobs');
+            if (passiveEl) passiveEl.checked = cfg.passivemobs;
+
+            const nomapEl = document.getElementById('cfg_mod_nomap');
+            if (nomapEl) nomapEl.checked = cfg.nomap;
+
+            if (typeof showToast === 'function') {
+                showToast(`Applied '${preset.charAt(0).toUpperCase() + preset.slice(1)}' preset modifiers`, 'info');
+            }
+        }
+
+        function onManualModifierChange() {
+            // Optional fine-tuning callback
         }
     </script>
 </div>

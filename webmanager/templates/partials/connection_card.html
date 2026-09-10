@@ -53,6 +53,34 @@
             <strong id="info-world-name">{{ config.world_name }}</strong>
         </div>
 
+        {% if config.modifiers and (config.modifiers.preset or config.modifiers.combat or config.modifiers.death_penalty or config.modifiers.resources or config.modifiers.raids or config.modifiers.portals or config.modifiers.nobuildcost or config.modifiers.playerevents or config.modifiers.passivemobs or config.modifiers.nomap) %}
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+            <span style="color: var(--text-secondary);">World Modifiers</span>
+            <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                {% if config.modifiers.preset %}
+                    <span style="font-size: 0.72rem; color: var(--nordic-cyan); background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.45rem; border-radius: var(--radius-sm); text-transform: capitalize; font-weight: 600;">{{ config.modifiers.preset }}</span>
+                {% else %}
+                    <span style="font-size: 0.72rem; color: var(--nordic-gold); background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.3); padding: 0.1rem 0.45rem; border-radius: var(--radius-sm); font-weight: 600;">Custom</span>
+                {% endif %}
+                {% if config.modifiers.combat %}
+                    <span style="font-size: 0.7rem; color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); padding: 0.1rem 0.35rem; border-radius: var(--radius-sm);">⚔️ {{ config.modifiers.combat }}</span>
+                {% endif %}
+                {% if config.modifiers.resources %}
+                    <span style="font-size: 0.7rem; color: #6ee7b7; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); padding: 0.1rem 0.35rem; border-radius: var(--radius-sm);">⛏️ {{ config.modifiers.resources }}</span>
+                {% endif %}
+                {% if config.modifiers.nomap %}
+                    <span style="font-size: 0.7rem; color: #fca5a5; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.1rem 0.35rem; border-radius: var(--radius-sm);">No Map</span>
+                {% endif %}
+                {% if config.modifiers.nobuildcost %}
+                    <span style="font-size: 0.7rem; color: #6ee7b7; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.1rem 0.35rem; border-radius: var(--radius-sm);">Free Build</span>
+                {% endif %}
+                {% if config.modifiers.passivemobs %}
+                    <span style="font-size: 0.7rem; color: #cbd5e1; background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); padding: 0.1rem 0.35rem; border-radius: var(--radius-sm);">Passive</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         {% if config.world_seed %}
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--text-secondary);">World Seed</span>

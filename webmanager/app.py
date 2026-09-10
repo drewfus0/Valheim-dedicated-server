@@ -609,6 +609,17 @@ async def update_configuration(
     port: str = Form(...),
     playit_address: Optional[str] = Form(""),
     auto_restart: Optional[str] = Form(None),
+    mod_preset: Optional[str] = Form(""),
+    mod_combat: Optional[str] = Form(""),
+    mod_death_penalty: Optional[str] = Form(""),
+    mod_resources: Optional[str] = Form(""),
+    mod_raids: Optional[str] = Form(""),
+    mod_portals: Optional[str] = Form(""),
+    mod_nobuildcost: Optional[str] = Form(None),
+    mod_playerevents: Optional[str] = Form(None),
+    mod_passivemobs: Optional[str] = Form(None),
+    mod_nomap: Optional[str] = Form(None),
+    mod_reset_modifiers: Optional[str] = Form(None),
 ):
     user = get_current_user_from_request(request)
     if not user or user.get("role") != "admin":
@@ -635,6 +646,19 @@ async def update_configuration(
         "port": port.strip(),
         "playit_address": playit_address.strip() if playit_address else "",
         "auto_restart": auto_restart is not None,
+        "modifiers": {
+            "preset": (mod_preset or "").strip().lower(),
+            "combat": (mod_combat or "").strip().lower(),
+            "death_penalty": (mod_death_penalty or "").strip().lower(),
+            "resources": (mod_resources or "").strip().lower(),
+            "raids": (mod_raids or "").strip().lower(),
+            "portals": (mod_portals or "").strip().lower(),
+            "nobuildcost": mod_nobuildcost is not None,
+            "playerevents": mod_playerevents is not None,
+            "passivemobs": mod_passivemobs is not None,
+            "nomap": mod_nomap is not None,
+            "reset_modifiers": mod_reset_modifiers is not None,
+        },
     }
 
     ok, msg = SERVER_MANAGER.update_config(new_cfg)

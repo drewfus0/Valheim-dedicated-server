@@ -10,7 +10,8 @@ A lightweight, standalone Python web management daemon and modern single-page co
   - **Live Telemetry Cards**: Real-time CPU load (%), exact RAM usage (`MB`/`GB`), server uptime, and active player count.
   - **Online Character Detection**: Automatically parses `valheim_server.log` to track connected character names while filtering out `0:0` death/respawn events.
   - **Live Log Terminal**: Streaming console viewer with auto-scroll, refresh, and line-count selectors.
-  - **Server Configuration UI**: Easily update Server Name, World Name, Port, and Password with instant validation (minimum 5 characters required by Valheim).
+  - **Server Configuration UI**: Easily update Server Name, World Name, Port, Password (min 5 chars), and Playit.gg tunnel address.
+  - **World Modifiers & Rules**: Configure difficulty presets (Normal, Casual, Easy, Hard, Hardcore, Immersive, Hammer), combat difficulty, death penalties, resource rates (up to 3x), raid frequency, portal item rules, global keys (free build, player-based raids, passive mobs, no map), and modifier reset on launch.
   - **World Backup Manager**: One-click world save backups creating timestamped `.zip` archives of `~/.config/unity3d/IronGate/Valheim/worlds_local`.
 
 - **Resilient Process Supervision**:
