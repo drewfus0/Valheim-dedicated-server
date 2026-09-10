@@ -1,0 +1,56 @@
+import json
+import os
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+# Add webmanager to sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "webmanager"))
+
+from fastapi.testclient import TestClient
+from app import app
+
+
+class TestPlayersTab(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+
+    def test_partials_players_default_and_custom_id(self):
+        with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
+            # Default panel_id
+            resp = self.client.get("/partials/players")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('id="players-panel"', resp.text)
+            self.assertIn("Viking Roster & Activity", resp.text)
+
+            # Custom panel_id
+            resp_custom = self.client.get("/partials/players?panel_id=custom-players-panel")
+            self.assertEqual(resp_custom.status_code, 200)
+            self.assertIn('id="custom-players-panel"', resp_custom.text)
+            self.assertIn("panel_id=custom-players-panel", resp_custom.text)
+
+    def test_partials_players_tab(self):
+        with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
+            resp = self.client.get("/partials/players-tab")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("Realm Adventurers Directory", resp.text)
+            self.assertIn("Online Vikings", resp.text)
+            self.assertIn("Viking Session History", resp.text)
+
+    def test_index_renders_both_tabs(self):
+        with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
+            resp = self.client.get("/")
+            self.assertEqual(resp.status_code, 200)
+            # Check nav tabs has Players
+            self.assertIn("switchTab('tab-players', this)", resp.text)
+            self.assertIn("🛡️ Players", resp.text)
+            # Check tab-players panel exists
+            self.assertIn('id="tab-players"', resp.text)
+            # Check dashboard still has Viking Roster & Activity
+            self.assertIn('id="tab-dashboard"', resp.text)
+            self.assertIn("Viking Roster & Activity", resp.text)
+
+
+if __name__ == "__main__":
+    unittest.main()

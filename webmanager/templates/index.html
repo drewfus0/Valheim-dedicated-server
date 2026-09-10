@@ -13,14 +13,16 @@
         {% include "partials/terminal.html" %}
     </div>
 
-    <!-- Viking Session History Section (Adjustable Height, Position Preserved) -->
-    {% include "partials/session_history.html" %}
-
     <!-- Server Run History Section (Adjustable Height, Position Preserved) -->
     {% include "partials/server_history.html" %}
 </div>
 
-<!-- Tab 2: Backups -->
+<!-- Tab 2: Players -->
+<div id="tab-players" class="tab-panel">
+    {% include "partials/players_tab.html" %}
+</div>
+
+<!-- Tab 3: Backups -->
 <div id="tab-backups" class="tab-panel">
     {% include "partials/backup_table.html" %}
 </div>

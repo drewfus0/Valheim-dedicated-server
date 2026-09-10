@@ -267,7 +267,7 @@ async def partial_header_status(request: Request):
 
 
 @app.get("/partials/players", response_class=HTMLResponse)
-async def partial_players(request: Request):
+async def partial_players(request: Request, panel_id: Optional[str] = "players-panel"):
     redirect = require_auth(request)
     if redirect:
         return redirect
@@ -277,6 +277,21 @@ async def partial_players(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="partials/player_list.html",
+        context={"status": status, "user": user, "panel_id": panel_id},
+    )
+
+
+@app.get("/partials/players-tab", response_class=HTMLResponse)
+async def partial_players_tab(request: Request):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/players_tab.html",
         context={"status": status, "user": user},
     )
 

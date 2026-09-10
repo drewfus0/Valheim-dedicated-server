@@ -156,6 +156,7 @@ def start_playit_monitor(interval_seconds: int = 60):
 
 def get_detected_playit_tunnel(target_port: str = "2456") -> Optional[str]:
     """Thread-safe instant read of cached Playit tunnel, with on-demand fallback."""
+    global _CACHED_TUNNEL
     start_playit_monitor()
     with _LOCK:
         cached = _CACHED_TUNNEL

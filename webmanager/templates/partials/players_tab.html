@@ -1,0 +1,98 @@
+<div id="players-tab-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <!-- Top Summary Telemetry Bar -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
+        <div class="metric-box">
+            <span class="metric-label">Online Vikings</span>
+            <span class="metric-value" style="color: {% if status.players_count and status.players_count > 0 %}#10b981{% else %}var(--text-secondary){% endif %};">
+                {{ status.players_count }} <span style="font-size: 0.8rem; color: var(--text-muted);">/ {{ status.known_players_count }} Known</span>
+            </span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Realm Adventurers</span>
+            <span class="metric-value" style="color: var(--nordic-cyan);">{{ status.known_players_count }}</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Logged Sessions</span>
+            <span class="metric-value" style="color: var(--nordic-gold);">{{ status.player_sessions|length if status.player_sessions else 0 }}</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Server State</span>
+            <span class="metric-value" style="font-size: 1.05rem; text-transform: capitalize; color: {% if status.status == 'Running' %}#10b981{% else %}#ef4444{% endif %};">
+                <span class="dot {{ status.status }}"></span> {{ status.status }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Active Viking Roster & Activity Card -->
+    {% set panel_id = 'players-tab-roster' %}
+    {% include "partials/player_list.html" %}
+
+    <!-- Realm Adventurers Detailed Directory Table -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-title">
+                <span>⚔️</span> Realm Adventurers Directory
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">
+                {{ status.all_players|length if status.all_players else 0 }} Vikings Discovered
+            </span>
+        </div>
+
+        {% if status.all_players and status.all_players|length > 0 %}
+            <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+                <table class="table data-table" style="font-size: 0.825rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
+                    <thead style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
+                        <tr>
+                            <th style="padding: 0.75rem 1rem; text-align: left;">🛡️ Viking Adventurer</th>
+                            <th style="padding: 0.75rem 1rem; text-align: left;">Status</th>
+                            <th style="padding: 0.75rem 1rem; text-align: left;">Total Playtime</th>
+                            <th style="padding: 0.75rem 1rem; text-align: center;">Sessions</th>
+                            <th style="padding: 0.75rem 1rem; text-align: left;">First Discovered</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for player in status.all_players %}
+                        <tr style="transition: background 0.15s ease;">
+                            <td style="padding: 0.65rem 1rem; font-weight: 600; color: var(--text-primary);">
+                                <span style="margin-right: 0.4rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
+                                {{ player.name }}
+                            </td>
+                            <td style="padding: 0.65rem 1rem;">
+                                {% if player.is_online %}
+                                    <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.75rem; padding: 0.15rem 0.55rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                        <span class="viking-pulse online"></span> Online{% if player.session_time %} ({{ player.session_time }}){% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.75rem; padding: 0.15rem 0.55rem;">
+                                        Offline
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600;">
+                                {{ player.total_playtime }}
+                            </td>
+                            <td style="padding: 0.65rem 1rem; text-align: center; font-family: var(--font-mono); color: var(--nordic-gold);">
+                                {{ player.total_sessions }}
+                            </td>
+                            <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.775rem;">
+                                {{ player.first_seen }}
+                            </td>
+                            <td style="padding: 0.65rem 1rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.775rem;">
+                                {{ player.last_seen }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.875rem; font-style: italic;">
+                No adventurers have set foot in Midgard yet. Connect to the server to begin your saga!
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Viking Session History Section -->
+    {% include "partials/session_history.html" %}
+</div>

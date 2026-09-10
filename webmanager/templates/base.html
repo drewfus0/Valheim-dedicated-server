@@ -64,6 +64,9 @@
             <button class="tab-btn active" onclick="switchTab('tab-dashboard', this)">
                 📊 Dashboard
             </button>
+            <button class="tab-btn" onclick="switchTab('tab-players', this)">
+                🛡️ Players
+            </button>
             <button class="tab-btn" onclick="switchTab('tab-backups', this)">
                 💾 World Backups
             </button>
@@ -118,6 +121,10 @@
             const target = document.getElementById(tabId);
             if (target) target.classList.add('active');
             if (btn) btn.classList.add('active');
+            if (tabId === 'tab-players') {
+                applyVikingHistoryHeight();
+                initVikingResizeObserver();
+            }
         }
 
         function openPasswordModal() {
