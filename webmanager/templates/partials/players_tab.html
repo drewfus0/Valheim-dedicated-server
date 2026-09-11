@@ -12,8 +12,11 @@
             <span class="metric-value" style="color: var(--nordic-cyan);">{{ status.known_players_count }}</span>
         </div>
         {% if user and user.role == 'admin' %}
-        <div class="metric-box">
-            <span class="metric-label">Logged Sessions</span>
+        <div class="metric-box admin-only" title="Admin Only Telemetry">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="metric-label">Logged Sessions</span>
+                <span class="badge-admin-only" style="font-size: 0.65rem; padding: 0.05rem 0.35rem;">Admin</span>
+            </div>
             <span class="metric-value" style="color: var(--nordic-gold);">{{ status.player_sessions|length if status.player_sessions else 0 }}</span>
         </div>
         {% endif %}

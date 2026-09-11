@@ -61,23 +61,23 @@
         </header>
 
         <nav class="nav-tabs">
-            <button class="tab-btn active" onclick="switchTab('tab-dashboard', this)">
+            <button class="tab-btn active" data-tab="tab-dashboard" onclick="switchTab('tab-dashboard', this)">
                 📊 Dashboard
             </button>
-            <button class="tab-btn" onclick="switchTab('tab-players', this)">
+            <button class="tab-btn" data-tab="tab-players" onclick="switchTab('tab-players', this)">
                 🛡️ Players
             </button>
-            <button class="tab-btn" onclick="switchTab('tab-backups', this)">
+            <button class="tab-btn" data-tab="tab-backups" onclick="switchTab('tab-backups', this)">
                 💾 World Backups
             </button>
-            <button class="tab-btn" onclick="switchTab('tab-config', this)">
+            <button class="tab-btn" data-tab="tab-config" onclick="switchTab('tab-config', this)">
                 ⚙️ Configuration
             </button>
-            <button class="tab-btn" onclick="switchTab('tab-logs', this)">
+            <button class="tab-btn" data-tab="tab-logs" onclick="switchTab('tab-logs', this)">
                 📜 Live Console
             </button>
             {% if user and user.role == 'admin' %}
-            <button class="tab-btn" onclick="switchTab('tab-accounts', this)">
+            <button class="tab-btn" data-tab="tab-accounts" onclick="switchTab('tab-accounts', this)">
                 👥 Accounts
             </button>
             {% endif %}
@@ -115,17 +115,92 @@
     <div id="toast-container"></div>
 
     <script>
-        function switchTab(tabId, btn) {
+        const TAB_SLUGS = {
+            'tab-dashboard': 'dashboard',
+            'tab-players': 'players',
+            'tab-backups': 'backups',
+            'tab-config': 'config',
+            'tab-logs': 'logs',
+            'tab-accounts': 'accounts'
+        };
+
+        const SLUG_TO_TAB = {
+            'dashboard': 'tab-dashboard',
+            'players': 'tab-players',
+            'backups': 'tab-backups',
+            'config': 'tab-config',
+            'configuration': 'tab-config',
+            'logs': 'tab-logs',
+            'console': 'tab-logs',
+            'accounts': 'tab-accounts',
+            'users': 'tab-accounts'
+        };
+
+        function getTabFromUrl() {
+            // 1. Check URL hash (e.g. #players or #tab-players)
+            const rawHash = (window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
+            if (rawHash) {
+                if (SLUG_TO_TAB[rawHash]) return SLUG_TO_TAB[rawHash];
+                if (document.getElementById(rawHash)) return rawHash;
+                if (document.getElementById('tab-' + rawHash)) return 'tab-' + rawHash;
+            }
+            // 2. Check query string (e.g. ?tab=players)
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const tabParam = (params.get('tab') || '').trim().toLowerCase();
+                if (tabParam) {
+                    if (SLUG_TO_TAB[tabParam]) return SLUG_TO_TAB[tabParam];
+                    if (document.getElementById(tabParam)) return tabParam;
+                    if (document.getElementById('tab-' + tabParam)) return 'tab-' + tabParam;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        function switchTab(tabId, btn, updateUrl = true) {
+            const target = document.getElementById(tabId);
+            if (!target) return;
+
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            const target = document.getElementById(tabId);
-            if (target) target.classList.add('active');
-            if (btn) btn.classList.add('active');
+
+            target.classList.add('active');
+
+            const activeBtn = btn || document.querySelector(`[data-tab="${tabId}"]`) || document.querySelector(`button[onclick*="'${tabId}'"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (updateUrl) {
+                const slug = TAB_SLUGS[tabId] || tabId.replace(/^tab-/, '');
+                if (window.location.hash.replace(/^#/, '').toLowerCase() !== slug) {
+                    history.pushState({ tab: tabId }, '', '#' + slug);
+                }
+            }
+
             if (tabId === 'tab-players') {
                 applyVikingHistoryHeight();
                 initVikingResizeObserver();
+            } else if (tabId === 'tab-dashboard') {
+                applyServerHistoryHeight();
+                initServerResizeObserver();
             }
         }
+
+        function syncTabFromUrl(isInitial = false) {
+            const tabId = getTabFromUrl();
+            if (tabId && document.getElementById(tabId)) {
+                switchTab(tabId, null, false);
+            } else if (!isInitial && window.location.hash === '') {
+                switchTab('tab-dashboard', null, false);
+            }
+        }
+
+        window.addEventListener('popstate', function() {
+            syncTabFromUrl(false);
+        });
+
+        window.addEventListener('hashchange', function() {
+            syncTabFromUrl(false);
+        });
 
         function openPasswordModal() {
             const modal = document.getElementById('password-modal');
@@ -300,6 +375,7 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
+            syncTabFromUrl(true);
             applyVikingHistoryHeight();
             initVikingResizeObserver();
             applyServerHistoryHeight();

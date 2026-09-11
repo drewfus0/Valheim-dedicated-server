@@ -246,11 +246,12 @@
     {% if is_admin %}
     <!-- New World Creation Modal -->
     <div id="new-world-modal" style="display: none; position: fixed; inset: 0; background: rgba(5, 7, 10, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
-        <div class="card" style="max-width: 520px; width: 100%; border: 1px solid var(--border-light); box-shadow: 0 20px 40px rgba(0,0,0,0.6); animation: fadeIn 0.2s ease;">
+        <div class="card admin-only" style="max-width: 520px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6); animation: fadeIn 0.2s ease;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="card-title" style="font-size: 1.1rem; color: var(--nordic-cyan); display: flex; align-items: center; gap: 0.5rem;">
                     <svg class="svg-swords" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="11" y1="14" y2="20"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
                     Create New Valheim World
+                    <span class="badge-admin-only">🛡️ Admin Only</span>
                 </div>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="toggleNewWorldModal(false)" style="padding: 0.2rem 0.5rem; font-size: 0.9rem;">✕</button>
             </div>

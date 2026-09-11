@@ -199,6 +199,34 @@ header.app-header {
     position: relative;
 }
 
+/* Admin-Only Cards & Highlighted Elements */
+.card.admin-only,
+.card-admin-only,
+.metric-box.admin-only {
+    border: 1.5px solid #ef4444 !important;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.15), var(--shadow-md);
+}
+
+.card.admin-only:hover,
+.card-admin-only:hover,
+.metric-box.admin-only:hover {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 18px rgba(239, 68, 68, 0.22), var(--shadow-md);
+}
+
+.badge-admin-only {
+    font-size: 0.72rem;
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .card-header {
     display: flex;
     justify-content: space-between;

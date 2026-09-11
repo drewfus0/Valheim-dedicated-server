@@ -51,16 +51,36 @@ class TestPlayersTab(unittest.TestCase):
             self.assertIn('id="tab-dashboard"', resp.text)
             self.assertIn("Viking Roster & Activity", resp.text)
 
+    def test_tabs_url_bookmarking_support(self):
+        with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
+            resp = self.client.get("/")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('data-tab="tab-dashboard"', resp.text)
+            self.assertIn('data-tab="tab-players"', resp.text)
+            self.assertIn('data-tab="tab-backups"', resp.text)
+            self.assertIn('data-tab="tab-config"', resp.text)
+            self.assertIn('data-tab="tab-logs"', resp.text)
+            self.assertIn('data-tab="tab-accounts"', resp.text)
+            self.assertIn('TAB_SLUGS', resp.text)
+            self.assertIn('getTabFromUrl', resp.text)
+            self.assertIn('syncTabFromUrl', resp.text)
+
     def test_viking_session_history_admin_access(self):
         with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
             resp = self.client.get("/partials/players-tab")
             self.assertEqual(resp.status_code, 200)
             self.assertIn("Viking Session History", resp.text)
             self.assertIn("Logged Sessions", resp.text)
+            self.assertIn("admin-only", resp.text)
 
             resp_hist = self.client.get("/partials/session-history")
             self.assertEqual(resp_hist.status_code, 200)
             self.assertIn("Viking Session History", resp_hist.text)
+            self.assertIn('class="card admin-only"', resp_hist.text)
+
+            resp_acc = self.client.get("/partials/accounts")
+            self.assertEqual(resp_acc.status_code, 200)
+            self.assertIn('class="card admin-only"', resp_acc.text)
 
     def test_viking_session_history_non_admin_hidden(self):
         for non_admin_role in ["operator", "viewer"]:

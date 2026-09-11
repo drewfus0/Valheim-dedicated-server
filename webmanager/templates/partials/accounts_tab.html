@@ -2,10 +2,11 @@
     <div style="display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start;">
         
         <!-- User Accounts Table Card -->
-        <div class="card">
+        <div class="card admin-only">
             <div class="card-header">
                 <div class="card-title">
                     <span>👥</span> User Accounts & Access Roles
+                    <span class="badge-admin-only">🛡️ Admin Only</span>
                 </div>
                 <span style="font-size: 0.8125rem; color: var(--text-muted);">
                     {{ users|length }} registered accounts
@@ -83,10 +84,11 @@
         </div>
 
         <!-- Create Account Form Card -->
-        <div class="card">
+        <div class="card admin-only">
             <div class="card-header">
                 <div class="card-title">
                     <span>➕</span> Add New Account
+                    <span class="badge-admin-only">🛡️ Admin Only</span>
                 </div>
             </div>
 
