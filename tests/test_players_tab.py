@@ -51,6 +51,34 @@ class TestPlayersTab(unittest.TestCase):
             self.assertIn('id="tab-dashboard"', resp.text)
             self.assertIn("Viking Roster & Activity", resp.text)
 
+    def test_viking_session_history_admin_access(self):
+        with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
+            resp = self.client.get("/partials/players-tab")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("Viking Session History", resp.text)
+            self.assertIn("Logged Sessions", resp.text)
+
+            resp_hist = self.client.get("/partials/session-history")
+            self.assertEqual(resp_hist.status_code, 200)
+            self.assertIn("Viking Session History", resp_hist.text)
+
+    def test_viking_session_history_non_admin_hidden(self):
+        for non_admin_role in ["operator", "viewer"]:
+            with patch("app.get_current_user_from_request", return_value={"username": "player1", "role": non_admin_role}):
+                resp = self.client.get("/partials/players-tab")
+                self.assertEqual(resp.status_code, 200)
+                self.assertNotIn("Viking Session History", resp.text)
+                self.assertNotIn("Logged Sessions", resp.text)
+
+                resp_hist = self.client.get("/partials/session-history")
+                self.assertEqual(resp_hist.status_code, 403)
+                self.assertIn("Access Restricted to Administrators", resp_hist.text)
+
+                resp_status = self.client.get("/api/status")
+                self.assertEqual(resp_status.status_code, 200)
+                data = resp_status.json()
+                self.assertEqual(data.get("player_sessions"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

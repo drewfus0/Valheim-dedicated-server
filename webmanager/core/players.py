@@ -55,6 +55,7 @@ class PlayerTracker:
         self.events: List[Dict[str, Any]] = []
         self._last_log_offset: int = 0
         self._last_log_inode: Optional[int] = None
+        self._last_disk_mtime: Optional[float] = None
 
         if self.auto_load:
             self._load_from_disk()
@@ -66,6 +67,7 @@ class PlayerTracker:
             if not PLAYER_HISTORY_FILE.exists():
                 return
             try:
+                self._last_disk_mtime = PLAYER_HISTORY_FILE.stat().st_mtime
                 with open(PLAYER_HISTORY_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.known_players = data.get("known_players", {})
@@ -93,8 +95,20 @@ class PlayerTracker:
                 with open(tmp_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
                 os.replace(tmp_path, PLAYER_HISTORY_FILE)
+                self._last_disk_mtime = PLAYER_HISTORY_FILE.stat().st_mtime
             except Exception as e:
                 print(f"[PlayerTracker] Error saving {PLAYER_HISTORY_FILE}: {e}")
+
+    def _check_and_reload_if_external_change(self) -> None:
+        """Detect if player_history.json was modified externally and reload."""
+        try:
+            if PLAYER_HISTORY_FILE.exists():
+                mtime = PLAYER_HISTORY_FILE.stat().st_mtime
+                if self._last_disk_mtime is not None and mtime > self._last_disk_mtime:
+                    print(f"[PlayerTracker] Detected external change to {PLAYER_HISTORY_FILE.name}. Reloading from disk...")
+                    self._load_from_disk()
+        except Exception:
+            pass
 
     def _backfill_history_if_needed(self) -> None:
         """Perform initial backfill from historical and current logs."""
@@ -131,6 +145,7 @@ class PlayerTracker:
         if not self.auto_load:
             return
         with self.lock:
+            self._check_and_reload_if_external_change()
             if not GAME_LOG.exists():
                 self._last_log_offset = 0
                 return

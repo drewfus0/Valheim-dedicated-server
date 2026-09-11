@@ -11,10 +11,12 @@
             <span class="metric-label">Realm Adventurers</span>
             <span class="metric-value" style="color: var(--nordic-cyan);">{{ status.known_players_count }}</span>
         </div>
+        {% if user and user.role == 'admin' %}
         <div class="metric-box">
             <span class="metric-label">Logged Sessions</span>
             <span class="metric-value" style="color: var(--nordic-gold);">{{ status.player_sessions|length if status.player_sessions else 0 }}</span>
         </div>
+        {% endif %}
         <div class="metric-box">
             <span class="metric-label">Server State</span>
             <span class="metric-value" style="font-size: 1.05rem; text-transform: capitalize; color: {% if status.status == 'Running' %}#10b981{% else %}#ef4444{% endif %};">
@@ -93,6 +95,8 @@
         {% endif %}
     </div>
 
-    <!-- Viking Session History Section -->
+    <!-- Admin Session History Section -->
+    {% if user and user.role == 'admin' %}
     {% include "partials/session_history.html" %}
+    {% endif %}
 </div>

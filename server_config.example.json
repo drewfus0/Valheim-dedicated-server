@@ -4,6 +4,7 @@
     "password": "changeme123",
     "port": "2456",
     "playit_address": "",
+    "auto_start_on_boot": true,
     "auto_restart": true,
     "modifiers": {
         "preset": "normal",

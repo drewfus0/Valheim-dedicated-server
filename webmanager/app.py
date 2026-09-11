@@ -56,7 +56,8 @@ async def lifespan(app: FastAPI):
     print("[FastAPI] Valheim Server Manager starting up...")
     load_users()  # Ensure default admin account is provisioned
     start_playit_monitor()
-    configure_system_power_and_performance()  # Confirm & configure performance profile and no-sleep settings
+    configure_system_power_and_performance()  # Confirm & configure performance profile, no-sleep, and boot service
+    SERVER_MANAGER.check_auto_start_on_boot()  # Auto-start Valheim server on boot if configured
     yield
     print("[FastAPI] Valheim Server Manager shutting down...")
 
@@ -303,6 +304,12 @@ async def partial_session_history(request: Request):
         return redirect
 
     user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(
+            content="<div class='card' style='color: #fca5a5;'>Access Restricted to Administrators</div>",
+            status_code=403,
+        )
+
     status = SERVER_MANAGER.get_status_data()
     return templates.TemplateResponse(
         request=request,
@@ -623,6 +630,7 @@ async def update_configuration(
     password: str = Form(...),
     port: str = Form(...),
     playit_address: Optional[str] = Form(""),
+    auto_start_on_boot: Optional[str] = Form(None),
     auto_restart: Optional[str] = Form(None),
     mod_preset: Optional[str] = Form(""),
     mod_combat: Optional[str] = Form(""),
@@ -660,6 +668,7 @@ async def update_configuration(
         "password": password.strip(),
         "port": port.strip(),
         "playit_address": playit_address.strip() if playit_address else "",
+        "auto_start_on_boot": auto_start_on_boot is not None,
         "auto_restart": auto_restart is not None,
         "modifiers": {
             "preset": (mod_preset or "").strip().lower(),
@@ -949,7 +958,11 @@ async def api_status(request: Request):
     user = get_current_user_from_request(request)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return SERVER_MANAGER.get_status_data()
+    status_data = SERVER_MANAGER.get_status_data()
+    if user.get("role") != "admin":
+        status_data = dict(status_data)
+        status_data["player_sessions"] = []
+    return status_data
 
 
 @app.get("/api/config")

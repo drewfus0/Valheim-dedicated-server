@@ -25,6 +25,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "password": "tester",
     "port": "2456",
     "playit_address": "",
+    "auto_start_on_boot": True,
     "auto_restart": True,
     "modifiers": DEFAULT_MODIFIERS.copy(),
 }

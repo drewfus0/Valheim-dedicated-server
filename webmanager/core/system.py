@@ -246,12 +246,76 @@ def configure_gnome_power() -> Dict[str, Any]:
     return {"configured": False, "reason": "GNOME power schema not present"}
 
 
+def ensure_systemd_boot_service() -> Dict[str, Any]:
+    """
+    Ensure the systemd user service valheim.service is enabled to auto-start on host boot,
+    and verify user lingering is active so the user systemd instance boots without GUI login.
+    """
+    service_enabled = False
+    linger_enabled = False
+    actions: List[str] = []
+
+    # 1. Check & enable systemd user service
+    try:
+        chk = subprocess.run(
+            ["systemctl", "--user", "is-enabled", "valheim.service"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if chk.returncode == 0 and "enabled" in chk.stdout:
+            service_enabled = True
+        else:
+            en = subprocess.run(
+                ["systemctl", "--user", "enable", "valheim.service"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if en.returncode == 0:
+                service_enabled = True
+                actions.append("Enabled systemd user service valheim.service")
+    except Exception as e:
+        print(f"[System] Warning checking/enabling systemd user service: {e}")
+
+    # 2. Check & enable lingering
+    try:
+        user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+        if user:
+            chk_l = subprocess.run(
+                ["loginctl", "show-user", user, "-p", "Linger"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if "Linger=yes" in chk_l.stdout:
+                linger_enabled = True
+            else:
+                subprocess.run(
+                    ["loginctl", "enable-linger", user],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                linger_enabled = True
+                actions.append(f"Enabled systemd linger for {user}")
+    except Exception as e:
+        print(f"[System] Warning checking/enabling user lingering: {e}")
+
+    return {
+        "service_enabled": service_enabled,
+        "linger_enabled": linger_enabled,
+        "actions": actions,
+    }
+
+
 def configure_system_power_and_performance() -> Dict[str, Any]:
     """
     Configure and confirm:
     1. System power profile is set to Performance.
     2. System power settings are configured to not sleep (auto-suspend disabled, lid close turns off display).
     3. Display turn-off / screen blanking and session lock/logout remain naturally active on idle.
+    4. Systemd user service is enabled for automated startup on host boot.
     """
     print("[System] Checking and configuring system power and performance settings...")
 
@@ -264,6 +328,9 @@ def configure_system_power_and_performance() -> Dict[str, Any]:
     # 3. GNOME Power configuration fallback
     gnome_res = configure_gnome_power()
 
+    # 4. Systemd boot service & linger
+    boot_res = ensure_systemd_boot_service()
+
     summary = {
         "profile": active_profile,
         "is_performance": "perf" in active_profile.lower(),
@@ -271,11 +338,14 @@ def configure_system_power_and_performance() -> Dict[str, Any]:
         "lid_action": "turn_off_screen",
         "display_turnoff_allowed": True,
         "screen_lock_allowed": True,
-        "details": prof_actions + kde_res.get("changes", []),
+        "systemd_service_enabled": boot_res.get("service_enabled", False),
+        "systemd_linger_enabled": boot_res.get("linger_enabled", False),
+        "details": prof_actions + kde_res.get("changes", []) + boot_res.get("actions", []),
     }
     print(
         f"[System] Power configuration complete: Profile='{active_profile}', "
-        f"Sleep='Disabled', ScreenLock='Allowed on Idle', LidAction='Turn Off Screen'."
+        f"Sleep='Disabled', ScreenLock='Allowed on Idle', LidAction='Turn Off Screen', "
+        f"BootService='{'Enabled' if boot_res.get('service_enabled') else 'Not Enabled'}'."
     )
     return summary
 

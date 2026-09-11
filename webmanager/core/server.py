@@ -110,6 +110,16 @@ class ValheimServerManager:
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self.monitor_thread.start()
 
+    def check_auto_start_on_boot(self):
+        """If auto_start_on_boot is enabled and no server process is running, start it."""
+        with self.lock:
+            pid = self.get_active_pid()
+            if not pid and self.state == "Stopped":
+                cfg = load_config()
+                if cfg.get("auto_start_on_boot", True):
+                    print("[Manager] Auto-Start on Boot is enabled. Launching Valheim dedicated server...")
+                    self.start_server(trigger="Auto-Start on Boot")
+
     def get_active_pid(self) -> Optional[int]:
         with self.lock:
             if self.process and self.process.poll() is None:
@@ -176,6 +186,7 @@ class ValheimServerManager:
             "server_runs": s_summary["recent_runs"],
             "cpu_freq": cpu_freq,
             "power_status": power_status,
+            "auto_start_on_boot": cfg.get("auto_start_on_boot", True),
             "auto_restart": cfg.get("auto_restart", True),
             "config": {
                 "server_name": cfg.get("server_name", "ValheimTest"),
@@ -202,7 +213,7 @@ class ValheimServerManager:
             except Exception as e:
                 print(f"[Manager] Failed to rotate log file: {e}")
 
-    def start_server(self) -> Tuple[bool, str]:
+    def start_server(self, trigger: str = "Web Dashboard") -> Tuple[bool, str]:
         with self.lock:
             self.config = load_config()
             pwd = str(self.config.get("password", "tester"))
@@ -262,7 +273,7 @@ class ValheimServerManager:
                     server_name=str(self.config.get("server_name", "ValheimTest")),
                     world_name=str(self.config.get("world_name", "ValheimTest")),
                     port=self.config.get("port", 2456),
-                    trigger="Web Dashboard",
+                    trigger=trigger,
                 )
                 print(f"[Manager] Valheim dedicated server successfully started (PID {proc.pid}).")
             except Exception as e:
@@ -345,7 +356,7 @@ class ValheimServerManager:
                 if st == "Stopped":
                     break
                 time.sleep(1)
-            self.start_server()
+            self.start_server(trigger="Web Restart")
 
         t = threading.Thread(target=_do_restart, daemon=True)
         t.start()
@@ -390,7 +401,7 @@ class ValheimServerManager:
                             else:
                                 print("[Manager] Auto-restart enabled. Restarting in 5s...")
                                 time.sleep(5)
-                                self.start_server()
+                                self.start_server(trigger="Auto-Restart (Crash)")
                 elif ex_pid:
                     try:
                         os.kill(ex_pid, 0)

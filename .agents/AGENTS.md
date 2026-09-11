@@ -65,6 +65,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - **Non-blocking Log Tailing**: Reverse-seeks from EOF to retrieve only the last `N` lines rather than full-file reads.
   - **Real-Time Streaming**: Exposes Server-Sent Events (SSE) at `/api/stream/logs` streaming live terminal logs directly into HTMX without polling.
   - **Crash-Loop Throttling**: Tracks crash timestamps in `self.crash_history`. If 3 crashes occur within a 60-second window, `auto_restart` is paused to avoid rapid crash loops.
+  - **Auto-Start on Boot**: If `auto_start_on_boot` is enabled and no running server is attached, `check_auto_start_on_boot()` automatically launches the Valheim dedicated server on application startup and logs the run trigger as `"Auto-Start on Boot"`.
   - **Memory Metrics**: Queries process RSS via `ps -p <PID> -o %cpu,rss` and formats RAM as `MB` (if <1024MB) or `GB` (if >=1024MB).
 
 ### 2. Valheim Launch, Password & World Modifier Constraints
