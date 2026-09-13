@@ -11,7 +11,7 @@
 
     <form {% if user and user.role == 'admin' %}hx-post="/api/config" hx-target="#config-form-container" hx-swap="outerHTML" hx-indicator="#config-spinner"{% endif %}>
         {% if message %}
-            <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; {% if success %}background: rgba(16, 185, 129, 0.15); border: 1px solid var(--status-running); color: #6ee7b7;{% else %}background: rgba(239, 68, 68, 0.15); border: 1px solid var(--status-stopped); color: #fca5a5;{% endif %}">
+            <div {% if success %}style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--status-running); color: #6ee7b7;"{% else %}style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.875rem; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--status-stopped); color: #fca5a5;"{% endif %}>
                 {{ message }}
             </div>
         {% endif %}

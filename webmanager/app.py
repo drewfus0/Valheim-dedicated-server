@@ -1,6 +1,5 @@
 import json
 import re
-import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -30,22 +29,19 @@ from core.backups import (
     delete_backup,
     generate_random_seed,
     get_backup_path,
-    get_world_seed,
     list_available_worlds,
     list_backups,
     restore_backup,
 )
 from core.config import load_config
-from core.logs import log_stream_generator, read_log_tail
+from core.logs import log_stream_generator
 from core.paths import SERVER_HISTORY_LOG
-from core.playit import get_detected_playit_tunnel, start_playit_monitor
+from core.playit import start_playit_monitor
 from core.server import SERVER_MANAGER
-from core.server_history import SERVER_HISTORY
 from core.system import (
     configure_system_power_and_performance,
     execute_host_reboot,
     get_cpu_frequencies,
-    get_system_power_status,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -93,6 +89,7 @@ def make_toast_headers(message: str, toast_type: str = "info", **extra_triggers)
         "statusChanged": True,
         "configUpdated": True,
         "serverHistoryUpdated": True,
+        "sessionHistoryUpdated": True,
         **extra_triggers,
     }
     return {"HX-Trigger": json.dumps(trigger_data)}
@@ -242,6 +239,9 @@ async def dashboard_page(request: Request):
     )
 
 
+_last_status_state = {"status": None, "players_count": None, "sessions_count": None, "runs_count": None}
+
+
 @app.get("/partials/status", response_class=HTMLResponse)
 async def partial_status(request: Request):
     redirect = require_auth(request)
@@ -250,10 +250,36 @@ async def partial_status(request: Request):
 
     user = get_current_user_from_request(request)
     status = SERVER_MANAGER.get_status_data()
+
+    curr_status = status.get("status")
+    curr_players = status.get("players_count")
+    curr_sessions = len(status.get("player_sessions", []))
+    curr_runs = (status.get("server_history") or {}).get("total_runs", 0)
+
+    triggers = {}
+    if _last_status_state["status"] is not None:
+        if curr_status != _last_status_state["status"] or curr_players != _last_status_state["players_count"]:
+            triggers["statusChanged"] = True
+        if curr_sessions != _last_status_state["sessions_count"]:
+            triggers["sessionHistoryUpdated"] = True
+            triggers["statusChanged"] = True
+        if curr_runs != _last_status_state["runs_count"]:
+            triggers["serverHistoryUpdated"] = True
+
+    _last_status_state["status"] = curr_status
+    _last_status_state["players_count"] = curr_players
+    _last_status_state["sessions_count"] = curr_sessions
+    _last_status_state["runs_count"] = curr_runs
+
+    headers = {}
+    if triggers:
+        headers["HX-Trigger"] = json.dumps(triggers)
+
     return templates.TemplateResponse(
         request=request,
         name="partials/status_card.html",
         context={"status": status, "user": user},
+        headers=headers,
     )
 
 
@@ -584,41 +610,6 @@ async def system_reboot(request: Request):
         name="partials/status_card.html",
         context={"status": status, "user": user},
         headers=make_toast_headers(msg, toast_type),
-    )
-
-
-@app.get("/api/system/power")
-async def get_system_power(request: Request):
-    user = get_current_user_from_request(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return get_system_power_status()
-
-
-@app.post("/api/system/power/performance", response_class=HTMLResponse)
-async def configure_power_performance_endpoint(request: Request):
-    user = get_current_user_from_request(request)
-    if not user or user.get("role") not in ("admin", "operator"):
-        headers = make_toast_headers(
-            "Permission denied: Modifying system power settings restricted to Admins/Operators.",
-            "error",
-        )
-        status = SERVER_MANAGER.get_status_data()
-        return templates.TemplateResponse(
-            request=request,
-            name="partials/status_card.html",
-            context={"status": status, "user": user},
-            headers=headers,
-        )
-
-    res = configure_system_power_and_performance()
-    status = SERVER_MANAGER.get_status_data()
-    msg = f"System configured: {res.get('profile', 'performance').capitalize()} profile active & sleep disabled (display blanking/lock allowed)."
-    return templates.TemplateResponse(
-        request=request,
-        name="partials/status_card.html",
-        context={"status": status, "user": user},
-        headers=make_toast_headers(msg, "success"),
     )
 
 
@@ -963,39 +954,6 @@ async def api_status(request: Request):
         status_data = dict(status_data)
         status_data["player_sessions"] = []
     return status_data
-
-
-@app.get("/api/config")
-async def api_config(request: Request):
-    user = get_current_user_from_request(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return SERVER_MANAGER.config
-
-
-@app.get("/api/backups")
-async def api_backups(request: Request):
-    user = get_current_user_from_request(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return list_backups()
-
-
-@app.get("/api/logs")
-async def api_logs(request: Request, lines: int = 250):
-    user = get_current_user_from_request(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return Response(content=read_log_tail(num_lines=lines), media_type="text/plain")
-
-
-@app.get("/api/server/history")
-async def api_server_history(request: Request):
-    user = get_current_user_from_request(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    status = SERVER_MANAGER.get_status_data()
-    return status.get("server_history", {})
 
 
 @app.get("/api/server/history/log")

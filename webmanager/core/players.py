@@ -12,8 +12,13 @@ from core.paths import GAME_LOG, LOGS_DIR, PLAYER_HISTORY_FILE
 RE_LOG_TIMESTAMP = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(.*)$")
 RE_GOT_ZDOID = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Got character ZDOID from\s+(.+?)\s*:\s*(.+)$")
 RE_CONNECTIONS_COUNT = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Connections\s+(\d+)\s+ZDOS:")
+RE_STEAM_CONNECT = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Got connection SteamID\s+(\d+)")
+RE_CLOSING_SOCKET = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Closing socket\s+(\d+)")
+RE_PLAYER_HISTORY_ENTRY = re.compile(
+    r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Player history entry with index \d+:\s*(.*?)\s*\(Steam_(\d+),"
+)
 RE_PEER_DISCONNECT = re.compile(
-    r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(?:RPC_Disconnect|Closing socket|Destroying peer|k_ESteamNetworkingConnectionState_ClosedByPeer|k_ESteamNetworkingConnectionState_ProblemDetectedLocally)"
+    r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(?:RPC_Disconnect|Destroying peer|k_ESteamNetworkingConnectionState_ClosedByPeer|k_ESteamNetworkingConnectionState_ProblemDetectedLocally)"
 )
 RE_SERVER_SHUTDOWN = re.compile(
     r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(?:Game - OnApplicationQuit|ZNet Shutdown|Shutting down|ZNet OnDestroy|Sending disconnect msg)"
@@ -45,7 +50,7 @@ def format_duration(seconds: Optional[int]) -> str:
 
 
 class PlayerTracker:
-    """Thread-safe persistent player tracker and log event parser."""
+    """Thread-safe persistent player tracker and log event parser with Steam ID correlation."""
 
     def __init__(self, auto_load: bool = True):
         self.lock = threading.RLock()
@@ -53,6 +58,9 @@ class PlayerTracker:
         self.known_players: Dict[str, Dict[str, Any]] = {}
         self.sessions: List[Dict[str, Any]] = []
         self.events: List[Dict[str, Any]] = []
+        self.steam_id_to_player: Dict[str, str] = {}
+        self.player_to_steam_id: Dict[str, str] = {}
+        self._pending_steam_connects: List[str] = []
         self._last_log_offset: int = 0
         self._last_log_inode: Optional[int] = None
         self._last_disk_mtime: Optional[float] = None
@@ -73,8 +81,17 @@ class PlayerTracker:
                     self.known_players = data.get("known_players", {})
                     self.sessions = data.get("sessions", [])
                     self.events = data.get("events", [])
+                    self.steam_id_to_player = data.get("steam_id_to_player", {})
+                    self.player_to_steam_id = data.get("player_to_steam_id", {})
                     self._last_log_offset = data.get("last_log_offset", 0)
                     self._last_log_inode = data.get("last_log_inode")
+
+                    # Re-sync bidirectional mappings from known_players if present
+                    for p_name, p_data in self.known_players.items():
+                        s_id = p_data.get("steam_id")
+                        if s_id:
+                            self.player_to_steam_id[p_name] = s_id
+                            self.steam_id_to_player[s_id] = p_name
             except Exception as e:
                 print(f"[PlayerTracker] Error loading {PLAYER_HISTORY_FILE}: {e}")
 
@@ -88,6 +105,8 @@ class PlayerTracker:
                     "known_players": self.known_players,
                     "sessions": self.sessions,
                     "events": self.events[-500:],  # Retain last 500 events
+                    "steam_id_to_player": self.steam_id_to_player,
+                    "player_to_steam_id": self.player_to_steam_id,
                     "last_log_offset": self._last_log_offset,
                     "last_log_inode": self._last_log_inode,
                 }
@@ -116,6 +135,30 @@ class PlayerTracker:
             # Only backfill if we have no prior recorded players/sessions
             if self.known_players or self.sessions:
                 return
+
+            if LOGS_DIR.exists():
+                for log_file in sorted(LOGS_DIR.glob("valheim_server_*.log")):
+                    self._parse_log_file(log_file)
+
+            if GAME_LOG.exists():
+                self._parse_log_file(GAME_LOG)
+                stat = GAME_LOG.stat()
+                self._last_log_offset = stat.st_size
+                self._last_log_inode = getattr(stat, "st_ino", None)
+
+            self._save_to_disk()
+
+    def rebuild_from_logs(self) -> None:
+        """Fully re-parse all log files from scratch to reconstruct history accurately."""
+        with self.lock:
+            self.known_players = {}
+            self.sessions = []
+            self.events = []
+            self.steam_id_to_player = {}
+            self.player_to_steam_id = {}
+            self._pending_steam_connects = []
+            self._last_log_offset = 0
+            self._last_log_inode = None
 
             if LOGS_DIR.exists():
                 for log_file in sorted(LOGS_DIR.glob("valheim_server_*.log")):
@@ -175,11 +218,42 @@ class PlayerTracker:
             except Exception as e:
                 print(f"[PlayerTracker] Error in incremental log reading: {e}")
 
+    def _find_online_player_by_socket(self, socket_id: str) -> Optional[str]:
+        """Find the active online player name corresponding to a closed socket/SteamID."""
+        # 1. Direct check: online player with matching steam_id
+        for name, data in self.known_players.items():
+            if data.get("is_online", False) and data.get("steam_id") == socket_id:
+                return name
+        # 2. Check if mapped player name is currently online
+        mapped_name = self.steam_id_to_player.get(socket_id)
+        if mapped_name and self.known_players.get(mapped_name, {}).get("is_online", False):
+            return mapped_name
+        return None
+
     def _process_log_lines(self, lines: List[str]) -> None:
-        """Process log lines and update state and event history."""
+        """Process log lines and update state and event history with Steam ID tracking."""
         for raw_line in lines:
             line = raw_line.strip()
             if not line:
+                continue
+
+            # Check player history startup entry (maps Steam name and SteamID)
+            hist_match = RE_PLAYER_HISTORY_ENTRY.match(line)
+            if hist_match:
+                ts_str, profile_name, steam_id = hist_match.groups()
+                profile_name = profile_name.strip()
+                steam_id = steam_id.strip()
+                if profile_name and steam_id:
+                    self.steam_id_to_player[steam_id] = profile_name
+                continue
+
+            # Check Steam client connection handshake
+            steam_conn_match = RE_STEAM_CONNECT.match(line)
+            if steam_conn_match:
+                ts_str, steam_id = steam_conn_match.groups()
+                steam_id = steam_id.strip()
+                if steam_id and steam_id not in self._pending_steam_connects:
+                    self._pending_steam_connects.append(steam_id)
                 continue
 
             # Check character ZDOID event
@@ -195,10 +269,34 @@ class PlayerTracker:
                 if zdoid in ("0:0", "0"):
                     self._record_logout(player_name, ts_str)
                 else:
-                    self._record_login(player_name, ts_str)
+                    matched_steam_id = self.player_to_steam_id.get(player_name)
+                    if not matched_steam_id and self._pending_steam_connects:
+                        matched_steam_id = self._pending_steam_connects.pop(0)
+                        self.player_to_steam_id[player_name] = matched_steam_id
+                        self.steam_id_to_player[matched_steam_id] = player_name
+                    elif matched_steam_id:
+                        self.steam_id_to_player[matched_steam_id] = player_name
+                        if matched_steam_id in self._pending_steam_connects:
+                            self._pending_steam_connects.remove(matched_steam_id)
+
+                    self._record_login(player_name, ts_str, steam_id=matched_steam_id)
                 continue
 
-            # Check peer disconnect event
+            # Check explicit socket closure
+            closing_match = RE_CLOSING_SOCKET.match(line)
+            if closing_match:
+                ts_str, socket_id = closing_match.groups()
+                socket_id = socket_id.strip()
+                target_player = self._find_online_player_by_socket(socket_id)
+                if target_player:
+                    self._record_logout(target_player, ts_str)
+                else:
+                    online_players = [p for p, d in self.known_players.items() if d.get("is_online", False)]
+                    if len(online_players) == 1:
+                        self._record_logout(online_players[0], ts_str)
+                continue
+
+            # Check generic peer disconnect event (fallback if closing socket line missed)
             peer_dc_match = RE_PEER_DISCONNECT.match(line)
             if peer_dc_match:
                 ts_str = peer_dc_match.group(1)
@@ -222,12 +320,14 @@ class PlayerTracker:
                 ts_str = shutdown_match.group(1)
                 self._record_all_offline(ts_str)
 
-    def _record_login(self, player_name: str, ts_str: str) -> None:
+    def _record_login(self, player_name: str, ts_str: str, steam_id: Optional[str] = None) -> None:
         """Record player login event and activate session."""
         now_dt = parse_timestamp(ts_str)
+        s_id = steam_id or self.player_to_steam_id.get(player_name)
         if player_name not in self.known_players:
             self.known_players[player_name] = {
                 "name": player_name,
+                "steam_id": s_id,
                 "first_seen": ts_str,
                 "last_seen": ts_str,
                 "is_online": True,
@@ -237,6 +337,8 @@ class PlayerTracker:
             }
         else:
             player = self.known_players[player_name]
+            if s_id and not player.get("steam_id"):
+                player["steam_id"] = s_id
             player["last_seen"] = ts_str
             if not player.get("is_online", False):
                 player["is_online"] = True
@@ -254,6 +356,7 @@ class PlayerTracker:
             new_session = {
                 "session_id": new_sess_id,
                 "player_name": player_name,
+                "steam_id": s_id,
                 "login_time": ts_str,
                 "logout_time": None,
                 "duration_seconds": None,
@@ -264,6 +367,7 @@ class PlayerTracker:
                 {
                     "id": f"evt_{len(self.events) + 1}",
                     "player_name": player_name,
+                    "steam_id": s_id,
                     "event": "login",
                     "timestamp": ts_str,
                     "session_id": new_sess_id,
@@ -273,12 +377,17 @@ class PlayerTracker:
     def _record_logout(self, player_name: str, ts_str: str) -> None:
         """Record player logout event and close open session."""
         logout_dt = parse_timestamp(ts_str)
+        s_id = self.player_to_steam_id.get(player_name)
         if player_name in self.known_players:
             player = self.known_players[player_name]
-            if player.get("is_online", False):
-                player["is_online"] = False
-                player["last_seen"] = ts_str
-                player["current_session_start"] = None
+            if not player.get("is_online", False):
+                # Already marked offline, avoid duplicate logout events
+                return
+            player["is_online"] = False
+            player["last_seen"] = ts_str
+            player["current_session_start"] = None
+            if not s_id:
+                s_id = player.get("steam_id")
 
         # Close open session for player
         open_session = next(
@@ -288,6 +397,8 @@ class PlayerTracker:
 
         if open_session:
             open_session["logout_time"] = ts_str
+            if not open_session.get("steam_id") and s_id:
+                open_session["steam_id"] = s_id
             login_dt = parse_timestamp(open_session["login_time"])
             if login_dt and logout_dt and logout_dt >= login_dt:
                 dur = int((logout_dt - login_dt).total_seconds())
@@ -303,6 +414,7 @@ class PlayerTracker:
                 {
                     "id": f"evt_{len(self.events) + 1}",
                     "player_name": player_name,
+                    "steam_id": s_id,
                     "event": "logout",
                     "timestamp": ts_str,
                     "session_id": open_session["session_id"],
@@ -349,9 +461,12 @@ class PlayerTracker:
                         diff = max(0, int((now - s_dt).total_seconds()))
                         session_time_str = format_duration(diff)
 
+                steam_id = data.get("steam_id") or self.player_to_steam_id.get(name)
+
                 all_players_list.append(
                     {
                         "name": name,
+                        "steam_id": steam_id,
                         "is_online": is_online,
                         "first_seen": data.get("first_seen", "--"),
                         "last_seen": data.get("last_seen", "--"),
@@ -372,10 +487,14 @@ class PlayerTracker:
                 if not dur_str and evt.get("duration_seconds") is not None:
                     dur_str = format_duration(evt["duration_seconds"])
 
+                p_name = evt.get("player_name", "")
+                s_id = evt.get("steam_id") or self.player_to_steam_id.get(p_name)
+
                 recent_events.append(
                     {
                         "id": evt.get("id"),
-                        "player_name": evt.get("player_name"),
+                        "player_name": p_name,
+                        "steam_id": s_id,
                         "event": e_type,
                         "timestamp": evt.get("timestamp"),
                         "duration_str": dur_str or ("Active Now" if e_type == "login" else "--"),

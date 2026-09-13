@@ -1,5 +1,5 @@
 {% if user and user.role == 'admin' %}
-<div id="session-history-panel" class="card admin-only" style="margin-top: 1.5rem;" hx-get="/partials/session-history" hx-trigger="every 15s" hx-swap="outerHTML">
+<div id="session-history-panel" class="card admin-only" style="margin-top: 1.5rem;" hx-get="/partials/session-history" hx-trigger="sessionHistoryUpdated from:body, statusChanged from:body" hx-swap="outerHTML">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
         <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
             <span>📜</span> Viking Session History
@@ -56,6 +56,9 @@
                     <tr style="transition: background 0.15s ease;">
                         <td style="padding: 0.6rem 0.85rem; font-weight: 600; color: var(--text-primary);">
                             <span style="margin-right: 0.35rem;">🛡️</span> {{ event.player_name }}
+                            {% if event.steam_id %}
+                                <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.1rem;">Steam: {{ event.steam_id }}</div>
+                            {% endif %}
                         </td>
                         <td style="padding: 0.6rem 0.85rem;">
                             {% if event.event == 'login' %}

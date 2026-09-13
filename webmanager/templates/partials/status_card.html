@@ -29,7 +29,7 @@
         {% if status.cpu_freq and status.cpu_freq.max_mhz > 0 %}
         <div class="metric-box" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
             <span class="metric-label">Host CPU Clocks</span>
-            <span class="metric-value" style="font-size: 1.05rem; {% if status.cpu_freq.all_under_600 %}color: #ef4444; font-weight: 700;{% else %}color: #38bdf8;{% endif %}">
+            <span class="metric-value" {% if status.cpu_freq.all_under_600 %}style="font-size: 1.05rem; color: #ef4444; font-weight: 700;"{% else %}style="font-size: 1.05rem; color: #38bdf8;"{% endif %}>
                 {{ status.cpu_freq.min_mhz }} - {{ status.cpu_freq.max_mhz }} <span style="font-size: 0.75rem; color: var(--text-secondary);">MHz</span>
             </span>
         </div>

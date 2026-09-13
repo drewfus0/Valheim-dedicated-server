@@ -62,6 +62,9 @@
                             <td style="padding: 0.65rem 1rem; font-weight: 600; color: var(--text-primary);">
                                 <span style="margin-right: 0.4rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
                                 {{ player.name }}
+                                {% if player.steam_id %}
+                                    <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.15rem;">Steam: {{ player.steam_id }}</div>
+                                {% endif %}
                             </td>
                             <td style="padding: 0.65rem 1rem;">
                                 {% if player.is_online %}
