@@ -17,6 +17,7 @@ from core.players import PLAYER_TRACKER
 from core.playit import get_detected_playit_tunnel
 from core.server_history import SERVER_HISTORY
 from core.system import get_cpu_frequencies, get_system_power_status
+from core.world_stats import WORLD_STATS
 
 
 def find_existing_pid() -> Optional[int]:
@@ -180,10 +181,12 @@ class ValheimServerManager:
             "players_count": p_summary["online_count"],
             "players_list": p_summary["online_players"],
             "known_players_count": p_summary["known_count"],
+            "total_deaths": p_summary.get("total_deaths", 0),
             "all_players": p_summary["all_players"],
             "player_sessions": p_summary["recent_events"],
             "server_history": s_summary,
             "server_runs": s_summary["recent_runs"],
+            "world_stats": WORLD_STATS.get_summary(server_running=(state == "Running")),
             "cpu_freq": cpu_freq,
             "power_status": power_status,
             "auto_start_on_boot": cfg.get("auto_start_on_boot", True),
@@ -380,6 +383,7 @@ class ValheimServerManager:
 
             if state == "Running":
                 PLAYER_TRACKER.process_new_logs()
+                WORLD_STATS.process_new_logs()
                 if proc:
                     ret = proc.poll()
                     if ret is not None:

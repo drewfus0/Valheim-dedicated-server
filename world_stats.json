@@ -1,0 +1,67 @@
+{
+  "current_day": 58,
+  "nights_slept": 27,
+  "last_day_timestamp": "09/13/2026 16:29:56",
+  "total_raids": 4,
+  "raids_history": [
+    {
+      "id": "raid_1",
+      "timestamp": "09/12/2026 00:05:04",
+      "event_code": "army_eikthyr",
+      "title": "Eikthyr's Army",
+      "quote": "Eikthyr rallies the creatures of the forest.",
+      "biome": "Meadows",
+      "icon": "\u26a1"
+    },
+    {
+      "id": "raid_2",
+      "timestamp": "09/12/2026 02:22:57",
+      "event_code": "army_eikthyr",
+      "title": "Eikthyr's Army",
+      "quote": "Eikthyr rallies the creatures of the forest.",
+      "biome": "Meadows",
+      "icon": "\u26a1"
+    },
+    {
+      "id": "raid_3",
+      "timestamp": "09/12/2026 18:31:23",
+      "event_code": "army_theelder",
+      "title": "The Forest is Moving",
+      "quote": "The creatures of the Black Forest assault your camp.",
+      "biome": "Black Forest",
+      "icon": "\ud83c\udf32"
+    },
+    {
+      "id": "raid_4",
+      "timestamp": "09/13/2026 13:41:00",
+      "event_code": "army_theelder",
+      "title": "The Forest is Moving",
+      "quote": "The creatures of the Black Forest assault your camp.",
+      "biome": "Black Forest",
+      "icon": "\ud83c\udf32"
+    }
+  ],
+  "discovered_bosses": {
+    "Eikthyrnir": {
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "discovered_at": "09/10/2026 22:38:53"
+    },
+    "GDKing": {
+      "name": "The Elder",
+      "title": "Ancient Greydwarf King",
+      "biome": "Black Forest",
+      "icon": "\ud83c\udf32",
+      "discovered_at": "09/12/2026 00:54:42"
+    }
+  },
+  "total_dungeons_entered": 102,
+  "total_dungeon_rooms": 2960,
+  "connected_portals": 2,
+  "last_portal_update": "09/12/2026 21:14:06",
+  "last_log_offset": 15564,
+  "last_log_inode": 2003366,
+  "updated_at": "2026-09-13T18:59:35.626232"
+}

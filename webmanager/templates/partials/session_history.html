@@ -65,8 +65,12 @@
                                 <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
                                     🟢 Logged On
                                 </span>
+                            {% elif event.event == 'death' %}
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                    💀 Fallen in Battle
+                                </span>
                             {% else %}
-                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.35); padding: 0.15rem 0.55rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;">
                                     🔴 Logged Off
                                 </span>
                             {% endif %}
@@ -75,7 +79,9 @@
                             {{ event.timestamp }}
                         </td>
                         <td style="padding: 0.6rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 500; font-size: 0.775rem;">
-                            {% if event.duration_str == 'Active Now' %}
+                            {% if event.event == 'death' %}
+                                <span style="color: #f87171; font-size: 0.75rem;">⚔️ Slain</span>
+                            {% elif event.duration_str == 'Active Now' %}
                                 <span style="color: #6ee7b7; font-weight: 600;">✨ Active Now</span>
                             {% else %}
                                 {{ event.duration_str }}

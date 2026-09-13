@@ -12,6 +12,26 @@
         </div>
     </div>
 
+    <!-- Active Raid In-Progress Banner -->
+    {% if status.world_stats and status.world_stats.active_raid %}
+    <div style="background: rgba(239, 68, 68, 0.22); border: 1px solid #ef4444; border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.15rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);">
+        <span style="font-size: 1.4rem;">⚔️</span>
+        <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <strong style="color: #ffffff; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.85rem;">
+                    Realm Raid in Progress: {{ status.world_stats.active_raid.title }}
+                </strong>
+                <span class="badge" style="background: rgba(239, 68, 68, 0.4); color: #fee2e2; border: 1px solid #f87171; font-size: 0.68rem; padding: 0.05rem 0.35rem;">
+                    {{ status.world_stats.active_raid.biome }}
+                </span>
+            </div>
+            <div style="font-size: 0.775rem; color: #fca5a5; margin-top: 0.15rem; font-style: italic;">
+                "{{ status.world_stats.active_raid.quote }}"
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Telemetry Metrics Grid -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
         <div class="metric-box">
@@ -26,6 +46,14 @@
             <span class="metric-label">Server Uptime</span>
             <span class="metric-value">{{ status.uptime }}</span>
         </div>
+        {% if status.world_stats %}
+        <div class="metric-box" title="Midgard In-Game World Calendar">
+            <span class="metric-label">World Calendar</span>
+            <span class="metric-value" style="color: #38bdf8;">
+                Day {{ status.world_stats.current_day }}
+            </span>
+        </div>
+        {% endif %}
         {% if status.cpu_freq and status.cpu_freq.max_mhz > 0 %}
         <div class="metric-box" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
             <span class="metric-label">Host CPU Clocks</span>

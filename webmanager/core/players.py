@@ -267,7 +267,7 @@ class PlayerTracker:
                     continue
 
                 if zdoid in ("0:0", "0"):
-                    self._record_logout(player_name, ts_str)
+                    self._record_death(player_name, ts_str)
                 else:
                     matched_steam_id = self.player_to_steam_id.get(player_name)
                     if not matched_steam_id and self._pending_steam_connects:
@@ -320,6 +320,48 @@ class PlayerTracker:
                 ts_str = shutdown_match.group(1)
                 self._record_all_offline(ts_str)
 
+    def _record_death(self, player_name: str, ts_str: str) -> None:
+        """Record player death event without closing their active session."""
+        s_id = self.player_to_steam_id.get(player_name)
+        if player_name not in self.known_players:
+            self.known_players[player_name] = {
+                "name": player_name,
+                "steam_id": s_id,
+                "first_seen": ts_str,
+                "last_seen": ts_str,
+                "is_online": True,
+                "current_session_start": ts_str,
+                "total_playtime_seconds": 0,
+                "total_sessions": 1,
+                "deaths": 1,
+                "last_death": ts_str,
+            }
+        else:
+            player = self.known_players[player_name]
+            player["deaths"] = player.get("deaths", 0) + 1
+            player["last_death"] = ts_str
+            player["last_seen"] = ts_str
+            if not s_id:
+                s_id = player.get("steam_id")
+
+        # Associate with open session if one exists
+        open_session = next(
+            (s for s in reversed(self.sessions) if s["player_name"] == player_name and s.get("logout_time") is None),
+            None,
+        )
+        sess_id = open_session["session_id"] if open_session else None
+
+        self.events.append(
+            {
+                "id": f"evt_{len(self.events) + 1}",
+                "player_name": player_name,
+                "steam_id": s_id,
+                "event": "death",
+                "timestamp": ts_str,
+                "session_id": sess_id,
+            }
+        )
+
     def _record_login(self, player_name: str, ts_str: str, steam_id: Optional[str] = None) -> None:
         """Record player login event and activate session."""
         now_dt = parse_timestamp(ts_str)
@@ -334,6 +376,8 @@ class PlayerTracker:
                 "current_session_start": ts_str,
                 "total_playtime_seconds": 0,
                 "total_sessions": 1,
+                "deaths": 0,
+                "last_death": None,
             }
         else:
             player = self.known_players[player_name]
@@ -473,6 +517,8 @@ class PlayerTracker:
                         "session_time": session_time_str,
                         "total_playtime": format_duration(data.get("total_playtime_seconds", 0)),
                         "total_sessions": data.get("total_sessions", 0),
+                        "deaths": data.get("deaths", 0),
+                        "last_death": data.get("last_death", "--"),
                     }
                 )
 
@@ -501,12 +547,15 @@ class PlayerTracker:
                     }
                 )
 
+            total_deaths = sum(int(d.get("deaths", 0)) for d in self.known_players.values())
+
             return {
                 "online_count": len(online_names),
                 "online_players": online_names,
                 "known_count": len(all_players_list),
                 "all_players": all_players_list,
                 "recent_events": recent_events,
+                "total_deaths": total_deaths,
             }
 
 
