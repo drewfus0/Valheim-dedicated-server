@@ -1,36 +1,27 @@
-<div id="world-saga-panel" class="card" style="margin-top: 1.25rem;" hx-get="/partials/world-saga"
-    hx-trigger="worldSagaUpdated from:body" hx-swap="outerHTML">
-    <div class="card-header"
-        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+<div id="world-saga-panel" class="card" style="margin-top: 1.25rem;" hx-get="/partials/world-saga" hx-trigger="every 5s, worldSagaUpdated from:body" hx-swap="outerHTML">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
         <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
             <span>🛡️</span> Midgard World Saga Telemetry
-            <span class="badge"
-                style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+            <span class="badge" style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
                 ☀️ Day {{ status.world_stats.current_day if status.world_stats else 1 }}
             </span>
         </div>
         <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono);">
-            {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }}/{{
-            status.world_stats.total_bosses_count if status.world_stats else 7 }} Forsaken Slain &bull; {{
-            status.world_stats.total_raids if status.world_stats else 0 }} Invasions &bull; {{
-            status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts
+            {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }}/{{ status.world_stats.total_bosses_count if status.world_stats else 7 }} Forsaken Slain ({{ status.world_stats.total_boss_defeats_count if status.world_stats else 0 }} Total Kills) &bull; {{ status.world_stats.total_raids if status.world_stats else 0 }} Invasions &bull; {{ status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts
         </span>
     </div>
 
     <!-- Active Forsaken Boss Battle In-Progress Banner -->
     {% if status.world_stats and status.world_stats.is_boss_battle_active %}
-    <div
-        style="background: rgba(220, 38, 38, 0.28); border: 1.5px solid #ef4444; border-radius: var(--radius-md); padding: 0.85rem 1.15rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.85rem; box-shadow: 0 0 18px rgba(239, 68, 68, 0.4);">
+    <div style="background: rgba(220, 38, 38, 0.28); border: 1.5px solid #ef4444; border-radius: var(--radius-md); padding: 0.85rem 1.15rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.85rem; box-shadow: 0 0 18px rgba(239, 68, 68, 0.4);">
         <span style="font-size: 1.75rem;">⚔️</span>
         <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <strong style="color: #ffffff; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.9rem;">
                     Forsaken Summoned: Boss Battle Underway!
                 </strong>
-                <span class="badge"
-                    style="background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.7rem; padding: 0.05rem 0.45rem;">
-                    {{ status.world_stats.active_bosses_count }} Active Boss{{ 'es' if
-                    status.world_stats.active_bosses_count > 1 else '' }}
+                <span class="badge" style="background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.7rem; padding: 0.05rem 0.45rem;">
+                    {{ status.world_stats.active_bosses_count }} Active Boss{{ 'es' if status.world_stats.active_bosses_count > 1 else '' }}
                 </span>
             </div>
             <div style="font-size: 0.8rem; color: #fee2e2; margin-top: 0.2rem;">
@@ -42,16 +33,14 @@
 
     <!-- Active Raid In-Progress Banner (Displays only during an active invasion) -->
     {% if status.world_stats and status.world_stats.active_raid %}
-    <div
-        style="background: rgba(239, 68, 68, 0.22); border: 1px solid #ef4444; border-radius: var(--radius-md); padding: 0.85rem 1.15rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.85rem; box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);">
+    <div style="background: rgba(239, 68, 68, 0.22); border: 1px solid #ef4444; border-radius: var(--radius-md); padding: 0.85rem 1.15rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.85rem; box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);">
         <span style="font-size: 1.65rem;">🛡️</span>
         <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <strong style="color: #ffffff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.9rem;">
                     Realm Raid in Progress: {{ status.world_stats.active_raid.title }}
                 </strong>
-                <span class="badge"
-                    style="background: rgba(239, 68, 68, 0.4); color: #fee2e2; border: 1px solid #f87171; font-size: 0.7rem; padding: 0.05rem 0.4rem;">
+                <span class="badge" style="background: rgba(239, 68, 68, 0.4); color: #fee2e2; border: 1px solid #f87171; font-size: 0.7rem; padding: 0.05rem 0.4rem;">
                     {{ status.world_stats.active_raid.biome }}
                 </span>
             </div>
@@ -63,8 +52,7 @@
     {% endif %}
 
     <!-- 4 Telemetry Metrics Grid -->
-    <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
         <!-- 1. Midgard Calendar -->
         <div class="metric-box">
             <span class="metric-label">☀️ World Calendar</span>
@@ -95,12 +83,10 @@
         <div class="metric-box">
             <span class="metric-label">🏆 Forsaken Triumphs</span>
             <span class="metric-value" style="color: var(--nordic-gold);">
-                {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }} <span
-                    style="font-size: 0.8rem; color: var(--text-muted);">/ {{ status.world_stats.total_bosses_count if
-                    status.world_stats else 7 }} Slain</span>
+                {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }} <span style="font-size: 0.8rem; color: var(--text-muted);">/ {{ status.world_stats.total_bosses_count if status.world_stats else 7 }} Slain</span>
             </span>
             <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
-                🗝️ {{ status.world_stats.discovered_bosses_count if status.world_stats else 0 }} Altars Located
+                ⚔️ {{ status.world_stats.total_boss_defeats_count if status.world_stats else 0 }} Total Defeats &bull; 🗝️ {{ status.world_stats.discovered_bosses_count if status.world_stats else 0 }} Altars
             </span>
         </div>
 
@@ -108,24 +94,18 @@
         <div class="metric-box">
             <span class="metric-label">🌀 Portals & Crypts</span>
             <span class="metric-value" style="color: #a78bfa;">
-                {{ status.world_stats.connected_portals if status.world_stats else 0 }} <span
-                    style="font-size: 0.8rem; color: var(--text-muted);">Portals ({{ status.world_stats.portal_pairs if
-                    status.world_stats else 0 }} Pairs)</span>
+                {{ status.world_stats.connected_portals if status.world_stats else 0 }} <span style="font-size: 0.8rem; color: var(--text-muted);">Portals ({{ status.world_stats.portal_pairs if status.world_stats else 0 }} Pairs)</span>
             </span>
             <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
-                🗝️ {{ status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts ({{
-                status.world_stats.dungeon_rooms if status.world_stats else 0 }} Rooms)
+                🗝️ {{ status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts ({{ status.world_stats.dungeon_rooms if status.world_stats else 0 }} Rooms)
             </span>
         </div>
     </div>
 
     <!-- Forsaken Boss Progression & Altar Status Row -->
-    <div
-        style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.9rem 1rem; margin-bottom: 1.25rem;">
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-            <span
-                style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
+    <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.9rem 1rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <span style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
                 Forsaken Bosses Progression (7 Guardians of Odin)
             </span>
             <span style="font-size: 0.72rem; color: var(--text-muted);">
@@ -138,45 +118,34 @@
             {% for boss in status.world_stats.all_bosses %}
             {% if boss.status == 'slain' %}
             <!-- 1. Slain Boss Badge -->
-            <span class="badge"
-                style="background: rgba(234, 179, 8, 0.18); color: var(--nordic-gold); border: 1px solid rgba(234, 179, 8, 0.45); padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem;"
-                title="Forsaken Slain on Day {{ boss.world_day }} ({{ boss.slain_at }})">
+            <span class="badge" style="background: rgba(234, 179, 8, 0.18); color: var(--nordic-gold); border: 1px solid rgba(234, 179, 8, 0.45); padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem;" title="Forsaken Slain {{ boss.defeat_count }} time{{ 's' if boss.defeat_count > 1 else '' }}. Latest on Day {{ boss.world_day }} ({{ boss.slain_at }})">
                 <span>{{ boss.icon }}</span>
                 <strong>{{ boss.name }}</strong>
-                <span
-                    style="background: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem; font-weight: 700;">
-                    🏆 SLAIN (Day {{ boss.world_day }})
+                <span style="background: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem; font-weight: 700;">
+                    🏆 SLAIN{% if boss.defeat_count > 1 %} &times;{{ boss.defeat_count }}{% endif %} (Day {{ boss.world_day }})
                 </span>
             </span>
             {% elif boss.status == 'summoned' %}
             <!-- 2. Actively Summoned / Battling Badge -->
-            <span class="badge"
-                style="background: rgba(239, 68, 68, 0.28); color: #fee2e2; border: 1.5px solid #ef4444; padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);"
-                title="Actively Summoned! Boss battle underway in the {{ boss.biome }}.">
+            <span class="badge" style="background: rgba(239, 68, 68, 0.28); color: #fee2e2; border: 1.5px solid #ef4444; padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);" title="Actively Summoned! Boss battle underway in the {{ boss.biome }}.">
                 <span>⚔️</span>
                 <strong>{{ boss.name }}</strong>
-                <span
-                    style="background: #ef4444; color: #ffffff; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem; font-weight: 700;">
+                <span style="background: #ef4444; color: #ffffff; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem; font-weight: 700;">
                     ⚔️ ENGAGED
                 </span>
             </span>
             {% elif boss.status == 'located' %}
             <!-- 3. Altar Located Badge -->
-            <span class="badge"
-                style="background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.35); padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem;"
-                title="Altar discovered at {{ boss.discovered_at }} ({{ boss.biome }})">
+            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.35); padding: 0.35rem 0.7rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.4rem;" title="Altar discovered at {{ boss.discovered_at }} ({{ boss.biome }})">
                 <span>{{ boss.icon }}</span>
                 <strong>{{ boss.name }}</strong>
-                <span
-                    style="background: rgba(56, 189, 248, 0.25); color: #bae6fd; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem;">
+                <span style="background: rgba(56, 189, 248, 0.25); color: #bae6fd; padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.68rem;">
                     🗝️ ALTAR LOCATED
                 </span>
             </span>
             {% else %}
             <!-- 4. Unlocated Boss Placeholder -->
-            <span class="badge"
-                style="background: rgba(255, 255, 255, 0.03); color: var(--text-muted); border: 1px dashed rgba(255, 255, 255, 0.15); padding: 0.35rem 0.7rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; opacity: 0.65;"
-                title="{{ boss.title }} ({{ boss.biome }}) - Shrine not yet discovered">
+            <span class="badge" style="background: rgba(255, 255, 255, 0.03); color: var(--text-muted); border: 1px dashed rgba(255, 255, 255, 0.15); padding: 0.35rem 0.7rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; opacity: 0.65;" title="{{ boss.title }} ({{ boss.biome }}) - Shrine not yet discovered">
                 <span>❓</span>
                 <span>{{ boss.name }}</span>
                 <span style="font-size: 0.68rem; color: var(--text-secondary);">({{ boss.biome }})</span>
@@ -190,20 +159,18 @@
     <!-- Forsaken Sagas & Triumphs Chronicle Table -->
     {% if status.world_stats and status.world_stats.boss_triumphs %}
     <div style="margin-bottom: 1.25rem;">
-        <div
-            style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--nordic-gold); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.45rem;">
+        <div style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--nordic-gold); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.45rem;">
             <span>🏆</span> Forsaken Defeats & Triumphs Chronicle
         </div>
-        <div
-            style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
-            <table class="table data-table"
-                style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
+        <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+            <table class="table data-table" style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
                 <thead style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
                     <tr>
-                        <th style="padding: 0.6rem 0.85rem; text-align: left; width: 25%;">Forsaken Guardian</th>
-                        <th style="padding: 0.6rem 0.85rem; text-align: left; width: 35%;">Title & Realm</th>
-                        <th style="padding: 0.6rem 0.85rem; text-align: center; width: 15%;">World Day</th>
-                        <th style="padding: 0.6rem 0.85rem; text-align: right; width: 25%;">Defeat Timestamp</th>
+                        <th style="padding: 0.6rem 0.85rem; text-align: left; width: 22%;">Forsaken Guardian</th>
+                        <th style="padding: 0.6rem 0.85rem; text-align: center; width: 14%;">Defeat</th>
+                        <th style="padding: 0.6rem 0.85rem; text-align: left; width: 30%;">Title & Realm</th>
+                        <th style="padding: 0.6rem 0.85rem; text-align: center; width: 14%;">World Day</th>
+                        <th style="padding: 0.6rem 0.85rem; text-align: right; width: 20%;">Defeat Timestamp</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -212,17 +179,18 @@
                         <td style="padding: 0.55rem 0.85rem; font-weight: 600; color: var(--nordic-gold);">
                             <span style="margin-right: 0.35rem;">{{ triumph.icon }}</span> {{ triumph.name }}
                         </td>
-                        <td style="padding: 0.55rem 0.85rem; color: var(--text-secondary); font-size: 0.775rem;">
-                            {{ triumph.title }} &bull; <span class="badge"
-                                style="background: rgba(234, 179, 8, 0.12); color: var(--nordic-gold); font-size: 0.68rem; padding: 0.05rem 0.35rem;">{{
-                                triumph.biome }}</span>
+                        <td style="padding: 0.55rem 0.85rem; text-align: center;">
+                            <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fef08a; font-family: var(--font-mono); font-size: 0.7rem; padding: 0.1rem 0.45rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.35);">
+                                Defeat #{{ triumph.defeat_number if triumph.defeat_number else 1 }}
+                            </span>
                         </td>
-                        <td
-                            style="padding: 0.55rem 0.85rem; text-align: center; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600;">
+                        <td style="padding: 0.55rem 0.85rem; color: var(--text-secondary); font-size: 0.775rem;">
+                            {{ triumph.title }} &bull; <span class="badge" style="background: rgba(234, 179, 8, 0.12); color: var(--nordic-gold); font-size: 0.68rem; padding: 0.05rem 0.35rem;">{{ triumph.biome }}</span>
+                        </td>
+                        <td style="padding: 0.55rem 0.85rem; text-align: center; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600;">
                             ☀️ Day {{ triumph.world_day }}
                         </td>
-                        <td
-                            style="padding: 0.55rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem;">
+                        <td style="padding: 0.55rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem;">
                             {{ triumph.slain_at }}
                         </td>
                     </tr>
@@ -236,14 +204,11 @@
     <!-- Recent Raids & Invasions Log -->
     {% if status.world_stats and status.world_stats.recent_raids %}
     <div>
-        <div
-            style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.6rem;">
+        <div style="font-size: 0.775rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.6rem;">
             ⚔️ Recent Realm Invasions
         </div>
-        <div
-            style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
-            <table class="table data-table"
-                style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
+        <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+            <table class="table data-table" style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
                 <thead style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
                     <tr>
                         <th style="padding: 0.6rem 0.85rem; text-align: left; width: 25%;">Raid Threat</th>
@@ -258,18 +223,15 @@
                         <td style="padding: 0.55rem 0.85rem; font-weight: 600; color: #f87171;">
                             <span style="margin-right: 0.35rem;">{{ raid.icon }}</span> {{ raid.title }}
                         </td>
-                        <td
-                            style="padding: 0.55rem 0.85rem; color: var(--text-secondary); font-style: italic; font-size: 0.775rem;">
+                        <td style="padding: 0.55rem 0.85rem; color: var(--text-secondary); font-style: italic; font-size: 0.775rem;">
                             "{{ raid.quote }}"
                         </td>
                         <td style="padding: 0.55rem 0.85rem;">
-                            <span class="badge"
-                                style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.72rem; padding: 0.1rem 0.45rem;">
+                            <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.72rem; padding: 0.1rem 0.45rem;">
                                 {{ raid.biome }}
                             </span>
                         </td>
-                        <td
-                            style="padding: 0.55rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem;">
+                        <td style="padding: 0.55rem 0.85rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem;">
                             {{ raid.timestamp }}
                         </td>
                     </tr>

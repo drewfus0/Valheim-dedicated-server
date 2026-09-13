@@ -65,8 +65,31 @@
       "biome": "Meadows",
       "icon": "\ud83e\udd8c",
       "order": 1,
-      "slain_at": "09/12/2026 18:22:04",
-      "world_day": 36
+      "slain_at": "09/12/2026 17:30:24",
+      "world_day": 34,
+      "defeat_count": 4,
+      "defeats": [
+        {
+          "defeat_number": 1,
+          "slain_at": "09/12/2026 17:26:18",
+          "world_day": 34
+        },
+        {
+          "defeat_number": 2,
+          "slain_at": "09/12/2026 17:27:42",
+          "world_day": 34
+        },
+        {
+          "defeat_number": 3,
+          "slain_at": "09/12/2026 17:28:55",
+          "world_day": 34
+        },
+        {
+          "defeat_number": 4,
+          "slain_at": "09/12/2026 17:30:24",
+          "world_day": 34
+        }
+      ]
     }
   },
   "boss_triumphs": [
@@ -77,17 +100,52 @@
       "biome": "Meadows",
       "icon": "\ud83e\udd8c",
       "order": 1,
-      "slain_at": "09/12/2026 18:22:04",
-      "world_day": 36
+      "defeat_number": 1,
+      "slain_at": "09/12/2026 17:26:18",
+      "world_day": 34
+    },
+    {
+      "id": "eikthyr",
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "order": 1,
+      "defeat_number": 2,
+      "slain_at": "09/12/2026 17:27:42",
+      "world_day": 34
+    },
+    {
+      "id": "eikthyr",
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "order": 1,
+      "defeat_number": 3,
+      "slain_at": "09/12/2026 17:28:55",
+      "world_day": 34
+    },
+    {
+      "id": "eikthyr",
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "order": 1,
+      "defeat_number": 4,
+      "slain_at": "09/12/2026 17:30:24",
+      "world_day": 34
     }
   ],
   "active_bosses_count": 0,
+  "engaged_boss": null,
   "total_dungeons_entered": 102,
   "total_dungeon_rooms": 2960,
   "connected_portals": 2,
   "last_portal_update": "09/12/2026 21:14:06",
-  "last_log_offset": 15569,
+  "last_log_offset": 16996,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1789291774.9731367,
-  "updated_at": "2026-09-13T19:30:03.895559"
+  "last_world_save_mtime": 1789294467.4503343,
+  "updated_at": "2026-09-13T20:14:34.029647"
 }
