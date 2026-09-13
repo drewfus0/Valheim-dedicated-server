@@ -96,7 +96,11 @@ class ValheimServerManager:
             print(f"[Manager] Attached to pre-existing Valheim server PID {pid}.")
             self.existing_pid = pid
             self.state = "Running"
-            self.start_time = time.time()
+            try:
+                out = subprocess.check_output(["ps", "-p", str(pid), "-o", "etimes="], text=True)
+                self.start_time = time.time() - int(out.strip())
+            except Exception:
+                self.start_time = time.time()
             SERVER_HISTORY.on_server_attached(
                 pid=pid,
                 server_name=str(self.config.get("server_name", "ValheimTest")),
@@ -265,6 +269,7 @@ class ValheimServerManager:
                         stderr=subprocess.STDOUT,
                         env=env,
                         cwd=str(SERVER_DIR),
+                        start_new_session=True,
                     )
 
                 with self.lock:

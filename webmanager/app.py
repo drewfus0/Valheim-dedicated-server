@@ -63,6 +63,8 @@ app = FastAPI(title="Valheim Server Manager", lifespan=lifespan)
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.auto_reload = True
+templates.env.cache = None
 
 
 @app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)

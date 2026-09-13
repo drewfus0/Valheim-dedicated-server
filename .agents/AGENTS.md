@@ -90,6 +90,12 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 ### 3. Systemd Integration (`valheim.service`) & Power Management
 - Service location: `~/.config/systemd/user/valheim.service`
 - Command: `/usr/bin/python3 manager.py`
+- `KillMode=process`: Systemd stop/restart commands exclusively signal the Python launcher, leaving running Valheim server processes detached and intact.
+- **Hot-Reload Development Architecture**:
+  - `manager.py` executes Uvicorn with `reload=True` watching `webmanager/` (`reload_dirs=[str(WEB_DIR)]`, `reload_includes=["*.py", "*.html", "*.css", "*.js"]`, excluding `.venv`, `__pycache__`, logs).
+  - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active Valheim dedicated server.
+  - `ValheimServerManager` spawns the game server binary with `start_new_session=True` so it runs in its own session ID and process group, immune to web worker restarts.
+  - On web worker startup/reload, `find_existing_pid()` detects the running process, attaches to it, and restores the true uptime using process `etimes`.
 - **Native Power & Display Policy**:
   - Automatically sets and confirms system power profile to `performance` (via D-Bus `net.hadess.PowerProfiles` / `tuned-adm`).
   - Configures power settings (KDE PowerDevil / GNOME) to disable auto-suspend on AC and configure lid-close action to turn off display (`LidAction=64`).
