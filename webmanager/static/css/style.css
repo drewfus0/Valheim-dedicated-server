@@ -199,6 +199,10 @@ header.app-header {
     position: relative;
 }
 
+#world-saga-panel {
+    margin-bottom: 1.5rem;
+}
+
 /* Admin-Only Cards & Highlighted Elements */
 .card.admin-only,
 .card-admin-only,

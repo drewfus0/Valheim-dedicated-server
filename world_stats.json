@@ -144,8 +144,8 @@
   "total_dungeon_rooms": 2960,
   "connected_portals": 2,
   "last_portal_update": "09/12/2026 21:14:06",
-  "last_log_offset": 16996,
+  "last_log_offset": 15564,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1789294467.4503343,
-  "updated_at": "2026-09-13T20:14:34.029647"
+  "last_world_save_mtime": 1789295079.2151363,
+  "updated_at": "2026-09-13T20:25:07.948386"
 }
