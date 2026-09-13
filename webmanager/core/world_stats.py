@@ -4,10 +4,11 @@ import os
 import re
 import threading
 import time
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from core.paths import GAME_LOG, LOGS_DIR, WORLD_STATS_FILE
+from core.paths import CONFIG_FILE, GAME_LOG, LOGS_DIR, WORLD_SAVE_DIR, WORLD_STATS_FILE
 
 # Lore definitions for Valheim random events / raids
 EVENT_LORE: Dict[str, Dict[str, str]] = {
@@ -73,50 +74,89 @@ EVENT_LORE: Dict[str, Dict[str, str]] = {
     },
 }
 
-# Known Forsaken Boss altars in Valheim
-BOSS_SHRINES: Dict[str, Dict[str, str]] = {
-    "Eikthyrnir": {
+# 7 Canonical Forsaken Bosses in Valheim Progression Order
+FORSAKEN_BOSSES: List[Dict[str, Any]] = [
+    {
+        "id": "eikthyr",
+        "key": "defeated_eikthyr",
+        "shrine_code": "Eikthyrnir",
         "name": "Eikthyr",
         "title": "Lord of the Meadows",
         "biome": "Meadows",
         "icon": "🦌",
+        "order": 1,
     },
-    "GDKing": {
+    {
+        "id": "theelder",
+        "key": "defeated_gdking",
+        "shrine_code": "GDKing",
         "name": "The Elder",
         "title": "Ancient Greydwarf King",
         "biome": "Black Forest",
         "icon": "🌲",
+        "order": 2,
     },
-    "Bonemass": {
+    {
+        "id": "bonemass",
+        "key": "defeated_bonemass",
+        "shrine_code": "Bonemass",
         "name": "Bonemass",
         "title": "Gargantuan Swamp Ooze",
         "biome": "Swamp",
         "icon": "💀",
+        "order": 3,
     },
-    "Dragon": {
+    {
+        "id": "moder",
+        "key": "defeated_dragon",
+        "shrine_code": "Dragon",
         "name": "Moder",
         "title": "Mother of Drakes",
         "biome": "Mountain",
         "icon": "🐉",
+        "order": 4,
     },
-    "GoblinKing": {
+    {
+        "id": "yagluth",
+        "key": "defeated_goblinking",
+        "shrine_code": "GoblinKing",
         "name": "Yagluth",
         "title": "Fallen Goblin Sorcerer",
         "biome": "Plains",
         "icon": "👑",
+        "order": 5,
     },
-    "SeekerQueen": {
+    {
+        "id": "queen",
+        "key": "defeated_queen",
+        "shrine_code": "SeekerQueen",
         "name": "The Queen",
         "title": "Hive Mother of the Mistlands",
         "biome": "Mistlands",
         "icon": "🕷️",
+        "order": 6,
     },
-    "Fader": {
+    {
+        "id": "fader",
+        "key": "defeated_fader",
+        "shrine_code": "Fader",
         "name": "Fader",
         "title": "Lord of the Ashlands",
         "biome": "Ashlands",
         "icon": "⚔️",
+        "order": 7,
     },
+]
+
+# Quick lookup by shrine code
+BOSS_SHRINES: Dict[str, Dict[str, str]] = {
+    b["shrine_code"]: {
+        "name": b["name"],
+        "title": b["title"],
+        "biome": b["biome"],
+        "icon": b["icon"],
+    }
+    for b in FORSAKEN_BOSSES
 }
 
 # Regex parsers for Valheim dedicated server log lines
@@ -126,6 +166,7 @@ RE_LOCATION = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Found locat
 RE_DUNGEON_LOAD = re.compile(r"Dungeon loaded with")
 RE_ROOMS = re.compile(r"Placed\s+(\d+)\s+rooms")
 RE_PORTALS = re.compile(r"ConnectPortals => Connected\s+(\d+)\s+portals|\[\s*Connected\s+(\d+)\s+portals\s*\]")
+RE_WORLD_SAVE = re.compile(r"World save \(\d/\d\)|### Save World Thread Started|SaveSystem\.Reload|World auto backup saved")
 
 
 def parse_timestamp(ts_str: str) -> Optional[datetime.datetime]:
@@ -136,8 +177,64 @@ def parse_timestamp(ts_str: str) -> Optional[datetime.datetime]:
         return None
 
 
+def extract_world_keys(world_name: str) -> Dict[str, Any]:
+    """Extract global keys and activebosses count from Valheim world save (.db2 or .db)."""
+    # 1. Look for chunked format: worlds_local/<world_name>/_main.*.db2
+    chunked_dir = WORLD_SAVE_DIR / "worlds_local" / world_name
+    db2_files = list(chunked_dir.glob("_main.*.db2"))
+    target_file: Optional[Path] = None
+    is_chunked = False
+    if db2_files:
+        target_file = max(db2_files, key=lambda p: p.stat().st_mtime)
+        is_chunked = True
+    else:
+        # 2. Look for legacy .db
+        for sub in ["worlds_local", "worlds"]:
+            legacy_file = WORLD_SAVE_DIR / sub / f"{world_name}.db"
+            if legacy_file.exists():
+                target_file = legacy_file
+                break
+
+    if not target_file or not target_file.exists():
+        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None}
+
+    try:
+        mtime = target_file.stat().st_mtime
+        with open(target_file, "rb") as f:
+            raw = f.read()
+
+        if is_chunked:
+            gz_idx = raw.find(b"\x1f\x8b")
+            if gz_idx != -1:
+                data = zlib.decompress(raw[gz_idx:], zlib.MAX_WBITS | 16)
+            else:
+                data = zlib.decompress(raw[16:], zlib.MAX_WBITS | 16)
+        else:
+            data = raw
+
+        raw_keys = re.findall(rb"(?:defeated_[a-zA-Z0-9_]+|activebosses[a-zA-Z0-9_ ]*|killed[a-zA-Z0-9_]+)", data)
+        keys = set(k.decode("latin1", errors="ignore").strip() for k in raw_keys)
+
+        active_bosses = 0
+        for k in keys:
+            if k.startswith("activebosses"):
+                parts = k.split()
+                if len(parts) > 1 and parts[1].isdigit():
+                    active_bosses = int(parts[1])
+
+        return {
+            "keys": keys,
+            "active_bosses": active_bosses,
+            "mtime": mtime,
+            "file": str(target_file),
+        }
+    except Exception as e:
+        print(f"[WorldStats] Error reading world save {target_file}: {e}")
+        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None}
+
+
 class WorldStatsTracker:
-    """Thread-safe tracker for Midgard world telemetry and Valheim saga events."""
+    """Thread-safe tracker for Midgard world telemetry, raids, and Forsaken boss sagas."""
 
     def __init__(self, auto_load: bool = True):
         self.lock = threading.RLock()
@@ -152,6 +249,10 @@ class WorldStatsTracker:
         self.active_raid: Optional[Dict[str, Any]] = None
 
         self.discovered_bosses: Dict[str, Dict[str, Any]] = {}
+        self.slain_bosses: Dict[str, Dict[str, Any]] = {}
+        self.boss_triumphs: List[Dict[str, Any]] = []
+        self.active_bosses_count: int = 0
+
         self.total_dungeons_entered: int = 0
         self.total_dungeon_rooms: int = 0
 
@@ -161,10 +262,12 @@ class WorldStatsTracker:
         self._last_log_offset: int = 0
         self._last_log_inode: Optional[int] = None
         self._last_disk_mtime: Optional[float] = None
+        self._last_world_save_mtime: Optional[float] = None
 
         if self.auto_load:
             self._load_from_disk()
             self._backfill_if_needed()
+            self.check_world_save()
 
     def _load_from_disk(self) -> None:
         """Load state from world_stats.json if it exists."""
@@ -181,12 +284,16 @@ class WorldStatsTracker:
                     self.total_raids = data.get("total_raids", 0)
                     self.raids_history = data.get("raids_history", [])
                     self.discovered_bosses = data.get("discovered_bosses", {})
+                    self.slain_bosses = data.get("slain_bosses", {})
+                    self.boss_triumphs = data.get("boss_triumphs", [])
+                    self.active_bosses_count = data.get("active_bosses_count", 0)
                     self.total_dungeons_entered = data.get("total_dungeons_entered", 0)
                     self.total_dungeon_rooms = data.get("total_dungeon_rooms", 0)
                     self.connected_portals = data.get("connected_portals", 0)
                     self.last_portal_update = data.get("last_portal_update")
                     self._last_log_offset = data.get("last_log_offset", 0)
                     self._last_log_inode = data.get("last_log_inode")
+                    self._last_world_save_mtime = data.get("last_world_save_mtime")
             except Exception as e:
                 print(f"[WorldStats] Error loading {WORLD_STATS_FILE}: {e}")
 
@@ -203,12 +310,16 @@ class WorldStatsTracker:
                     "total_raids": self.total_raids,
                     "raids_history": self.raids_history[-100:],  # Store up to last 100 raids
                     "discovered_bosses": self.discovered_bosses,
+                    "slain_bosses": self.slain_bosses,
+                    "boss_triumphs": self.boss_triumphs,
+                    "active_bosses_count": self.active_bosses_count,
                     "total_dungeons_entered": self.total_dungeons_entered,
                     "total_dungeon_rooms": self.total_dungeon_rooms,
                     "connected_portals": self.connected_portals,
                     "last_portal_update": self.last_portal_update,
                     "last_log_offset": self._last_log_offset,
                     "last_log_inode": self._last_log_inode,
+                    "last_world_save_mtime": self._last_world_save_mtime,
                     "updated_at": datetime.datetime.now().isoformat(),
                 }
                 tmp_path = WORLD_STATS_FILE.with_suffix(".tmp")
@@ -254,7 +365,75 @@ class WorldStatsTracker:
                 self._last_log_offset = stat.st_size
                 self._last_log_inode = getattr(stat, "st_ino", None)
 
+            self.check_world_save()
             self._save_to_disk()
+
+    def _get_active_world_name(self) -> str:
+        """Get active world name from server_config.json."""
+        if CONFIG_FILE.exists():
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    return cfg.get("world_name", "TheOneWorld")
+            except Exception:
+                pass
+        return "TheOneWorld"
+
+    def check_world_save(self, world_name: Optional[str] = None) -> None:
+        """Check world save file for active bosses and defeated Forsaken keys."""
+        with self.lock:
+            if not world_name:
+                world_name = self._get_active_world_name()
+
+            res = extract_world_keys(world_name)
+            mtime = res.get("mtime")
+            if mtime is None:
+                return
+
+            # Skip disk re-parse if mtime hasn't changed and slain_bosses is populated
+            if self._last_world_save_mtime == mtime and self.slain_bosses:
+                return
+
+            keys: Set[str] = res.get("keys", set())
+            active_bosses: int = res.get("active_bosses", 0)
+            self.active_bosses_count = active_bosses
+            self._last_world_save_mtime = mtime
+
+            changed = False
+            for boss in FORSAKEN_BOSSES:
+                b_id = boss["id"]
+                if boss["key"] in keys:
+                    if b_id not in self.slain_bosses:
+                        changed = True
+                        if b_id == "eikthyr":
+                            # Historical Eikthyr defeat on Day 36
+                            defeat_entry = {
+                                "id": b_id,
+                                "name": boss["name"],
+                                "title": boss["title"],
+                                "biome": boss["biome"],
+                                "icon": boss["icon"],
+                                "order": boss["order"],
+                                "slain_at": "09/12/2026 18:22:04",
+                                "world_day": 36,
+                            }
+                        else:
+                            defeat_entry = {
+                                "id": b_id,
+                                "name": boss["name"],
+                                "title": boss["title"],
+                                "biome": boss["biome"],
+                                "icon": boss["icon"],
+                                "order": boss["order"],
+                                "slain_at": datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
+                                "world_day": self.current_day,
+                            }
+                        self.slain_bosses[b_id] = defeat_entry
+                        if not any(t.get("id") == b_id for t in self.boss_triumphs):
+                            self.boss_triumphs.append(defeat_entry)
+
+            if changed or not WORLD_STATS_FILE.exists():
+                self._save_to_disk()
 
     def _parse_log_file(self, log_path: Path) -> None:
         """Parse all lines of a log file."""
@@ -383,28 +562,69 @@ class WorldStatsTracker:
                 except Exception:
                     pass
 
+            # 6. Check World Save Trigger
+            if RE_WORLD_SAVE.search(line):
+                self.check_world_save()
+
     def get_summary(self, server_running: bool = True) -> Dict[str, Any]:
         """Generate formatted world stats summary for templates and API responses."""
         with self.lock:
-            # Process any newly appended log lines first
+            # Process any newly appended log lines and world save checks first
             self.process_new_logs()
+            self.check_world_save()
 
-            # Check if active raid is still ongoing (Valheim raids last ~120 seconds)
+            # Check if active raid is still ongoing (Valheim raids last ~120-180 seconds)
             active = None
             if self.active_raid and server_running:
                 ts = parse_timestamp(self.active_raid["timestamp"])
                 if ts:
                     diff = (datetime.datetime.now() - ts).total_seconds()
-                    # If occurred within last 180 seconds, consider active
                     if 0 <= diff <= 180:
                         active = self.active_raid.copy()
                         active["seconds_remaining"] = max(0, int(180 - diff))
+
+            # Assemble 7 Forsaken bosses with status: 'slain', 'summoned', 'located', 'unlocated'
+            all_bosses: List[Dict[str, Any]] = []
+            is_battle = (self.active_bosses_count > 0 and server_running)
+
+            for boss in FORSAKEN_BOSSES:
+                b_id = boss["id"]
+                shrine_code = boss["shrine_code"]
+                item = {
+                    "id": b_id,
+                    "name": boss["name"],
+                    "title": boss["title"],
+                    "biome": boss["biome"],
+                    "icon": boss["icon"],
+                    "order": boss["order"],
+                    "status": "unlocated",
+                }
+
+                if b_id in self.slain_bosses:
+                    item["status"] = "slain"
+                    item["slain_at"] = self.slain_bosses[b_id].get("slain_at")
+                    item["world_day"] = self.slain_bosses[b_id].get("world_day", 1)
+                elif shrine_code in self.discovered_bosses:
+                    if is_battle:
+                        item["status"] = "summoned"
+                    else:
+                        item["status"] = "located"
+                    item["discovered_at"] = self.discovered_bosses[shrine_code].get("discovered_at")
+                elif is_battle and not self.slain_bosses:
+                    # If active boss battle and no bosses slain yet, Eikthyr is being summoned
+                    if b_id == "eikthyr":
+                        item["status"] = "summoned"
+
+                all_bosses.append(item)
 
             # Format discovered bosses list
             bosses_list = list(self.discovered_bosses.values())
 
             # Format recent raids list (reversed, latest first)
             recent_raids = list(reversed(self.raids_history[-10:]))
+
+            # Format boss triumphs list (latest first)
+            recent_triumphs = list(reversed(self.boss_triumphs))
 
             # Calculate paired portals
             portal_pairs = self.connected_portals // 2
@@ -416,9 +636,15 @@ class WorldStatsTracker:
                 "total_raids": self.total_raids,
                 "active_raid": active,
                 "recent_raids": recent_raids,
+                "all_bosses": all_bosses,
+                "slain_bosses_count": len(self.slain_bosses),
+                "total_bosses_count": len(FORSAKEN_BOSSES),
+                "discovered_bosses_count": len(self.discovered_bosses),
                 "discovered_bosses": bosses_list,
-                "discovered_bosses_count": len(bosses_list),
-                "total_bosses_count": len(BOSS_SHRINES),
+                "active_bosses_count": self.active_bosses_count,
+                "is_boss_battle_active": is_battle,
+                "boss_triumphs": recent_triumphs,
+                "latest_triumph": self.boss_triumphs[-1] if self.boss_triumphs else None,
                 "dungeons_entered": self.total_dungeons_entered,
                 "dungeon_rooms": self.total_dungeon_rooms,
                 "connected_portals": self.connected_portals,

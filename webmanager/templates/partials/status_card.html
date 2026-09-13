@@ -32,6 +32,26 @@
     </div>
     {% endif %}
 
+    <!-- Active Forsaken Boss Battle Banner -->
+    {% if status.world_stats and status.world_stats.is_boss_battle_active %}
+    <div style="background: rgba(220, 38, 38, 0.26); border: 1.5px solid #ef4444; border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.15rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);">
+        <span style="font-size: 1.5rem;">⚔️</span>
+        <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <strong style="color: #ffffff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem;">
+                    Forsaken Summoned: Boss Battle Underway!
+                </strong>
+                <span class="badge" style="background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.68rem; padding: 0.05rem 0.4rem;">
+                    {{ status.world_stats.active_bosses_count }} Active Boss{{ 'es' if status.world_stats.active_bosses_count > 1 else '' }}
+                </span>
+            </div>
+            <div style="font-size: 0.775rem; color: #fca5a5; margin-top: 0.15rem;">
+                A Forsaken entity has been summoned at an altar! The wrath of Odin is upon Midgard.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Telemetry Metrics Grid -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
         <div class="metric-box">

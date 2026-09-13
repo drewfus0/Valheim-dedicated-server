@@ -239,7 +239,14 @@ async def dashboard_page(request: Request):
     )
 
 
-_last_status_state = {"status": None, "players_count": None, "sessions_count": None, "runs_count": None}
+_last_status_state = {
+    "status": None,
+    "players_count": None,
+    "sessions_count": None,
+    "runs_count": None,
+    "boss_battle": None,
+    "slain_count": None,
+}
 
 
 @app.get("/partials/status", response_class=HTMLResponse)
@@ -255,6 +262,9 @@ async def partial_status(request: Request):
     curr_players = status.get("players_count")
     curr_sessions = len(status.get("player_sessions", []))
     curr_runs = (status.get("server_history") or {}).get("total_runs", 0)
+    world_stats = status.get("world_stats") or {}
+    curr_boss_battle = world_stats.get("is_boss_battle_active")
+    curr_slain = world_stats.get("slain_bosses_count")
 
     triggers = {}
     if _last_status_state["status"] is not None:
@@ -265,11 +275,15 @@ async def partial_status(request: Request):
             triggers["statusChanged"] = True
         if curr_runs != _last_status_state["runs_count"]:
             triggers["serverHistoryUpdated"] = True
+        if curr_boss_battle != _last_status_state.get("boss_battle") or curr_slain != _last_status_state.get("slain_count"):
+            triggers["worldSagaUpdated"] = True
 
     _last_status_state["status"] = curr_status
     _last_status_state["players_count"] = curr_players
     _last_status_state["sessions_count"] = curr_sessions
     _last_status_state["runs_count"] = curr_runs
+    _last_status_state["boss_battle"] = curr_boss_battle
+    _last_status_state["slain_count"] = curr_slain
 
     headers = {}
     if triggers:
@@ -280,6 +294,21 @@ async def partial_status(request: Request):
         name="partials/status_card.html",
         context={"status": status, "user": user},
         headers=headers,
+    )
+
+
+@app.get("/partials/world-saga", response_class=HTMLResponse)
+async def partial_world_saga(request: Request):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/world_saga_card.html",
+        context={"status": status, "user": user},
     )
 
 

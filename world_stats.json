@@ -57,11 +57,37 @@
       "discovered_at": "09/12/2026 00:54:42"
     }
   },
+  "slain_bosses": {
+    "eikthyr": {
+      "id": "eikthyr",
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "order": 1,
+      "slain_at": "09/12/2026 18:22:04",
+      "world_day": 36
+    }
+  },
+  "boss_triumphs": [
+    {
+      "id": "eikthyr",
+      "name": "Eikthyr",
+      "title": "Lord of the Meadows",
+      "biome": "Meadows",
+      "icon": "\ud83e\udd8c",
+      "order": 1,
+      "slain_at": "09/12/2026 18:22:04",
+      "world_day": 36
+    }
+  ],
+  "active_bosses_count": 0,
   "total_dungeons_entered": 102,
   "total_dungeon_rooms": 2960,
   "connected_portals": 2,
   "last_portal_update": "09/12/2026 21:14:06",
-  "last_log_offset": 15564,
+  "last_log_offset": 15569,
   "last_log_inode": 2003366,
-  "updated_at": "2026-09-13T18:59:35.626232"
+  "last_world_save_mtime": 1789291774.9731367,
+  "updated_at": "2026-09-13T19:30:03.895559"
 }
