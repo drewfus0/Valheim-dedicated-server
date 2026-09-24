@@ -1,0 +1,53 @@
+{# Partial: Vertical Timeline Tab #}
+<div class="timeline-tab-wrapper">
+    <!-- Header Banner -->
+    <div class="card timeline-header-card">
+        <div class="card-header" style="flex-wrap: wrap; gap: 1rem; border-bottom: none; padding-bottom: 0.5rem;">
+            <div>
+                <h2 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>⏳</span> Midgard Temporal Timeline
+                </h2>
+                <p style="margin: 0.3rem 0 0 0; font-size: 0.825rem; color: var(--text-secondary);">
+                    Live vertical chronology descending from <strong style="color: #38bdf8;">Now</strong> into the past. Tracks Viking presence, fallen comrades, and landmark realm events.
+                </p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="/partials/tabs/timeline"
+                        hx-target="#tab-content"
+                        hx-swap="innerHTML"
+                        title="Reload timeline from current time">
+                    <span>🔄</span> Refresh to Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sticky Player Header & Legend -->
+    <div class="timeline-sticky-header">
+        <div class="timeline-sticky-inner">
+            <div class="timeline-sticky-time-label">
+                <span>TIME (↓ PAST)</span>
+            </div>
+            <div class="timeline-sticky-players-grid">
+                {% for player in players %}
+                    <div class="timeline-player-col-header" style="border-top-color: {{ player.color }};">
+                        <div class="player-col-avatar">{{ player.avatar }}</div>
+                        <div class="player-col-info">
+                            <span class="player-col-name" style="color: {{ player.color }};">{{ player.name }}</span>
+                            <div class="player-col-stats">
+                                <span title="Deaths count">💀 {{ player.deaths_count }}</span>
+                                <span title="Total sessions">⚔️ {{ player.total_sessions }}</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Stream Container (Infinite Scroll Root) -->
+    <div id="timeline-stream" class="timeline-stream-container">
+        {% include "partials/timeline_chunk.html" %}
+    </div>
+</div>

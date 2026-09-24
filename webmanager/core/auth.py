@@ -7,10 +7,11 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import USERS_FILE
+from core.paths import LOGIN_HISTORY_FILE, USERS_FILE
 
 SESSION_COOKIE_NAME = "valheim_session"
 SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+MAX_LOGIN_HISTORY = 100
 
 VALID_ROLES = {"admin", "operator", "viewer"}
 
@@ -273,3 +274,119 @@ def cleanup_expired_sessions() -> None:
         expired = [t for t, s in _SESSIONS.items() if s["expires_at"] < now]
         for t in expired:
             del _SESSIONS[t]
+
+
+# ==========================================
+# Login Activity & Audit Logging
+# ==========================================
+
+
+def parse_user_agent(ua: Optional[str]) -> str:
+    """Format user agent into a clean Client (Platform) string."""
+    if not ua or ua == "Unknown":
+        return "Unknown Client"
+    if "curl" in ua.lower():
+        return "cURL CLI"
+    if "python" in ua.lower():
+        return "Python API"
+
+    browser = "Browser"
+    if "Firefox/" in ua:
+        browser = "Firefox"
+    elif "Edg/" in ua or "Edge/" in ua:
+        browser = "Edge"
+    elif "Chrome/" in ua:
+        browser = "Chrome"
+    elif "Safari/" in ua:
+        browser = "Safari"
+
+    os_name = "Device"
+    if "Linux" in ua:
+        os_name = "Linux"
+    elif "Windows" in ua:
+        os_name = "Windows"
+    elif "Macintosh" in ua or "Mac OS" in ua:
+        os_name = "macOS"
+    elif "Android" in ua:
+        os_name = "Android"
+    elif "iPhone" in ua or "iPad" in ua:
+        os_name = "iOS"
+
+    return f"{browser} ({os_name})"
+
+
+def load_login_history() -> List[Dict[str, Any]]:
+    """Load login history log from disk."""
+    with _LOCK:
+        if not LOGIN_HISTORY_FILE.exists():
+            return []
+        try:
+            with open(LOGIN_HISTORY_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("history", [])
+        except Exception as e:
+            print(f"[Auth] Error reading {LOGIN_HISTORY_FILE}: {e}")
+            return []
+
+
+def save_login_history(history: List[Dict[str, Any]]) -> None:
+    """Atomically save login history log to disk, capped to MAX_LOGIN_HISTORY entries."""
+    with _LOCK:
+        try:
+            data = {"history": history[:MAX_LOGIN_HISTORY]}
+            tmp_path = LOGIN_HISTORY_FILE.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp_path, LOGIN_HISTORY_FILE)
+        except Exception as e:
+            print(f"[Auth] Error saving {LOGIN_HISTORY_FILE}: {e}")
+
+
+def record_login_event(
+    username: str,
+    status: str,  # "success", "failed", "registered"
+    ip: str = "127.0.0.1",
+    user_agent: str = "Unknown",
+    role: Optional[str] = None,
+    failure_reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Append a login or authentication attempt to the audit log."""
+    history = load_login_history()
+    now = datetime.datetime.now()
+    entry = {
+        "id": secrets.token_hex(6),
+        "username": username.strip() or "Anonymous",
+        "role": role or "viewer",
+        "status": status,
+        "ip": ip or "127.0.0.1",
+        "user_agent": parse_user_agent(user_agent),
+        "raw_user_agent": user_agent or "",
+        "failure_reason": failure_reason,
+        "timestamp": now.strftime("%m/%d/%Y %H:%M:%S"),
+        "iso_timestamp": now.isoformat(),
+    }
+    # Prepend newest first
+    history.insert(0, entry)
+    save_login_history(history)
+    return entry
+
+
+def get_login_history(limit: int = 50) -> List[Dict[str, Any]]:
+    """Return recent login audit records, seeding an initial entry if brand new."""
+    history = load_login_history()
+    if not history and not LOGIN_HISTORY_FILE.exists():
+        # Seed initial baseline record for the active admin
+        record_login_event(
+            username="admin",
+            status="success",
+            ip="127.0.0.1",
+            user_agent="Browser (Linux)",
+            role="admin",
+        )
+        history = load_login_history()
+    return history[:limit]
+
+
+def clear_login_history() -> None:
+    """Clear all recorded login history."""
+    save_login_history([])

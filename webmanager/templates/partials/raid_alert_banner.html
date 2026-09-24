@@ -1,0 +1,64 @@
+<div id="raid-alert-banner" hx-get="/partials/raid-alert" hx-trigger="statusChanged from:body, raidAlertUpdated from:body, every 3s" hx-swap="outerHTML"{% if not (status.world_stats and (status.world_stats.active_raid or status.world_stats.is_boss_battle_active)) %} style="display: none;"{% endif %}>
+    {% if status.world_stats and status.world_stats.active_raid %}
+    <div class="raid-alert-banner">
+        <div class="raid-alert-main">
+            <div class="raid-alert-icon-box">
+                <span class="raid-alert-icon">{{ status.world_stats.active_raid.icon or '⚔️' }}</span>
+            </div>
+            <div class="raid-alert-content">
+                <div class="raid-alert-header">
+                    <span class="raid-beacon-dot" aria-hidden="true"></span>
+                    <strong class="raid-alert-tag">REALM RAID IN PROGRESS:</strong>
+                    <span class="raid-alert-title">{{ status.world_stats.active_raid.title }}</span>
+                    <span class="badge raid-biome-badge">📍 {{ status.world_stats.active_raid.biome }}</span>
+                    {% if status.world_stats.active_raid.seconds_remaining is defined %}
+                    <span class="badge raid-timer-badge">⏳ ~{{ status.world_stats.active_raid.seconds_remaining }}s remaining</span>
+                    {% endif %}
+                </div>
+                <div class="raid-alert-quote">
+                    &ldquo;{{ status.world_stats.active_raid.quote }}&rdquo;
+                </div>
+            </div>
+        </div>
+        <div class="raid-alert-actions">
+            <button type="button" class="btn btn-sm raid-action-btn" onclick="switchTab('tab-players', null)" title="View Active Defending Vikings">
+                🛡️ Vikings Online
+            </button>
+            <button type="button" class="btn btn-sm raid-action-btn" onclick="switchTab('tab-logs', null)" title="Inspect Live Combat Logs">
+                📜 Combat Log
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if status.world_stats and status.world_stats.is_boss_battle_active %}
+    <div class="boss-alert-banner">
+        <div class="raid-alert-main">
+            <div class="boss-alert-icon-box">
+                <span class="raid-alert-icon">💀</span>
+            </div>
+            <div class="raid-alert-content">
+                <div class="raid-alert-header">
+                    <span class="boss-beacon-dot" aria-hidden="true"></span>
+                    <strong class="boss-alert-tag">FORSAKEN SUMMONED:</strong>
+                    <span class="boss-alert-title">Boss Battle Underway!</span>
+                    <span class="badge boss-count-badge">
+                        {{ status.world_stats.active_bosses_count }} Active Boss{{ 'es' if status.world_stats.active_bosses_count > 1 else '' }}
+                    </span>
+                </div>
+                <div class="boss-alert-quote">
+                    A Forsaken entity has been summoned at an altar! Midgard trembles under their ancient wrath.
+                </div>
+            </div>
+        </div>
+        <div class="raid-alert-actions">
+            <button type="button" class="btn btn-sm boss-action-btn" onclick="switchTab('tab-saga', null)" title="View Forsaken Bosses on World Saga">
+                🌍 World Saga
+            </button>
+            <button type="button" class="btn btn-sm boss-action-btn" onclick="switchTab('tab-players', null)" title="View Warriors in Battle">
+                🛡️ Warriors
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>

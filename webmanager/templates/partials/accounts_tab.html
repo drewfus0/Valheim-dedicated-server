@@ -121,4 +121,92 @@
         </div>
 
     </div>
+
+    <!-- Login & Authentication Activity Log Card -->
+    <div class="card admin-only" style="margin-top: 1.5rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div class="card-title">
+                <span>🔐</span> Recent Login & Session Activity
+                <span class="badge-admin-only">🛡️ Audit Log</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-size: 0.8125rem; color: var(--text-muted);">
+                    {{ login_history|length if login_history else 0 }} events recorded
+                </span>
+                {% if login_history %}
+                <button type="button" class="btn btn-secondary btn-sm"
+                        style="padding: 0.2rem 0.55rem; font-size: 0.72rem; color: var(--text-muted);"
+                        hx-post="/api/users/login-history/clear"
+                        hx-confirm="Are you sure you want to clear the login audit history?"
+                        hx-target="#accounts-container"
+                        hx-swap="outerHTML"
+                        title="Clear Login History">
+                    🧹 Clear Log
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="table-container">
+            {% if login_history %}
+            <table class="table" style="font-size: 0.8125rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 24%;">Viking / Account</th>
+                        <th style="width: 18%; text-align: center;">Result</th>
+                        <th style="width: 18%;">Origin IP</th>
+                        <th style="width: 22%;">Client Device</th>
+                        <th style="width: 18%; text-align: right;">Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in login_history %}
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04);">
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ item.username }}</strong>
+                            {% if item.role == 'admin' %}
+                                <span class="badge" style="background: rgba(234, 179, 8, 0.12); color: var(--nordic-gold); border: 1px solid rgba(234, 179, 8, 0.25); font-size: 0.68rem; padding: 0.05rem 0.35rem; margin-left: 0.3rem;">Admin</span>
+                            {% elif item.role == 'operator' %}
+                                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.25); font-size: 0.68rem; padding: 0.05rem 0.35rem; margin-left: 0.3rem;">Operator</span>
+                            {% elif item.role == 'viewer' %}
+                                <span class="badge" style="background: rgba(148, 163, 184, 0.12); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.25); font-size: 0.68rem; padding: 0.05rem 0.35rem; margin-left: 0.3rem;">Viewer</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if item.status == 'success' %}
+                                <span class="badge" style="background: rgba(34, 197, 94, 0.12); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.25); font-size: 0.72rem; padding: 0.15rem 0.5rem;">
+                                    ✓ Success
+                                </span>
+                            {% elif item.status == 'registered' %}
+                                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); font-size: 0.72rem; padding: 0.15rem 0.5rem;">
+                                    👤 Registered
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); font-size: 0.72rem; padding: 0.15rem 0.5rem;" title="{{ item.failure_reason or 'Invalid credentials' }}">
+                                    ✕ Failed
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code style="font-size: 0.75rem; color: var(--nordic-cyan);">{{ item.ip }}</code>
+                        </td>
+                        <td>
+                            <span style="color: var(--text-secondary); font-size: 0.775rem;" title="{{ item.raw_user_agent or '' }}">
+                                {{ item.user_agent }}
+                            </span>
+                        </td>
+                        <td style="text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem;">
+                            {{ item.timestamp }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.8125rem;">
+                No login events recorded yet.
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>

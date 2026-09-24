@@ -1,0 +1,17 @@
+<div id="tab-dashboard" class="tab-panel active">
+    <div class="grid-2col">
+        {% include "partials/status_card.html" %}
+        {% include "partials/player_list.html" %}
+    </div>
+
+    <!-- Midgard World Telemetry Summary Bar -->
+    {% include "partials/world_summary_bar.html" %}
+
+    <div class="grid-2col">
+        {% include "partials/connection_card.html" %}
+        {% include "partials/terminal.html" %}
+    </div>
+
+    <!-- Server Run History Section (Adjustable Height, Position Preserved) -->
+    {% include "partials/server_history.html" %}
+</div>

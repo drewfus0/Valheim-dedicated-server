@@ -1,3 +1,4 @@
+<div id="tab-players" class="tab-panel active">
 <div id="players-tab-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
     <!-- Top Summary Telemetry Bar -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
@@ -121,4 +122,5 @@
     {% if user and user.role == 'admin' %}
     {% include "partials/session_history.html" %}
     {% endif %}
+</div>
 </div>

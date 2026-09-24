@@ -60,9 +60,18 @@
             </div>
         </header>
 
+        <!-- Active Raid & Threat Alert Banner (Visible & Active on All Tabs) -->
+        {% include "partials/raid_alert_banner.html" %}
+
         <nav class="nav-tabs">
             <button class="tab-btn active" data-tab="tab-dashboard" onclick="switchTab('tab-dashboard', this)">
                 📊 Dashboard
+            </button>
+            <button class="tab-btn" data-tab="tab-saga" onclick="switchTab('tab-saga', this)">
+                🌍 World Saga
+            </button>
+            <button class="tab-btn" data-tab="tab-timeline" onclick="switchTab('tab-timeline', this)">
+                ⏳ Timeline
             </button>
             <button class="tab-btn" data-tab="tab-players" onclick="switchTab('tab-players', this)">
                 🛡️ Players
@@ -82,6 +91,42 @@
             </button>
             {% endif %}
         </nav>
+
+        <!-- Mobile Navigation Dropdown (Active on small screens & mobile) -->
+        <div class="mobile-nav-container">
+            <button type="button" class="mobile-tab-trigger" id="mobile-tab-trigger" onclick="toggleMobileTabMenu()" aria-expanded="false" aria-label="Select Navigation Tab">
+                <span class="mobile-tab-trigger-label" id="mobile-tab-current-label">📊 Dashboard</span>
+                <span class="mobile-tab-arrow" id="mobile-tab-arrow">▾</span>
+            </button>
+            <div class="mobile-tab-dropdown" id="mobile-tab-dropdown">
+                <button type="button" class="mobile-tab-item active" data-tab="tab-dashboard" onclick="selectMobileTab('tab-dashboard')">
+                    📊 Dashboard
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-saga" onclick="selectMobileTab('tab-saga')">
+                    🌍 World Saga
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-timeline" onclick="selectMobileTab('tab-timeline')">
+                    ⏳ Timeline
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-players" onclick="selectMobileTab('tab-players')">
+                    🛡️ Players
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-backups" onclick="selectMobileTab('tab-backups')">
+                    💾 World Backups
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-config" onclick="selectMobileTab('tab-config')">
+                    ⚙️ Configuration
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-logs" onclick="selectMobileTab('tab-logs')">
+                    📜 Live Console
+                </button>
+                {% if user and user.role == 'admin' %}
+                <button type="button" class="mobile-tab-item" data-tab="tab-accounts" onclick="selectMobileTab('tab-accounts')">
+                    👥 Accounts
+                </button>
+                {% endif %}
+            </div>
+        </div>
 
         <main>
             {% block content %}{% endblock %}
@@ -117,6 +162,8 @@
     <script>
         const TAB_SLUGS = {
             'tab-dashboard': 'dashboard',
+            'tab-saga': 'saga',
+            'tab-timeline': 'timeline',
             'tab-players': 'players',
             'tab-backups': 'backups',
             'tab-config': 'config',
@@ -124,8 +171,24 @@
             'tab-accounts': 'accounts'
         };
 
+        const TAB_LABELS = {
+            'tab-dashboard': '📊 Dashboard',
+            'tab-saga': '🌍 World Saga',
+            'tab-timeline': '⏳ Timeline',
+            'tab-players': '🛡️ Players',
+            'tab-backups': '💾 World Backups',
+            'tab-config': '⚙️ Configuration',
+            'tab-logs': '📜 Live Console',
+            'tab-accounts': '👥 Accounts'
+        };
+
         const SLUG_TO_TAB = {
             'dashboard': 'tab-dashboard',
+            'saga': 'tab-saga',
+            'world-saga': 'tab-saga',
+            'world': 'tab-saga',
+            'timeline': 'tab-timeline',
+            'chronicles': 'tab-timeline',
             'players': 'tab-players',
             'backups': 'tab-backups',
             'config': 'tab-config',
@@ -135,6 +198,45 @@
             'accounts': 'tab-accounts',
             'users': 'tab-accounts'
         };
+
+        function toggleMobileTabMenu() {
+            const menu = document.getElementById('mobile-tab-dropdown');
+            const arrow = document.getElementById('mobile-tab-arrow');
+            const trigger = document.getElementById('mobile-tab-trigger');
+            if (!menu) return;
+            const isShown = menu.classList.toggle('show');
+            if (arrow) arrow.style.transform = isShown ? 'rotate(180deg)' : 'rotate(0deg)';
+            if (trigger) trigger.setAttribute('aria-expanded', isShown ? 'true' : 'false');
+        }
+
+        function closeMobileTabMenu() {
+            const menu = document.getElementById('mobile-tab-dropdown');
+            const arrow = document.getElementById('mobile-tab-arrow');
+            const trigger = document.getElementById('mobile-tab-trigger');
+            if (menu && menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function selectMobileTab(tabId) {
+            closeMobileTabMenu();
+            switchTab(tabId, null);
+        }
+
+        // Close mobile dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.mobile-nav-container');
+            if (container && !container.contains(e.target)) {
+                closeMobileTabMenu();
+            }
+        });
+
+        // Close mobile dropdown on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeMobileTabMenu();
+        });
 
         function getTabFromUrl() {
             // 1. Check URL hash (e.g. #players or #tab-players)
@@ -158,37 +260,53 @@
         }
 
         function switchTab(tabId, btn, updateUrl = true) {
-            const target = document.getElementById(tabId);
-            if (!target) return;
+            const slug = TAB_SLUGS[tabId] || tabId.replace(/^tab-/, '');
 
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            // 1. Update desktop tab buttons
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
-            target.classList.add('active');
-
             const activeBtn = btn || document.querySelector(`[data-tab="${tabId}"]`) || document.querySelector(`button[onclick*="'${tabId}'"]`);
             if (activeBtn) activeBtn.classList.add('active');
 
+            // 2. Update mobile dropdown items & trigger label
+            document.querySelectorAll('.mobile-tab-item').forEach(item => {
+                if (item.getAttribute('data-tab') === tabId) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+            const currentLabelEl = document.getElementById('mobile-tab-current-label');
+            if (currentLabelEl && TAB_LABELS[tabId]) {
+                currentLabelEl.textContent = TAB_LABELS[tabId];
+            }
+
             if (updateUrl) {
-                const slug = TAB_SLUGS[tabId] || tabId.replace(/^tab-/, '');
                 if (window.location.hash.replace(/^#/, '').toLowerCase() !== slug) {
                     history.pushState({ tab: tabId }, '', '#' + slug);
                 }
             }
 
-            if (tabId === 'tab-players') {
-                applyVikingHistoryHeight();
-                initVikingResizeObserver();
-            } else if (tabId === 'tab-dashboard') {
-                applyServerHistoryHeight();
-                initServerResizeObserver();
-            }
+            // Dynamically load fresh tab partial into #tab-content via HTMX
+            htmx.ajax('GET', '/partials/tabs/' + slug, {
+                target: '#tab-content',
+                swap: 'innerHTML'
+            });
         }
 
         function syncTabFromUrl(isInitial = false) {
             const tabId = getTabFromUrl();
-            if (tabId && document.getElementById(tabId)) {
-                switchTab(tabId, null, false);
+            if (tabId) {
+                const currentPanel = document.querySelector('#tab-content > .tab-panel');
+                const currentId = currentPanel ? currentPanel.id : 'tab-dashboard';
+                if (!isInitial || currentId !== tabId) {
+                    switchTab(tabId, null, false);
+                } else {
+                    // Update mobile dropdown label on initial load even if matching current
+                    const currentLabelEl = document.getElementById('mobile-tab-current-label');
+                    if (currentLabelEl && TAB_LABELS[tabId]) {
+                        currentLabelEl.textContent = TAB_LABELS[tabId];
+                    }
+                }
             } else if (!isInitial && window.location.hash === '') {
                 switchTab('tab-dashboard', null, false);
             }

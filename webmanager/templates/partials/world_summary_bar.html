@@ -1,0 +1,64 @@
+<div id="world-summary-bar" class="card" style="margin-bottom: 1.5rem;" hx-get="/partials/world-summary" hx-trigger="every 5s, worldSagaUpdated from:body" hx-swap="outerHTML">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
+            <span>🌍</span> Midgard World Telemetry
+            <span class="badge" style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                ☀️ Day {{ status.world_stats.current_day if status.world_stats else 1 }}
+            </span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="switchTab('tab-saga', null)" style="font-size: 0.75rem; padding: 0.2rem 0.65rem; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+            <span>View Full Saga</span> &rarr;
+        </button>
+    </div>
+
+    <!-- 4 Telemetry Metrics Grid (World Calendar, Raids Survived, Forsaken Triumphs, Portals & Crypts) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+        <!-- 1. Midgard Calendar -->
+        <div class="metric-box">
+            <span class="metric-label">☀️ World Calendar</span>
+            <span class="metric-value" style="color: var(--nordic-cyan);">
+                Day {{ status.world_stats.current_day if status.world_stats else 1 }}
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
+                🌙 {{ status.world_stats.nights_slept if status.world_stats else 0 }} Nights Slept Through
+            </span>
+        </div>
+
+        <!-- 2. Raids & Invasions Survived -->
+        <div class="metric-box">
+            <span class="metric-label">⚔️ Raids Survived</span>
+            <span class="metric-value" style="color: #f87171;">
+                {{ status.world_stats.total_raids if status.world_stats else 0 }}
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
+                {% if status.world_stats and status.world_stats.recent_raids %}
+                Latest: {{ status.world_stats.recent_raids[0].title }}
+                {% else %}
+                No invasions logged yet
+                {% endif %}
+            </span>
+        </div>
+
+        <!-- 3. Forsaken Boss Altars & Triumphs -->
+        <div class="metric-box">
+            <span class="metric-label">🏆 Forsaken Triumphs</span>
+            <span class="metric-value" style="color: var(--nordic-gold);">
+                {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }} <span style="font-size: 0.8rem; color: var(--text-muted);">/ {{ status.world_stats.total_bosses_count if status.world_stats else 7 }} Slain</span>
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
+                ⚔️ {{ status.world_stats.total_boss_defeats_count if status.world_stats else 0 }} Total Defeats &bull; 🗝️ {{ status.world_stats.discovered_bosses_count if status.world_stats else 0 }} Altars
+            </span>
+        </div>
+
+        <!-- 4. Portals & Dungeons -->
+        <div class="metric-box">
+            <span class="metric-label">🌀 Portals & Crypts</span>
+            <span class="metric-value" style="color: #a78bfa;">
+                {{ status.world_stats.connected_portals if status.world_stats else 0 }} <span style="font-size: 0.8rem; color: var(--text-muted);">Portals ({{ status.world_stats.portal_pairs if status.world_stats else 0 }} Pairs)</span>
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
+                🗝️ {{ status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts ({{ status.world_stats.dungeon_rooms if status.world_stats else 0 }} Rooms)
+            </span>
+        </div>
+    </div>
+</div>

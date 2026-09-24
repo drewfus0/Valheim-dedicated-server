@@ -13,13 +13,16 @@ from core.auth import (
     SESSION_COOKIE_NAME,
     SESSION_TTL_SECONDS,
     authenticate_user,
+    clear_login_history,
     create_session,
     create_user,
     delete_user,
     destroy_session,
+    get_login_history,
     get_session_user,
     list_users,
     load_users,
+    record_login_event,
     update_password,
     update_user_role,
 )
@@ -43,6 +46,8 @@ from core.system import (
     execute_host_reboot,
     get_cpu_frequencies,
 )
+from core.timeline import TIMELINE_ENGINE
+from core.world_stats import FORSAKEN_BOSSES, WORLD_STATS
 
 BASE_DIR = Path(__file__).parent
 
@@ -113,6 +118,19 @@ def require_auth(request: Request) -> Optional[Response]:
     return None
 
 
+def get_client_ip(request: Request) -> str:
+    """Extract client IP address, checking forwarding headers if present."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "127.0.0.1"
+
+
 # ==========================================
 # Authentication & Login Routes
 # ==========================================
@@ -132,8 +150,17 @@ async def auth_login(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    client_ip = get_client_ip(request)
+    ua = request.headers.get("user-agent", "Unknown")
     user = authenticate_user(username, password)
     if not user:
+        record_login_event(
+            username=username,
+            status="failed",
+            ip=client_ip,
+            user_agent=ua,
+            failure_reason="Invalid credentials",
+        )
         error_html = (
             '<div id="login-error-box" class="login-error" style="display: block;">'
             "Invalid username or password. Please check your credentials."
@@ -141,6 +168,13 @@ async def auth_login(
         )
         return HTMLResponse(content=error_html, status_code=200)
 
+    record_login_event(
+        username=user["username"],
+        status="success",
+        ip=client_ip,
+        user_agent=ua,
+        role=user["role"],
+    )
     token = create_session(user)
     response = Response(headers={"HX-Redirect": "/"})
     response.set_cookie(
@@ -159,8 +193,17 @@ async def auth_register(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    client_ip = get_client_ip(request)
+    ua = request.headers.get("user-agent", "Unknown")
     try:
         new_user = create_user(username=username, password=password, role="viewer")
+        record_login_event(
+            username=new_user["username"],
+            status="registered",
+            ip=client_ip,
+            user_agent=ua,
+            role=new_user["role"],
+        )
         token = create_session(new_user)
         response = Response(headers={"HX-Redirect": "/"})
         response.set_cookie(
@@ -172,6 +215,13 @@ async def auth_register(
         )
         return response
     except Exception as e:
+        record_login_event(
+            username=username,
+            status="failed",
+            ip=client_ip,
+            user_agent=ua,
+            failure_reason=str(e),
+        )
         error_html = (
             f'<div id="login-error-box" class="login-error" style="display: block;">'
             f"{e}"
@@ -222,9 +272,6 @@ async def dashboard_page(request: Request):
 
     user = get_current_user_from_request(request)
     status = SERVER_MANAGER.get_status_data()
-    backups = list_backups()
-    available_worlds = list_available_worlds()
-    users = list_users() if user and user.get("role") == "admin" else []
 
     return templates.TemplateResponse(
         request=request,
@@ -233,11 +280,99 @@ async def dashboard_page(request: Request):
             "user": user,
             "status": status,
             "config": status["config"],
-            "backups": backups,
-            "available_worlds": available_worlds,
-            "users": users,
             "current_user": user,
         },
+    )
+
+
+@app.get("/partials/tabs/{tab_name}", response_class=HTMLResponse)
+async def partial_tab(request: Request, tab_name: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    tab = tab_name.lower().strip()
+
+    if tab == "dashboard":
+        status = SERVER_MANAGER.get_status_data()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/dashboard_tab.html",
+            context={"status": status, "config": status["config"], "user": user},
+        )
+    elif tab in ("saga", "world-saga", "world"):
+        status = SERVER_MANAGER.get_status_data()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/saga_tab.html",
+            context={"status": status, "user": user},
+        )
+    elif tab == "players":
+        status = SERVER_MANAGER.get_status_data()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/players_tab.html",
+            context={"status": status, "user": user},
+        )
+    elif tab == "backups":
+        backups = list_backups()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/backups_tab.html",
+            context={"backups": backups, "user": user},
+        )
+    elif tab in ("config", "configuration"):
+        cfg = load_config()
+        available_worlds = list_available_worlds()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/config_tab.html",
+            context={"config": cfg, "available_worlds": available_worlds, "user": user},
+        )
+    elif tab in ("logs", "console"):
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/logs_tab.html",
+            context={"user": user},
+        )
+    elif tab in ("accounts", "users"):
+        if not user or user.get("role") != "admin":
+            return HTMLResponse(
+                content="<div class='card' style='color: #fca5a5;'>Access Restricted to Administrators</div>",
+                status_code=403,
+            )
+        users = list_users()
+        login_history = get_login_history()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/accounts_tab_wrapper.html",
+            context={"users": users, "user": user, "current_user": user, "login_history": login_history},
+        )
+    elif tab in ("timeline", "chronicles", "temporal"):
+        chunk = TIMELINE_ENGINE.get_chunk()
+        players = TIMELINE_ENGINE.get_all_players()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/timeline_tab.html",
+            context={"chunk": chunk, "players": players, "user": user},
+        )
+    else:
+        raise HTTPException(status_code=404, detail="Tab not found")
+
+
+@app.get("/partials/timeline/chunk", response_class=HTMLResponse)
+async def partial_timeline_chunk(request: Request, before_ts: Optional[float] = None):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    chunk = TIMELINE_ENGINE.get_chunk(before_ts)
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/timeline_chunk.html",
+        context={"chunk": chunk, "user": user},
     )
 
 
@@ -248,6 +383,7 @@ _last_status_state = {
     "runs_count": None,
     "boss_battle": None,
     "slain_count": None,
+    "active_raid": None,
 }
 
 
@@ -267,6 +403,7 @@ async def partial_status(request: Request):
     world_stats = status.get("world_stats") or {}
     curr_boss_battle = world_stats.get("is_boss_battle_active")
     curr_slain = world_stats.get("slain_bosses_count")
+    curr_active_raid = (world_stats.get("active_raid") or {}).get("title")
 
     triggers = {}
     if _last_status_state["status"] is not None:
@@ -279,6 +416,10 @@ async def partial_status(request: Request):
             triggers["serverHistoryUpdated"] = True
         if curr_boss_battle != _last_status_state.get("boss_battle") or curr_slain != _last_status_state.get("slain_count"):
             triggers["worldSagaUpdated"] = True
+            triggers["raidAlertUpdated"] = True
+        if curr_active_raid != _last_status_state.get("active_raid"):
+            triggers["raidAlertUpdated"] = True
+            triggers["statusChanged"] = True
 
     _last_status_state["status"] = curr_status
     _last_status_state["players_count"] = curr_players
@@ -286,6 +427,7 @@ async def partial_status(request: Request):
     _last_status_state["runs_count"] = curr_runs
     _last_status_state["boss_battle"] = curr_boss_battle
     _last_status_state["slain_count"] = curr_slain
+    _last_status_state["active_raid"] = curr_active_raid
 
     headers = {}
     if triggers:
@@ -314,13 +456,88 @@ async def partial_world_saga(request: Request):
     )
 
 
+@app.post("/api/boss/record-defeat/{boss_id}", response_class=HTMLResponse)
+async def record_boss_defeat_endpoint(request: Request, boss_id: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") not in ["admin", "operator"]:
+        headers = make_toast_headers("Permission denied: Operator role required to record boss victory.", "error")
+        status = SERVER_MANAGER.get_status_data()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/world_saga_card.html",
+            context={"status": status, "user": user},
+            headers=headers,
+        )
+
+    ok = WORLD_STATS.record_boss_defeat(boss_id)
+    if ok:
+        boss_name = boss_id.capitalize()
+        for b in FORSAKEN_BOSSES:
+            if b["id"] == boss_id:
+                boss_name = b["name"]
+                break
+        headers = make_toast_headers(f"Recorded victory against {boss_name}! Defeat count updated.", "success")
+    else:
+        headers = make_toast_headers(f"Could not record defeat for '{boss_id}'.", "error")
+
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/world_saga_card.html",
+        context={"status": status, "user": user},
+        headers=headers,
+    )
+
+
+@app.get("/partials/world-summary", response_class=HTMLResponse)
+async def partial_world_summary(request: Request):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/world_summary_bar.html",
+        context={"status": status, "user": user},
+    )
+
+
 @app.get("/partials/header-status", response_class=HTMLResponse)
 async def partial_header_status(request: Request):
     status = SERVER_MANAGER.get_status_data()
+    world_stats = status.get("world_stats") or {}
+    curr_active_raid = (world_stats.get("active_raid") or {}).get("title")
+    curr_boss_battle = world_stats.get("is_boss_battle_active")
+
+    headers = {}
+    if _last_status_state["status"] is not None:
+        if curr_active_raid != _last_status_state.get("active_raid") or curr_boss_battle != _last_status_state.get("boss_battle"):
+            headers["HX-Trigger"] = json.dumps({"raidAlertUpdated": True})
+            _last_status_state["active_raid"] = curr_active_raid
+            _last_status_state["boss_battle"] = curr_boss_battle
+
     return templates.TemplateResponse(
         request=request,
         name="partials/header_status.html",
         context={"status": status},
+        headers=headers,
+    )
+
+
+@app.get("/partials/raid-alert", response_class=HTMLResponse)
+async def partial_raid_alert(request: Request):
+    user = get_current_user_from_request(request)
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/raid_alert_banner.html",
+        context={"status": status, "user": user},
     )
 
 
@@ -447,10 +664,11 @@ async def partial_accounts(request: Request):
         return HTMLResponse(content="<div class='card' style='color: #fca5a5;'>Access Restricted to Administrators</div>", status_code=403)
 
     users = list_users()
+    login_history = get_login_history()
     return templates.TemplateResponse(
         request=request,
         name="partials/accounts_tab.html",
-        context={"users": users, "current_user": user, "user": user},
+        context={"users": users, "current_user": user, "user": user, "login_history": login_history},
     )
 
 
@@ -477,10 +695,11 @@ async def user_create(
         headers = make_toast_headers(f"Failed to create user: {e}", "error")
 
     users = list_users()
+    login_history = get_login_history()
     return templates.TemplateResponse(
         request=request,
         name="partials/accounts_tab.html",
-        context={"users": users, "current_user": user, "user": user},
+        context={"users": users, "current_user": user, "user": user, "login_history": login_history},
         headers=headers,
     )
 
@@ -498,10 +717,11 @@ async def user_delete(request: Request, target_username: str):
         headers = make_toast_headers(f"Failed to delete user: {e}", "error")
 
     users = list_users()
+    login_history = get_login_history()
     return templates.TemplateResponse(
         request=request,
         name="partials/accounts_tab.html",
-        context={"users": users, "current_user": user, "user": user},
+        context={"users": users, "current_user": user, "user": user, "login_history": login_history},
         headers=headers,
     )
 
@@ -523,10 +743,28 @@ async def user_update_role(
         headers = make_toast_headers(f"Failed to update role: {e}", "error")
 
     users = list_users()
+    login_history = get_login_history()
     return templates.TemplateResponse(
         request=request,
         name="partials/accounts_tab.html",
-        context={"users": users, "current_user": user, "user": user},
+        context={"users": users, "current_user": user, "user": user, "login_history": login_history},
+        headers=headers,
+    )
+
+
+@app.post("/api/users/login-history/clear", response_class=HTMLResponse)
+async def clear_auth_history(request: Request):
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(content="Unauthorized", status_code=403)
+
+    clear_login_history()
+    headers = make_toast_headers("Login audit log cleared.", "info", accountsUpdated=True)
+    users = list_users()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/accounts_tab.html",
+        context={"users": users, "current_user": user, "user": user, "login_history": []},
         headers=headers,
     )
 

@@ -1,0 +1,125 @@
+{# Partial: Single Timeline Chunk (Active 1-Hour Slice or Concatenated Idle Gap) #}
+{% if chunk.type == "active" %}
+<div class="timeline-hour-block" id="{{ chunk.chunk_id }}">
+    <!-- Left Time Ticks Column -->
+    <div class="timeline-time-col">
+        <div class="timeline-time-marker top">
+            <span class="marker-dot"></span>
+            <span class="marker-time">{{ chunk.end_time_str }}</span>
+            {% if chunk.end_time_str == "NOW" %}
+                <span class="now-badge">LIVE</span>
+            {% endif %}
+        </div>
+        <div class="timeline-date-label">
+            <span>{{ chunk.date_str }}</span>
+        </div>
+        <div class="timeline-time-marker bottom">
+            <span class="marker-dot"></span>
+            <span class="marker-time">{{ chunk.start_time_str }}</span>
+        </div>
+    </div>
+
+    <!-- Main Swimlanes Grid -->
+    <div class="timeline-grid-area">
+        <!-- Background Lane Guides -->
+        <div class="timeline-lanes-bg">
+            {% for lane in chunk.lanes %}
+                <div class="timeline-lane-guide" style="border-left-color: {{ lane.player.border }};"></div>
+            {% endfor %}
+        </div>
+
+        <!-- Full-Width Horizontal Landmark Events (Bosses & Raids) -->
+        {% if chunk.events %}
+            <div class="timeline-events-overlay">
+                {% for evt in chunk.events %}
+                    <div class="timeline-event-line {{ evt.type }}" style="top: {{ evt.top_pct }}%;" title="{{ evt.title }} ({{ evt.timestamp_full }})">
+                        <div class="timeline-event-beam {{ evt.type }}"></div>
+                        <div class="timeline-event-badge {{ evt.type }}">
+                            <span class="evt-icon">{{ evt.icon }}</span>
+                            <strong class="evt-title">{{ evt.title }}</strong>
+                            {% if evt.sub %}
+                                <span class="evt-sub">{{ evt.sub }}</span>
+                            {% endif %}
+                            <span class="evt-time">{{ evt.time_str }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Player Columns -->
+        <div class="timeline-lanes-container">
+            {% for lane in chunk.lanes %}
+                <div class="timeline-player-lane" data-player="{{ lane.player.name }}">
+                    <!-- Presence Bars -->
+                    {% for sess in lane.sessions %}
+                        <div class="timeline-presence-bar {% if sess.is_active_now %}active-now{% endif %}"
+                             style="top: {{ sess.top_pct }}%; height: {{ sess.height_pct }}%; background: {{ lane.player.bg }}; border: 1px solid {{ lane.player.border }}; box-shadow: {{ lane.player.glow }};"
+                             title="{{ lane.player.name }}: {{ sess.start_time }} - {{ sess.end_time }} ({{ sess.duration_str }})">
+                            <div class="presence-bar-fill" style="background: {{ lane.player.color }};"></div>
+                            <div class="presence-bar-label">
+                                <span class="p-time">{{ sess.start_time }}-{{ sess.end_time }}</span>
+                                <span class="p-dur">{{ sess.duration_str }}</span>
+                            </div>
+                            {% if sess.is_active_now %}
+                                <span class="presence-pulse-dot" style="background: {{ lane.player.color }};"></span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+
+                    <!-- Death Markers (💀) -->
+                    {% for death in lane.deaths %}
+                        <div class="timeline-death-marker"
+                             style="top: {{ death.top_pct }}%;"
+                             title="💀 {{ death.player_name }} died at {{ death.time_str }} ({{ death.timestamp_full }})">
+                            <span class="death-skull">💀</span>
+                            <span class="death-tooltip">{{ death.player_name }} · {{ death.time_str }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% elif chunk.type == "idle" %}
+<!-- Concatenated Inactive Gap Section -->
+<div class="timeline-idle-row" id="{{ chunk.chunk_id }}">
+    <div class="timeline-time-col idle">
+        <span class="idle-glyph">💤</span>
+    </div>
+    <div class="timeline-idle-content">
+        <div class="timeline-idle-card">
+            <div class="idle-left">
+                <span class="idle-icon">🌙</span>
+                <div>
+                    <div class="idle-title">{{ chunk.duration_label }} of Tranquility in Midgard</div>
+                    <div class="idle-range">{{ chunk.gap_start_str }} <span class="idle-arrow">↓</span> {{ chunk.gap_end_str }}</div>
+                </div>
+            </div>
+            <div class="idle-right">
+                <span class="idle-desc">No mortal footsteps or realm disturbances</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Infinite Scroll Sentinel or Dawn of Midgard End Banner -->
+{% if not chunk.is_end %}
+    <div class="timeline-sentinel"
+         hx-get="/partials/timeline/chunk?before_ts={{ chunk.next_before_ts }}"
+         hx-trigger="revealed"
+         hx-swap="outerHTML">
+        <div class="timeline-loading-indicator">
+            <span class="spinner-dot"></span>
+            <span>Unrolling earlier chronicles...</span>
+        </div>
+    </div>
+{% else %}
+    <div class="timeline-genesis-card">
+        <div class="genesis-icon">🛡️</div>
+        <div class="genesis-title">Dawn of Midgard</div>
+        <div class="genesis-sub">Earliest recorded chronicles reached ({{ chunk.earliest_date_str }})</div>
+    </div>
+{% endif %}

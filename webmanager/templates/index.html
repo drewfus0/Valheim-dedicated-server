@@ -1,49 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Tab 1: Dashboard -->
-<div id="tab-dashboard" class="tab-panel active">
-    <div class="grid-2col">
-        {% include "partials/status_card.html" %}
-        {% include "partials/player_list.html" %}
-    </div>
-
-    <!-- Midgard World Saga Telemetry (Raids, Calendar Day, Boss Shrines & Portals) -->
-    {% include "partials/world_saga_card.html" %}
-
-    <div class="grid-2col">
-        {% include "partials/connection_card.html" %}
-        {% include "partials/terminal.html" %}
-    </div>
-
-    <!-- Server Run History Section (Adjustable Height, Position Preserved) -->
-    {% include "partials/server_history.html" %}
+<div id="tab-content">
+    {% include "partials/dashboard_tab.html" %}
 </div>
-
-<!-- Tab 2: Players -->
-<div id="tab-players" class="tab-panel">
-    {% include "partials/players_tab.html" %}
-</div>
-
-<!-- Tab 3: Backups -->
-<div id="tab-backups" class="tab-panel">
-    {% include "partials/backup_table.html" %}
-</div>
-
-<!-- Tab 3: Configuration -->
-<div id="tab-config" class="tab-panel">
-    {% include "partials/config_form.html" %}
-</div>
-
-<!-- Tab 4: Live Logs -->
-<div id="tab-logs" class="tab-panel">
-    {% include "partials/terminal.html" %}
-</div>
-
-<!-- Tab 5: Accounts (Admin Only) -->
-{% if user.role == 'admin' %}
-<div id="tab-accounts" class="tab-panel">
-    {% include "partials/accounts_tab.html" %}
-</div>
-{% endif %}
 {% endblock %}
