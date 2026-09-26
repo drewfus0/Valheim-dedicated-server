@@ -17,9 +17,7 @@ RE_CLOSING_SOCKET = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Closi
 RE_PLAYER_HISTORY_ENTRY = re.compile(
     r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Player history entry with index \d+:\s*(.*?)\s*\(Steam_(\d+),"
 )
-RE_PEER_DISCONNECT = re.compile(
-    r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(?:RPC_Disconnect|Destroying peer|k_ESteamNetworkingConnectionState_ClosedByPeer|k_ESteamNetworkingConnectionState_ProblemDetectedLocally)"
-)
+RE_SENT_TO = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Sent to\s+(\d+)")
 RE_SERVER_SHUTDOWN = re.compile(
     r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*(?:Game - OnApplicationQuit|ZNet Shutdown|Shutting down|ZNet OnDestroy|Sending disconnect msg)"
 )
@@ -287,22 +285,19 @@ class PlayerTracker:
             if closing_match:
                 ts_str, socket_id = closing_match.groups()
                 socket_id = socket_id.strip()
-                target_player = self._find_online_player_by_socket(socket_id)
-                if target_player:
-                    self._record_logout(target_player, ts_str)
-                else:
-                    online_players = [p for p, d in self.known_players.items() if d.get("is_online", False)]
-                    if len(online_players) == 1:
-                        self._record_logout(online_players[0], ts_str)
+                for name, data in self.known_players.items():
+                    if data.get("is_online", False) and data.get("steam_id") == socket_id:
+                        self._record_logout(name, ts_str)
                 continue
 
-            # Check generic peer disconnect event (fallback if closing socket line missed)
-            peer_dc_match = RE_PEER_DISCONNECT.match(line)
-            if peer_dc_match:
-                ts_str = peer_dc_match.group(1)
-                online_players = [p for p, d in self.known_players.items() if d.get("is_online", False)]
-                if len(online_players) == 1:
-                    self._record_logout(online_players[0], ts_str)
+            # Check periodic profile save confirmation (update last_seen only for currently online players)
+            sent_match = RE_SENT_TO.match(line)
+            if sent_match:
+                ts_str, steam_id = sent_match.groups()
+                steam_id = steam_id.strip()
+                for name, data in self.known_players.items():
+                    if data.get("is_online", False) and data.get("steam_id") == steam_id:
+                        data["last_seen"] = ts_str
                 continue
 
             # Check server connection count zero
