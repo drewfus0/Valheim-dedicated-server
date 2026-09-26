@@ -1,8 +1,8 @@
 {
-  "current_day": 375,
-  "nights_slept": 115,
-  "last_day_timestamp": "09/24/2026 02:25:35",
-  "total_raids": 46,
+  "current_day": 444,
+  "nights_slept": 129,
+  "last_day_timestamp": "09/26/2026 05:56:04",
+  "total_raids": 56,
   "raids_history": [
     {
       "id": "raid_1",
@@ -417,6 +417,96 @@
       "quote": "Creatures of the swamp rise up.",
       "biome": "Swamp",
       "icon": "\ud83d\udc80"
+    },
+    {
+      "id": "raid_47",
+      "timestamp": "09/24/2026 19:20:09",
+      "event_code": "foresttrolls",
+      "title": "The Ground is Shaking",
+      "quote": "Trolls stomp towards your settlement.",
+      "biome": "Black Forest",
+      "icon": "\ud83e\udea8"
+    },
+    {
+      "id": "raid_48",
+      "timestamp": "09/24/2026 22:24:01",
+      "event_code": "wolves",
+      "title": "You Are Being Hunted",
+      "quote": "A ravenous wolf pack descends upon you.",
+      "biome": "Mountain / Plains",
+      "icon": "\ud83d\udc3a"
+    },
+    {
+      "id": "raid_49",
+      "timestamp": "09/25/2026 02:59:51",
+      "event_code": "skeletons",
+      "title": "Skeleton Surprise",
+      "quote": "Undead legions emerge from the soil.",
+      "biome": "Any",
+      "icon": "\u2620\ufe0f"
+    },
+    {
+      "id": "raid_50",
+      "timestamp": "09/25/2026 03:45:49",
+      "event_code": "army_goblin",
+      "title": "Army Goblin",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_51",
+      "timestamp": "09/25/2026 15:15:22",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_52",
+      "timestamp": "09/25/2026 22:09:07",
+      "event_code": "foresttrolls",
+      "title": "The Ground is Shaking",
+      "quote": "Trolls stomp towards your settlement.",
+      "biome": "Black Forest",
+      "icon": "\ud83e\udea8"
+    },
+    {
+      "id": "raid_53",
+      "timestamp": "09/25/2026 23:41:03",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_54",
+      "timestamp": "09/26/2026 01:58:58",
+      "event_code": "hildirboss2",
+      "title": "Hildirboss2",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_55",
+      "timestamp": "09/26/2026 02:44:56",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_56",
+      "timestamp": "09/26/2026 14:15:28",
+      "event_code": "wolves",
+      "title": "You Are Being Hunted",
+      "quote": "A ravenous wolf pack descends upon you.",
+      "biome": "Mountain / Plains",
+      "icon": "\ud83d\udc3a"
     }
   ],
   "discovered_bosses": {
@@ -526,6 +616,42 @@
       ],
       "slain_at": "09/16/2026 19:08:25",
       "world_day": 167
+    },
+    "bonemass": {
+      "id": "bonemass",
+      "name": "Bonemass",
+      "title": "Gargantuan Swamp Ooze",
+      "biome": "Swamp",
+      "icon": "\ud83d\udc80",
+      "order": 3,
+      "defeat_count": 1,
+      "defeats": [
+        {
+          "defeat_number": 1,
+          "slain_at": "09/24/2026 19:47:40",
+          "world_day": 378
+        }
+      ],
+      "slain_at": "09/24/2026 19:47:40",
+      "world_day": 378
+    },
+    "moder": {
+      "id": "moder",
+      "name": "Moder",
+      "title": "Mother of Drakes",
+      "biome": "Mountain",
+      "icon": "\ud83d\udc09",
+      "order": 4,
+      "defeat_count": 1,
+      "defeats": [
+        {
+          "defeat_number": 1,
+          "slain_at": "09/24/2026 20:19:12",
+          "world_day": 382
+        }
+      ],
+      "slain_at": "09/24/2026 20:19:12",
+      "world_day": 382
     }
   },
   "boss_triumphs": [
@@ -616,13 +742,35 @@
       "defeat_number": 4,
       "slain_at": "09/16/2026 19:08:25",
       "world_day": 167
+    },
+    {
+      "id": "bonemass",
+      "name": "Bonemass",
+      "title": "Gargantuan Swamp Ooze",
+      "biome": "Swamp",
+      "icon": "\ud83d\udc80",
+      "order": 3,
+      "defeat_number": 1,
+      "slain_at": "09/24/2026 19:47:40",
+      "world_day": 378
+    },
+    {
+      "id": "moder",
+      "name": "Moder",
+      "title": "Mother of Drakes",
+      "biome": "Mountain",
+      "icon": "\ud83d\udc09",
+      "order": 4,
+      "defeat_number": 1,
+      "slain_at": "09/24/2026 20:19:12",
+      "world_day": 382
     }
   ],
   "active_bosses_count": 0,
   "engaged_boss": null,
-  "total_dungeons_entered": 417,
-  "total_dungeon_rooms": 11377,
-  "connected_portals": 176,
+  "total_dungeons_entered": 458,
+  "total_dungeon_rooms": 12749,
+  "connected_portals": 208,
   "portal_pairs_map": {
     "-211647136:44032": "-211647136:46272",
     "-211647136:46272": "-211647136:44032",
@@ -770,17 +918,10 @@
     "-977014319:4479": "-977014319:3745",
     "2350507881:8640": "2693676159:58279",
     "2350507881:10225": "1:307182",
-    "945756728:2527": "2811105454:9642",
-    "1:356637": "2462471368:22056",
-    "1:356589": "282044016:8891",
-    "282044016:8891": "1:356589",
-    "1:356588": "282044016:11583",
-    "282044016:11583": "1:356588",
-    "2462471368:22056": "1:356637",
+    "1:356589": "557814741:6002",
     "1:356587": "282044016:17735",
     "282044016:17735": "1:356587",
-    "1:356568": "2462471368:41590",
-    "2462471368:41590": "1:356568",
+    "2462471368:41590": "2976237897:23379",
     "1522304615:2659": "1522304615:10669",
     "1522304615:10669": "1522304615:2659",
     "1362540369:27963": "1:356580",
@@ -795,15 +936,54 @@
     "1:356624": "1:356562",
     "1:356571": "1:356610",
     "1:356610": "1:356571",
-    "1:356590": "1403534248:45628",
-    "1:356565": "2890979153:31375",
-    "2890979153:31375": "1:356565",
-    "1403534248:45628": "1:356590",
-    "2811105454:9642": "945756728:2527"
+    "1:356590": "104700306:390",
+    "2890979153:31375": "2976237897:167",
+    "1:356626": "2909824467:9171",
+    "2909824467:9171": "1:356626",
+    "1:356614": "1:356647",
+    "1:356647": "1:356614",
+    "104700306:390": "1:356590",
+    "1:356606": "2462471368:18939",
+    "1:356605": "2909824467:19389",
+    "2909824467:19389": "1:356605",
+    "2462471368:18939": "1:356606",
+    "1:356607": "104700306:16042",
+    "104700306:16042": "1:356607",
+    "2909824467:35920": "1:356608",
+    "1:356608": "2909824467:35920",
+    "1:356613": "104700306:22127",
+    "104700306:22127": "1:356613",
+    "1:356603": "2909824467:55366",
+    "2909824467:55366": "1:356603",
+    "1:356609": "-879834730:6473",
+    "-879834730:6473": "1:356609",
+    "1:356650": "-879834730:6517",
+    "-879834730:6517": "1:356650",
+    "2976237897:167": "2890979153:31375",
+    "2976237897:4555": "2976237897:37444",
+    "2976237897:23379": "2462471368:41590",
+    "1:356582": "2976237897:350",
+    "2976237897:350": "1:356582",
+    "2976237897:37444": "2976237897:4555",
+    "557814741:6002": "1:356589",
+    "1742362971:46242": "1742362971:49262",
+    "1742362971:49262": "1742362971:46242",
+    "1742362971:58144": "1742362971:59802",
+    "1742362971:59802": "1742362971:58144",
+    "1:374713": "926316522:18075",
+    "-146943917:3309": "1:374655",
+    "926316522:18075": "1:374713",
+    "1:374655": "-146943917:3309",
+    "1:374691": "926316522:35138",
+    "926316522:35138": "1:374691",
+    "1:374736": "592378187:10708",
+    "592378187:10708": "1:374736",
+    "1:374663": "1:374733",
+    "1:374733": "1:374663"
   },
-  "last_portal_update": "09/24/2026 03:34:59",
-  "last_log_offset": 448378,
+  "last_portal_update": "09/26/2026 14:17:27",
+  "last_log_offset": 66299,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1790232958.7315977,
-  "updated_at": "2026-09-24T16:55:59.032430"
+  "last_world_save_mtime": 1790395927.336271,
+  "updated_at": "2026-09-26T14:26:46.614852"
 }

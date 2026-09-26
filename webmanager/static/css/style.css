@@ -631,6 +631,11 @@ form.htmx-request .htmx-indicator {
     word-break: break-all;
 }
 
+#tab-logs .terminal-body {
+    height: calc(100vh - 280px);
+    min-height: 520px;
+}
+
 /* Custom Scrollbars */
 .terminal-body::-webkit-scrollbar {
     width: 8px;

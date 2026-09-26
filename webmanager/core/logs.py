@@ -50,7 +50,7 @@ def parse_players() -> Tuple[int, List[str]]:
 
 
 async def log_stream_generator(
-    initial_lines: int = 50,
+    initial_lines: int = 100,
     request: Optional[Any] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE generator streaming live log chunks to HTMX."""

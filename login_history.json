@@ -1,6 +1,66 @@
 {
   "history": [
     {
+      "id": "8c7820137742",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 13:41:02",
+      "iso_timestamp": "2026-09-26T13:41:02.539186"
+    },
+    {
+      "id": "da28cde59292",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.0.0.1",
+      "user_agent": "Chrome (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 06:18:30",
+      "iso_timestamp": "2026-09-26T06:18:30.903386"
+    },
+    {
+      "id": "54eaff9ed649",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.0.0.1",
+      "user_agent": "Chrome (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 06:15:19",
+      "iso_timestamp": "2026-09-26T06:15:19.512714"
+    },
+    {
+      "id": "9c000c19bc4e",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.0.0.1",
+      "user_agent": "cURL CLI",
+      "raw_user_agent": "curl/8.18.0",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 06:14:49",
+      "iso_timestamp": "2026-09-26T06:14:49.043807"
+    },
+    {
+      "id": "d496be7f7abd",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.0.0.1",
+      "user_agent": "cURL CLI",
+      "raw_user_agent": "curl/8.18.0",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 06:14:43",
+      "iso_timestamp": "2026-09-26T06:14:43.837143"
+    },
+    {
       "id": "b6ed311b3619",
       "username": "Pentbot",
       "role": "operator",

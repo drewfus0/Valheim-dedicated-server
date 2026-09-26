@@ -465,6 +465,68 @@
             }
         }
 
+        // Terminal & Live Console Auto-Scroll Management
+        let _terminalObserver = null;
+
+        function scrollTerminalToBottom(force = false) {
+            const terminal = document.getElementById('console-output');
+            if (!terminal) return;
+
+            const autoScroll = document.getElementById('autoScrollCheck');
+            if (!force && autoScroll && !autoScroll.checked) return;
+
+            terminal.scrollTop = terminal.scrollHeight;
+            requestAnimationFrame(() => {
+                terminal.scrollTop = terminal.scrollHeight;
+            });
+        }
+
+        function clearTerminal() {
+            const terminal = document.getElementById('console-output');
+            if (terminal) {
+                terminal.innerHTML = '';
+            }
+        }
+
+        function initTerminalAutoScroll() {
+            const terminal = document.getElementById('console-output');
+            if (!terminal) return;
+
+            const autoScrollCheck = document.getElementById('autoScrollCheck');
+            if (autoScrollCheck) {
+                const saved = localStorage.getItem('valheim_terminal_autoscroll');
+                if (saved !== null) {
+                    autoScrollCheck.checked = (saved === 'true');
+                }
+                autoScrollCheck.onchange = function() {
+                    localStorage.setItem('valheim_terminal_autoscroll', this.checked);
+                    if (this.checked) {
+                        scrollTerminalToBottom(true);
+                    }
+                };
+            }
+
+            if (_terminalObserver) {
+                _terminalObserver.disconnect();
+                _terminalObserver = null;
+            }
+
+            _terminalObserver = new MutationObserver(() => {
+                scrollTerminalToBottom();
+            });
+
+            _terminalObserver.observe(terminal, {
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+
+            // Initial scroll to show latest lines
+            scrollTerminalToBottom(true);
+            setTimeout(() => scrollTerminalToBottom(true), 80);
+            setTimeout(() => scrollTerminalToBottom(true), 250);
+        }
+
         // Preserve scroll position during HTMX DOM swaps
         document.addEventListener('htmx:beforeSwap', function(evt) {
             const scrollEl = document.getElementById('viking-session-history-scroll');
@@ -490,6 +552,22 @@
                 serverScrollEl.scrollTop = _savedServerHistoryScroll;
                 initServerResizeObserver();
             }
+            if (document.getElementById('console-output')) {
+                initTerminalAutoScroll();
+            }
+        });
+
+        document.addEventListener('htmx:afterSettle', function(evt) {
+            if (document.getElementById('console-output')) {
+                scrollTerminalToBottom();
+            }
+        });
+
+        // Listen for HTMX SSE events to scroll new log arrivals
+        document.addEventListener('htmx:sseMessage', function(evt) {
+            if (evt.target && evt.target.id === 'console-output') {
+                scrollTerminalToBottom();
+            }
         });
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -498,6 +576,7 @@
             initVikingResizeObserver();
             applyServerHistoryHeight();
             initServerResizeObserver();
+            initTerminalAutoScroll();
         });
     </script>
 </body>
