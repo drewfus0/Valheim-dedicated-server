@@ -1,8 +1,8 @@
 {
-  "current_day": 458,
-  "nights_slept": 130,
-  "last_day_timestamp": "09/26/2026 15:58:55",
-  "total_raids": 56,
+  "current_day": 542,
+  "nights_slept": 148,
+  "last_day_timestamp": "09/29/2026 16:56:00",
+  "total_raids": 68,
   "raids_history": [
     {
       "id": "raid_1",
@@ -507,6 +507,114 @@
       "quote": "A ravenous wolf pack descends upon you.",
       "biome": "Mountain / Plains",
       "icon": "\ud83d\udc3a"
+    },
+    {
+      "id": "raid_57",
+      "timestamp": "09/26/2026 17:19:21",
+      "event_code": "hildirboss2",
+      "title": "Hildirboss2",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_58",
+      "timestamp": "09/26/2026 20:23:14",
+      "event_code": "foresttrolls",
+      "title": "The Ground is Shaking",
+      "quote": "Trolls stomp towards your settlement.",
+      "biome": "Black Forest",
+      "icon": "\ud83e\udea8"
+    },
+    {
+      "id": "raid_59",
+      "timestamp": "09/27/2026 00:13:05",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_60",
+      "timestamp": "09/27/2026 03:16:58",
+      "event_code": "hildirboss2",
+      "title": "Hildirboss2",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_61",
+      "timestamp": "09/27/2026 13:14:34",
+      "event_code": "hildirboss2",
+      "title": "Hildirboss2",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_62",
+      "timestamp": "09/27/2026 20:08:17",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_63",
+      "timestamp": "09/27/2026 20:54:16",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_64",
+      "timestamp": "09/27/2026 23:58:09",
+      "event_code": "skeletons",
+      "title": "Skeleton Surprise",
+      "quote": "Undead legions emerge from the soil.",
+      "biome": "Any",
+      "icon": "\u2620\ufe0f"
+    },
+    {
+      "id": "raid_65",
+      "timestamp": "09/28/2026 22:39:02",
+      "event_code": "foresttrolls",
+      "title": "The Ground is Shaking",
+      "quote": "Trolls stomp towards your settlement.",
+      "biome": "Black Forest",
+      "icon": "\ud83e\udea8"
+    },
+    {
+      "id": "raid_66",
+      "timestamp": "09/29/2026 10:54:33",
+      "event_code": "army_goblin",
+      "title": "Army Goblin",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_67",
+      "timestamp": "09/29/2026 19:20:14",
+      "event_code": "blobs",
+      "title": "A Foul Smell",
+      "quote": "Blobs and Oozers emerge from the murky swamp.",
+      "biome": "Swamp",
+      "icon": "\ud83e\uddea"
+    },
+    {
+      "id": "raid_68",
+      "timestamp": "09/29/2026 20:06:12",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
     }
   ],
   "discovered_bosses": {
@@ -548,6 +656,15 @@
       "icon": "\ud83d\udc51",
       "primary_code": "GoblinKing",
       "discovered_at": "09/22/2026 20:34:45"
+    },
+    "SeekerQueen": {
+      "id": "queen",
+      "name": "The Queen",
+      "title": "Hive Mother of the Mistlands",
+      "biome": "Mistlands",
+      "icon": "\ud83d\udd77\ufe0f",
+      "primary_code": "SeekerQueen",
+      "discovered_at": "09/29/2026 19:13:29"
     }
   },
   "slain_bosses": {
@@ -768,9 +885,9 @@
   ],
   "active_bosses_count": 0,
   "engaged_boss": null,
-  "total_dungeons_entered": 469,
-  "total_dungeon_rooms": 13153,
-  "connected_portals": 216,
+  "total_dungeons_entered": 527,
+  "total_dungeon_rooms": 14677,
+  "connected_portals": 256,
   "portal_pairs_map": {
     "-211647136:44032": "-211647136:46272",
     "-211647136:46272": "-211647136:44032",
@@ -976,22 +1093,62 @@
     "1:374655": "-146943917:3309",
     "1:374691": "926316522:35138",
     "926316522:35138": "1:374691",
-    "1:374736": "592378187:10708",
-    "592378187:10708": "1:374736",
-    "1:374663": "1:374720",
+    "1:374736": "283883970:1522",
+    "1:374663": "1:374732",
     "1:374679": "1:374734",
     "1:374734": "1:374679",
-    "1:374720": "1:374663",
     "1:374683": "324587091:6671",
     "324587091:6671": "1:374683",
     "3085500827:4670": "926316522:33415",
     "926316522:33415": "3085500827:4670",
-    "1:374628": "3085500827:11513",
-    "3085500827:11513": "1:374628"
+    "1:374732": "1:374663",
+    "1:374652": "3085500827:55189",
+    "3085500827:55189": "1:374652",
+    "350857162:95471": "1:374716",
+    "350857162:96059": "350857162:102585",
+    "350857162:102585": "350857162:96059",
+    "283883970:1522": "1:374736",
+    "1:374632": "1598547588:72007",
+    "1:374716": "350857162:95471",
+    "1598547588:67756": "1598547588:69230",
+    "1598547588:69230": "1598547588:67756",
+    "1598547588:72007": "1:374632",
+    "1:378002": "-1241730581:1811",
+    "1:378000": "2819547200:8945",
+    "1:377997": "747402503:14946",
+    "2819547200:36": "1:377914",
+    "-1241730581:1811": "1:378002",
+    "1:377914": "2819547200:36",
+    "747402503:14946": "1:377997",
+    "2819547200:8945": "1:378000",
+    "747402503:26955": "1:377973",
+    "1:377973": "747402503:26955",
+    "1:377935": "17989483:2657",
+    "17989483:2657": "1:377935",
+    "3800585664:6228": "3234655830:3111",
+    "3234655830:3111": "3800585664:6228",
+    "3234655830:18626": "1:377962",
+    "1:377962": "3234655830:18626",
+    "3234655830:18687": "1:377929",
+    "1:377929": "3234655830:18687",
+    "3234655830:18858": "1:377994",
+    "1:377994": "3234655830:18858",
+    "1:377955": "-740117978:9352",
+    "-740117978:9352": "1:377955",
+    "1:377940": "-740117978:10985",
+    "-740117978:10985": "1:377940",
+    "-740117978:22618": "1:377905",
+    "1:377905": "-740117978:22618",
+    "2689403209:9710": "1:378022",
+    "1:378022": "2689403209:9710",
+    "1:377910": "2251259235:19384",
+    "2251259235:19384": "1:377910",
+    "1:377959": "2892460412:3188",
+    "2892460412:3188": "1:377959"
   },
-  "last_portal_update": "09/26/2026 15:45:48",
-  "last_log_offset": 88249,
+  "last_portal_update": "09/30/2026 01:51:17",
+  "last_log_offset": 19538,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1790402355.880417,
-  "updated_at": "2026-09-26T16:22:18.128566"
+  "last_world_save_mtime": 1790699358.5025728,
+  "updated_at": "2026-09-30T02:29:22.921059"
 }

@@ -1,6 +1,102 @@
 {
   "history": [
     {
+      "id": "47c6c34fa66e",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "192.168.1.124",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/30/2026 02:47:06",
+      "iso_timestamp": "2026-09-30T02:47:06.055680"
+    },
+    {
+      "id": "693b61a4c1c7",
+      "username": "Pentbot",
+      "role": "operator",
+      "status": "success",
+      "ip": "127.25.86.33",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0",
+      "failure_reason": null,
+      "timestamp": "09/29/2026 08:47:20",
+      "iso_timestamp": "2026-09-29T08:47:20.741488"
+    },
+    {
+      "id": "10dd9bb761ba",
+      "username": "Redmane",
+      "role": "operator",
+      "status": "success",
+      "ip": "127.224.15.235",
+      "user_agent": "Chrome (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "failure_reason": null,
+      "timestamp": "09/28/2026 23:18:52",
+      "iso_timestamp": "2026-09-28T23:18:52.879868"
+    },
+    {
+      "id": "196ed8c25f70",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/28/2026 19:45:34",
+      "iso_timestamp": "2026-09-28T19:45:34.476281"
+    },
+    {
+      "id": "dbf577d3123e",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Android)",
+      "raw_user_agent": "Mozilla/5.0 (Android 17; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/28/2026 05:43:05",
+      "iso_timestamp": "2026-09-28T05:43:05.663572"
+    },
+    {
+      "id": "d71de78ab848",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/28/2026 05:42:55",
+      "iso_timestamp": "2026-09-28T05:42:55.076059"
+    },
+    {
+      "id": "14e062999fc7",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 23:55:08",
+      "iso_timestamp": "2026-09-26T23:55:08.704375"
+    },
+    {
+      "id": "65e24bfe8a26",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      "failure_reason": null,
+      "timestamp": "09/26/2026 16:22:44",
+      "iso_timestamp": "2026-09-26T16:22:44.364911"
+    },
+    {
       "id": "d3465ca0afe3",
       "username": "admin",
       "role": "admin",

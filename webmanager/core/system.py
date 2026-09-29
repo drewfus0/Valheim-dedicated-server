@@ -246,16 +246,102 @@ def configure_gnome_power() -> Dict[str, Any]:
     return {"configured": False, "reason": "GNOME power schema not present"}
 
 
+def is_sleep_inhibition_active() -> bool:
+    """Check if Valheim or another system component has handle-lid-switch and sleep inhibited."""
+    try:
+        res = subprocess.run(
+            [
+                "busctl",
+                "call",
+                "org.freedesktop.login1",
+                "/org/freedesktop/login1",
+                "org.freedesktop.login1.Manager",
+                "ListInhibitors",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        if res.returncode == 0 and res.stdout and "handle-lid-switch" in res.stdout:
+            return True
+    except Exception:
+        pass
+
+    try:
+        res = subprocess.run(["systemd-inhibit", "--list"], capture_output=True, text=True, timeout=3)
+        if res.returncode == 0 and "handle-lid-switch" in res.stdout:
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def ensure_sleep_inhibition() -> Dict[str, Any]:
+    """
+    Ensure systemd sleep and lid-close inhibition is active to prevent the host laptop
+    from suspending when headless (e.g. at the SDDM login screen before graphical user login).
+    Does NOT inhibit 'idle', allowing screens to blank/dim and lock naturally.
+    """
+    actions: List[str] = []
+
+    if is_sleep_inhibition_active():
+        return {"inhibited": True, "details": ["Inhibitor lock for handle-lid-switch is already active"]}
+
+    try:
+        cmd = [
+            "systemd-inhibit",
+            "--what=handle-lid-switch:sleep",
+            "--who=Valheim Dedicated Server",
+            "--why=Dedicated game server hosting",
+            "--mode=block",
+            "sleep",
+            "infinity",
+        ]
+        subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        actions.append("Spawned systemd-inhibit daemon for handle-lid-switch:sleep")
+        time.sleep(0.5)
+    except Exception as e:
+        actions.append(f"Failed to spawn systemd-inhibit daemon: {e}")
+
+    active = is_sleep_inhibition_active()
+    return {"inhibited": active, "details": actions}
+
+
 def ensure_systemd_boot_service() -> Dict[str, Any]:
     """
     Ensure the systemd user service valheim.service is enabled to auto-start on host boot,
-    and verify user lingering is active so the user systemd instance boots without GUI login.
+    configured with systemd-inhibit, and verify user lingering is active so the user systemd instance boots without GUI login.
     """
     service_enabled = False
     linger_enabled = False
     actions: List[str] = []
 
-    # 1. Check & enable systemd user service
+    # 1. Check & ensure systemd user service unit configuration
+    service_path = Path.home() / ".config" / "systemd" / "user" / "valheim.service"
+    try:
+        if service_path.exists():
+            content = service_path.read_text(encoding="utf-8")
+            if "systemd-inhibit" not in content:
+                # Upgrade ExecStart to include systemd-inhibit
+                new_content = content.replace(
+                    "ExecStart=/usr/bin/python3 manager.py",
+                    "ExecStart=/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who=\"Valheim Dedicated Server\" --why=\"Dedicated game server hosting\" --mode=block /usr/bin/python3 manager.py",
+                )
+                if new_content != content:
+                    service_path.write_text(new_content, encoding="utf-8")
+                    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=3)
+                    actions.append("Updated valheim.service with systemd-inhibit wrapper")
+    except Exception as e:
+        print(f"[System] Warning checking valheim.service unit content: {e}")
+
+    # 2. Check & enable systemd user service
     try:
         chk = subprocess.run(
             ["systemctl", "--user", "is-enabled", "valheim.service"],
@@ -278,7 +364,7 @@ def ensure_systemd_boot_service() -> Dict[str, Any]:
     except Exception as e:
         print(f"[System] Warning checking/enabling systemd user service: {e}")
 
-    # 2. Check & enable lingering
+    # 3. Check & enable lingering
     try:
         user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
         if user:
@@ -314,8 +400,9 @@ def configure_system_power_and_performance() -> Dict[str, Any]:
     Configure and confirm:
     1. System power profile is set to Performance.
     2. System power settings are configured to not sleep (auto-suspend disabled, lid close turns off display).
-    3. Display turn-off / screen blanking and session lock/logout remain naturally active on idle.
-    4. Systemd user service is enabled for automated startup on host boot.
+    3. Low-level lid-switch and sleep inhibition is active (preventing suspend at SDDM login / headless boot).
+    4. Display turn-off / screen blanking and session lock/logout remain naturally active on idle.
+    5. Systemd user service is enabled for automated startup on host boot.
     """
     print("[System] Checking and configuring system power and performance settings...")
 
@@ -328,7 +415,10 @@ def configure_system_power_and_performance() -> Dict[str, Any]:
     # 3. GNOME Power configuration fallback
     gnome_res = configure_gnome_power()
 
-    # 4. Systemd boot service & linger
+    # 4. Low-level systemd sleep & lid inhibition
+    inhibit_res = ensure_sleep_inhibition()
+
+    # 5. Systemd boot service & linger
     boot_res = ensure_systemd_boot_service()
 
     summary = {
@@ -338,13 +428,14 @@ def configure_system_power_and_performance() -> Dict[str, Any]:
         "lid_action": "turn_off_screen",
         "display_turnoff_allowed": True,
         "screen_lock_allowed": True,
+        "sleep_inhibited": inhibit_res.get("inhibited", False),
         "systemd_service_enabled": boot_res.get("service_enabled", False),
         "systemd_linger_enabled": boot_res.get("linger_enabled", False),
-        "details": prof_actions + kde_res.get("changes", []) + boot_res.get("actions", []),
+        "details": prof_actions + kde_res.get("changes", []) + inhibit_res.get("details", []) + boot_res.get("actions", []),
     }
     print(
         f"[System] Power configuration complete: Profile='{active_profile}', "
-        f"Sleep='Disabled', ScreenLock='Allowed on Idle', LidAction='Turn Off Screen', "
+        f"Sleep='Disabled (Inhibited)', ScreenLock='Allowed on Idle', LidAction='Turn Off Screen', "
         f"BootService='{'Enabled' if boot_res.get('service_enabled') else 'Not Enabled'}'."
     )
     return summary
@@ -354,12 +445,14 @@ def get_system_power_status() -> Dict[str, Any]:
     """Get a quick summary of the current power profile and sleep policy for telemetry/UI."""
     profile = get_power_profile()
     is_perf = "perf" in profile.lower()
+    inhibited = is_sleep_inhibition_active()
     return {
         "profile": profile,
         "is_performance": is_perf,
-        "sleep_policy": "No Sleep",
+        "sleep_policy": "No Sleep (Inhibited)" if inhibited else "No Sleep",
         "screen_behavior": "Natural Display Off & Lock",
         "lid_action": "Turn Off Screen",
+        "inhibited": inhibited,
     }
 
 

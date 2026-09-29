@@ -89,8 +89,8 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 
 ### 3. Systemd Integration (`valheim.service`) & Power Management
 - Service location: `~/.config/systemd/user/valheim.service`
-- Command: `/usr/bin/python3 manager.py`
-- `KillMode=process`: Systemd stop/restart commands exclusively signal the Python launcher, leaving running Valheim server processes detached and intact.
+- Command: `/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py`
+- `KillMode=process`: Systemd stop/restart commands exclusively signal the launcher/inhibitor, leaving running Valheim server processes detached and intact.
 - **Hot-Reload Development Architecture**:
   - `manager.py` executes Uvicorn with `reload=True` watching `webmanager/` (`reload_dirs=[str(WEB_DIR)]`, `reload_includes=["*.py", "*.html", "*.css", "*.js"]`, excluding `.venv`, `__pycache__`, logs).
   - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active Valheim dedicated server.
@@ -98,6 +98,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - On web worker startup/reload, `find_existing_pid()` detects the running process, attaches to it, and restores the true uptime using process `etimes`.
 - **Native Power & Display Policy**:
   - Automatically sets and confirms system power profile to `performance` (via D-Bus `net.hadess.PowerProfiles` / `tuned-adm`).
+  - Holds low-level `handle-lid-switch` and `sleep` inhibitor lock via `systemd-inhibit` to prevent host laptop suspend when headless/at SDDM login screen before user login or on lid-close.
   - Configures power settings (KDE PowerDevil / GNOME) to disable auto-suspend on AC and configure lid-close action to turn off display (`LidAction=64`).
   - No `idle` inhibitor is held, allowing the host display to naturally blank/dim, turn off, and activate session auto-locking/logout on idle timeout while keeping the Valheim server running continuously in the background.
 - `manager.py` auto-detects `.venv` and seamlessly starts the FastAPI application under Uvicorn.
