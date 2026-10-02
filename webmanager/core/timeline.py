@@ -148,6 +148,7 @@ class TimelineEngine:
                     "name": name,
                     "steam_id": p.get("steam_id", ""),
                     "is_online": p.get("is_online", False),
+                    "is_hidden": p.get("is_hidden", False),
                     "total_playtime": p.get("total_playtime", "--"),
                     "total_sessions": p.get("total_sessions", 0),
                     "deaths_count": death_counts.get(name, 0),

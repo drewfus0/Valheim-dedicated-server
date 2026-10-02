@@ -41,10 +41,11 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │       ├── terminal.html
 │   │       ├── backup_table.html
 │   │       ├── config_form.html
-│   │       └── accounts_tab.html
+│   │       ├── accounts_tab.html
+│   │       └── timers_dropdown.html
 │   └── static/              # Local static assets
 │       ├── css/style.css    # Viking dark dashboard theme & animations
-│       └── js/              # Vendored offline libraries (htmx.min.js, sse.js)
+│       └── js/              # Vendored & client libraries (htmx.min.js, sse.js, timers.js)
 └── .agents/
     └── AGENTS.md            # AI Agent Project Specification (This File)
 ```
@@ -110,13 +111,17 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - `GET /partials/header-status`: Returns compact header status badge.
 - `GET /partials/players`: Returns active Vikings list.
 - `GET /partials/backups`: Returns dynamic backups table.
+- `GET /partials/backup/restore-modal/{filename}`: Returns restore options modal with component selection (world, configs, data, logs) and server shutdown/restart flags.
 - `GET /partials/config`: Returns configuration form.
 - `GET /api/world/random-seed`: Generates a randomized 10-character seed string.
 - `POST /api/world/create`: Creates a new world with custom/random seed, pre-creation world backup, and auto-launch.
+- `POST /api/players/hide/{player_name}`: Admin-only toggle to hide a player character from public rosters and metrics.
+- `POST /api/players/unhide/{player_name}`: Admin-only toggle to unhide a player character.
+- `POST /api/players/delete/{player_name}`, `DELETE /api/players/delete/{player_name}`: Admin-only endpoint to permanently delete a player from tracked known players, Steam ID mappings, and session histories.
 - `POST /api/server/start`, `POST /api/server/stop`, `POST /api/server/restart`: Server lifecycle actions.
 - `POST /api/config`: Updates server configuration with instant validation.
-- `POST /api/backups/create`: Creates a timestamped `.zip` backup of worlds.
-- `POST /api/backups/restore/{filename}`: Safely restores world backup with automatic pre-restore safety snapshot.
+- `POST /api/backups/create`: Creates a full timestamped `.zip` backup snapshot (active world folder only, server configs outside world folder, web manager JSON files, and logs).
+- `POST /api/backups/restore/{filename}`: Safely restores backup components with clean server shutdown beforehand, pre-restore safety snapshot, manifest-driven active world purge (removing stale/orphaned chunks while leaving other worlds untouched), and optional post-restore restart.
 - `DELETE /api/backups/delete/{filename}`: Deletes a backup archive.
 - `GET /api/backups/download/{filename}`: Direct download of backup zip archive.
 - `GET /api/stream/logs`: Server-Sent Events (SSE) live stream of `valheim_server.log`.

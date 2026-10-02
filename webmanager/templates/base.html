@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/htmx.min.js"></script>
     <script src="/static/js/sse.js"></script>
+    <script src="/static/js/timers.js"></script>
 </head>
 <body hx-ext="sse">
     <div class="app-container">
@@ -29,10 +30,13 @@
                 </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                 <div id="header-status-badge" hx-get="/partials/header-status" hx-trigger="load, statusChanged from:body, every 3s" hx-swap="innerHTML">
                     {% include "partials/header_status.html" %}
                 </div>
+
+                <!-- Timers Dropdown Window Trigger & Overlay -->
+                {% include "partials/timers_dropdown.html" %}
 
                 {% if user %}
                 <div class="user-pill" style="display: flex; align-items: center; gap: 0.55rem; background: var(--bg-card); border: 1px solid var(--border-color); padding: 0.3rem 0.75rem; border-radius: var(--radius-full); font-size: 0.8125rem;">
@@ -131,6 +135,41 @@
         <main>
             {% block content %}{% endblock %}
         </main>
+    </div>
+
+    <!-- Draggable Floating Active Timers Window (Movable Screen Widget) -->
+    <div id="floating-timers-hud" class="floating-timers-hud" style="display: none;">
+        <div class="hud-header" id="hud-drag-handle" title="Click and drag to move anywhere on screen">
+            <div class="hud-drag-grip">
+                <span class="hud-grip-icon">⠿</span>
+                <span class="hud-pulse-dot"></span>
+                <strong class="hud-title">Active Timers (<span id="hud-count">0</span>)</strong>
+            </div>
+            <div class="hud-tools">
+                <button type="button" class="hud-btn" onclick="toggleHudMinimize()" id="hud-min-btn" title="Minimize / Expand">
+                    _
+                </button>
+                <button type="button" class="hud-btn" onclick="toggleTimersDropdown()" title="Browse Presets / Add Timer">
+                    ➕
+                </button>
+                <button type="button" class="hud-btn hud-close" onclick="closeTimersHud()" title="Close Floating Window">
+                    ✕
+                </button>
+            </div>
+        </div>
+        <div class="hud-body" id="hud-body">
+            <div class="hud-timers-list" id="hud-timers-list">
+                <!-- Rendered dynamically by timers.js -->
+            </div>
+            <div class="hud-footer">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearCompletedTimers()" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">
+                    🧹 Clear Done
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="resetHudPosition()" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reset position to top right">
+                    📍 Reset Pos
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Change Password Modal -->

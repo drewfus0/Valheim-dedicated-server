@@ -3,6 +3,7 @@ import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
@@ -32,6 +33,7 @@ from core.backups import (
     delete_backup,
     generate_random_seed,
     get_backup_path,
+    inspect_backup,
     list_available_worlds,
     list_backups,
     restore_backup,
@@ -39,6 +41,7 @@ from core.backups import (
 from core.config import load_config
 from core.logs import log_stream_generator
 from core.paths import SERVER_HISTORY_LOG
+from core.players import PLAYER_TRACKER
 from core.playit import start_playit_monitor
 from core.server import SERVER_MANAGER
 from core.system import (
@@ -568,6 +571,97 @@ async def partial_players_tab(request: Request):
         request=request,
         name="partials/players_tab.html",
         context={"status": status, "user": user},
+    )
+
+
+@app.post("/api/players/hide/{player_name:path}", response_class=HTMLResponse)
+async def player_hide(request: Request, player_name: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(content="Unauthorized: Admin access required", status_code=403)
+
+    target_name = unquote(player_name).strip()
+    success = PLAYER_TRACKER.hide_player(target_name)
+    if success:
+        headers = make_toast_headers(
+            f"Viking '{target_name}' is now hidden from public roster.",
+            "info",
+            playersUpdated=True,
+        )
+    else:
+        headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
+
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/players_tab.html",
+        context={"status": status, "user": user},
+        headers=headers,
+    )
+
+
+@app.post("/api/players/unhide/{player_name:path}", response_class=HTMLResponse)
+async def player_unhide(request: Request, player_name: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(content="Unauthorized: Admin access required", status_code=403)
+
+    target_name = unquote(player_name).strip()
+    success = PLAYER_TRACKER.unhide_player(target_name)
+    if success:
+        headers = make_toast_headers(
+            f"Viking '{target_name}' is now visible on public roster.",
+            "success",
+            playersUpdated=True,
+        )
+    else:
+        headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
+
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/players_tab.html",
+        context={"status": status, "user": user},
+        headers=headers,
+    )
+
+
+@app.post("/api/players/delete/{player_name:path}", response_class=HTMLResponse)
+@app.delete("/api/players/delete/{player_name:path}", response_class=HTMLResponse)
+async def player_delete(request: Request, player_name: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(content="Unauthorized: Admin access required", status_code=403)
+
+    target_name = unquote(player_name).strip()
+    success = PLAYER_TRACKER.delete_player(target_name)
+    if success:
+        headers = make_toast_headers(
+            f"Viking '{target_name}' was permanently deleted from roster.",
+            "warning",
+            playersUpdated=True,
+        )
+    else:
+        headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
+
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/players_tab.html",
+        context={"status": status, "user": user},
+        headers=headers,
     )
 
 
@@ -1115,8 +1209,39 @@ async def backup_create(request: Request):
     )
 
 
+@app.get("/partials/backup/restore-modal/{filename}", response_class=HTMLResponse)
+async def backup_restore_modal(request: Request, filename: str):
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse("<div class='toast toast-error'>Permission denied: Administrators only.</div>", status_code=403)
+
+    backup_info = inspect_backup(filename)
+    if not backup_info:
+        return HTMLResponse("<div class='toast toast-error'>Backup archive not found.</div>", status_code=404)
+
+    is_running = SERVER_MANAGER.is_running()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/restore_modal.html",
+        context={
+            "backup": backup_info,
+            "server_running": is_running,
+            "user": user,
+        },
+    )
+
+
 @app.post("/api/backups/restore/{filename}", response_class=HTMLResponse)
-async def backup_restore(request: Request, filename: str):
+async def backup_restore(
+    request: Request,
+    filename: str,
+    restore_world: bool = Form(True),
+    restore_configs: bool = Form(True),
+    restore_data: bool = Form(True),
+    restore_logs: bool = Form(False),
+    prune_active_world: bool = Form(True),
+    restart_after: bool = Form(True),
+):
     user = get_current_user_from_request(request)
     if not user or user.get("role") != "admin":
         headers = make_toast_headers("Permission denied: Backup restoration restricted to Administrators.", "error")
@@ -1128,7 +1253,31 @@ async def backup_restore(request: Request, filename: str):
             headers=headers,
         )
 
-    ok, msg = restore_backup(filename)
+    # 1. Gracefully shutdown server cleanly before restoring
+    was_running = SERVER_MANAGER.is_running()
+    if was_running:
+        print(f"[Manager] Gracefully shutting down Valheim server before backup restoration of '{filename}'...")
+        SERVER_MANAGER.stop_server()
+
+    # 2. Perform restoration
+    cfg = load_config()
+    current_world = cfg.get("world_name", "world")
+    ok, msg = restore_backup(
+        filename=filename,
+        restore_world=restore_world,
+        restore_configs=restore_configs,
+        restore_data=restore_data,
+        restore_logs=restore_logs,
+        prune_active_world=prune_active_world,
+        current_world_name=current_world,
+    )
+
+    # 3. Clean restart if requested
+    if ok and restart_after:
+        print(f"[Manager] Restarting Valheim server post-restoration...")
+        SERVER_MANAGER.start_server()
+        msg += " Server was cleanly restarted."
+
     backups = list_backups()
     toast_type = "success" if ok else "error"
     return templates.TemplateResponse(
@@ -1222,6 +1371,7 @@ async def api_status(request: Request):
     if user.get("role") != "admin":
         status_data = dict(status_data)
         status_data["player_sessions"] = []
+        status_data["all_players"] = [p for p in status_data.get("all_players", []) if not p.get("is_hidden")]
     return status_data
 
 

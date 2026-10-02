@@ -19,6 +19,15 @@
             </span>
         </div>
         {% if user and user.role == 'admin' %}
+        <div class="metric-box admin-only" title="Hidden Vikings (Admin Telemetry)">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="metric-label">Hidden Vikings</span>
+                <span class="badge-admin-only" style="font-size: 0.65rem; padding: 0.05rem 0.35rem;">Admin</span>
+            </div>
+            <span class="metric-value" style="color: {% if status.hidden_players_count and status.hidden_players_count > 0 %}#fca5a5{% else %}var(--text-secondary){% endif %};">
+                👁️‍🗨️ {{ status.hidden_players_count if status.hidden_players_count is defined else 0 }}
+            </span>
+        </div>
         <div class="metric-box admin-only" title="Admin Only Telemetry">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span class="metric-label">Logged Sessions</span>
@@ -41,16 +50,35 @@
 
     <!-- Realm Adventurers Detailed Directory Table -->
     <div class="card">
-        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <div class="card-title">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <span>⚔️</span> Realm Adventurers Directory
+                {% if user and user.role == 'admin' and status.hidden_players_count and status.hidden_players_count > 0 %}
+                    <span class="badge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px dashed rgba(239, 68, 68, 0.4); padding: 0.1rem 0.45rem;">
+                        {{ status.hidden_players_count }} Hidden
+                    </span>
+                {% endif %}
             </div>
-            <span style="font-size: 0.75rem; color: var(--text-secondary);">
-                {{ status.all_players|length if status.all_players else 0 }} Vikings Discovered
-            </span>
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                {% if user and user.role == 'admin' and status.hidden_players_count and status.hidden_players_count > 0 %}
+                <!-- Admin filter buttons: All / Visible / Hidden -->
+                <div class="btn-group" style="display: inline-flex; background: var(--bg-tertiary); padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                    <button type="button" class="player-filter-btn active" onclick="filterPlayerTable('all', this)" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;">All ({{ status.all_players|length }})</button>
+                    <button type="button" class="player-filter-btn" onclick="filterPlayerTable('visible', this)" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;">Visible ({{ status.known_players_count }})</button>
+                    <button type="button" class="player-filter-btn" onclick="filterPlayerTable('hidden', this)" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;">Hidden ({{ status.hidden_players_count }})</button>
+                </div>
+                {% endif %}
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">
+                    {% if user and user.role == 'admin' %}
+                        {{ status.all_players|length if status.all_players else 0 }} Total ({{ status.known_players_count }} Visible)
+                    {% else %}
+                        {{ status.known_players_count }} Vikings Discovered
+                    {% endif %}
+                </span>
+            </div>
         </div>
 
-        {% if status.all_players and status.all_players|length > 0 %}
+        {% if status.all_players and status.all_players|length > 0 and (status.known_players_count > 0 or (user and user.role == 'admin')) %}
             <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
                 <table class="table data-table" style="font-size: 0.825rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
                     <thead style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
@@ -62,14 +90,26 @@
                             <th style="padding: 0.75rem 1rem; text-align: center;">💀 Deaths</th>
                             <th style="padding: 0.75rem 1rem; text-align: left;">First Discovered</th>
                             <th style="padding: 0.75rem 1rem; text-align: right;">Last Active</th>
+                            {% if user and user.role == 'admin' %}
+                            <th style="padding: 0.75rem 1rem; text-align: right; min-width: 155px;">
+                                <span class="badge-admin-only" style="font-size: 0.65rem; padding: 0.05rem 0.35rem; margin-right: 0.25rem;">Admin</span> Actions
+                            </th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for player in status.all_players %}
-                        <tr style="transition: background 0.15s ease;">
+                        {% if not player.is_hidden or (user and user.role == 'admin') %}
+                        <tr style="transition: background 0.15s ease; {% if player.is_hidden %}opacity: 0.85; background: rgba(239, 68, 68, 0.04);{% endif %}"
+                            data-player-hidden="{{ 'true' if player.is_hidden else 'false' }}">
                             <td style="padding: 0.65rem 1rem; font-weight: 600; color: var(--text-primary);">
                                 <span style="margin-right: 0.4rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
                                 {{ player.name }}
+                                {% if player.is_hidden %}
+                                    <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px dashed rgba(239, 68, 68, 0.4); font-size: 0.68rem; padding: 0.08rem 0.35rem; margin-left: 0.35rem; vertical-align: middle;">
+                                        👁️‍🗨️ Hidden
+                                    </span>
+                                {% endif %}
                                 {% if player.steam_id %}
                                     <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.15rem;">Steam: {{ player.steam_id }}</div>
                                 {% endif %}
@@ -106,7 +146,45 @@
                             <td style="padding: 0.65rem 1rem; text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.775rem;">
                                 {{ player.last_seen }}
                             </td>
+                            {% if user and user.role == 'admin' %}
+                            <td style="padding: 0.65rem 1rem; text-align: right;">
+                                <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                                    {% if player.is_hidden %}
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm"
+                                            hx-post="/api/players/unhide/{{ player.name | urlencode }}"
+                                            hx-target="#tab-players"
+                                            hx-swap="outerHTML"
+                                            title="Unhide player (show on public roster)"
+                                            style="padding: 0.2rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem; color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);">
+                                        <span>👁️</span> Unhide
+                                    </button>
+                                    {% else %}
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm"
+                                            hx-post="/api/players/hide/{{ player.name | urlencode }}"
+                                            hx-target="#tab-players"
+                                            hx-swap="outerHTML"
+                                            title="Hide player from public roster"
+                                            style="padding: 0.2rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-secondary);">
+                                        <span>👁️‍🗨️</span> Hide
+                                    </button>
+                                    {% endif %}
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm"
+                                            hx-post="/api/players/delete/{{ player.name | urlencode }}"
+                                            hx-target="#tab-players"
+                                            hx-swap="outerHTML"
+                                            hx-confirm="{% if player.is_online %}⚠️ Player '{{ player.name }}' is currently ONLINE! Deleting will wipe their record and session history from the manager. Proceed?{% else %}Are you sure you want to permanently delete player '{{ player.name }}' and all their session history?{% endif %}"
+                                            title="Permanently delete player record"
+                                            style="padding: 0.2rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                        <span>🗑️</span> Delete
+                                    </button>
+                                </div>
+                            </td>
+                            {% endif %}
                         </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -123,4 +201,32 @@
     {% include "partials/session_history.html" %}
     {% endif %}
 </div>
+<script>
+window.filterPlayerTable = function(filter, btn) {
+    if (!btn) return;
+    const group = btn.closest('.btn-group');
+    if (group) {
+        group.querySelectorAll('.player-filter-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = '';
+            b.style.color = '';
+        });
+    }
+    btn.classList.add('active');
+    btn.style.background = 'var(--nordic-cyan)';
+    btn.style.color = '#000';
+
+    const rows = document.querySelectorAll('#players-tab-container tr[data-player-hidden]');
+    rows.forEach(row => {
+        const isHidden = row.getAttribute('data-player-hidden') === 'true';
+        if (filter === 'all') {
+            row.style.display = '';
+        } else if (filter === 'hidden') {
+            row.style.display = isHidden ? '' : 'none';
+        } else if (filter === 'visible') {
+            row.style.display = isHidden ? 'none' : '';
+        }
+    });
+};
+</script>
 </div>

@@ -1,5 +1,5 @@
 {% set pid = panel_id or 'players-panel' %}
-<div id="{{ pid }}" class="card" hx-get="/partials/players?panel_id={{ pid }}" hx-trigger="statusChanged from:body" hx-swap="outerHTML">
+<div id="{{ pid }}" class="card" hx-get="/partials/players?panel_id={{ pid }}" hx-trigger="statusChanged from:body, playersUpdated from:body" hx-swap="outerHTML">
     <div class="card-header">
         <div class="card-title">
             <span>🛡️</span> Viking Roster & Activity
@@ -17,14 +17,20 @@
         <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
             Realm Adventurers
         </div>
-        {% if status.all_players and status.all_players|length > 0 %}
+        {% if status.all_players and status.all_players|length > 0 and (status.known_players_count > 0 or (user and user.role == 'admin')) %}
             <div style="display: flex; flex-wrap: wrap; gap: 0.65rem;">
                 {% for player in status.all_players %}
-                    <div class="player-roster-tag {% if player.is_online %}online{% else %}offline{% endif %}"
-                         title="First joined: {{ player.first_seen }} | Total Playtime: {{ player.total_playtime }} ({{ player.total_sessions }} sessions)">
+                    {% if not player.is_hidden or (user and user.role == 'admin') %}
+                    <div class="player-roster-tag {% if player.is_online %}online{% else %}offline{% endif %} {% if player.is_hidden %}player-hidden{% endif %}"
+                         title="{% if player.is_hidden %}[Hidden from public] {% endif %}First joined: {{ player.first_seen }} | Total Playtime: {{ player.total_playtime }} ({{ player.total_sessions }} sessions)">
                         <span class="viking-pulse {% if player.is_online %}online{% else %}offline{% endif %}"></span>
                         <span style="font-size: 0.95rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
                         <strong style="color: var(--text-primary);">{{ player.name }}</strong>
+                        {% if player.is_hidden %}
+                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px dashed rgba(239, 68, 68, 0.4); font-size: 0.65rem; padding: 0.05rem 0.35rem;">
+                                Hidden
+                            </span>
+                        {% endif %}
                         {% if player.is_online %}
                             <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem; padding: 0.1rem 0.45rem;">
                                 Online{% if player.session_time %} ({{ player.session_time }}){% endif %}
@@ -35,6 +41,7 @@
                             </span>
                         {% endif %}
                     </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% else %}

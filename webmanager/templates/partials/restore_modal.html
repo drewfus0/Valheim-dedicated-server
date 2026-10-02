@@ -1,0 +1,131 @@
+<div id="restore-backup-modal" style="display: flex; position: fixed; inset: 0; background: rgba(5, 7, 10, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="card admin-only" style="max-width: 560px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6); animation: fadeIn 0.2s ease;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-title" style="font-size: 1.1rem; color: var(--nordic-cyan); display: flex; align-items: center; gap: 0.5rem;">
+                <span>♻️</span>
+                Restore Backup Archive
+                <span class="badge-admin-only">🛡️ Admin Only</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeRestoreModal()" style="padding: 0.2rem 0.5rem; font-size: 0.9rem;">✕</button>
+        </div>
+
+        <form hx-post="/api/backups/restore/{{ backup.filename }}"
+              hx-target="#backup-table-container"
+              hx-swap="outerHTML"
+              hx-indicator="#restore-spinner"
+              onsubmit="setTimeout(closeRestoreModal, 150)">
+            <div style="padding: 1.25rem;">
+                <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--nordic-gold); word-break: break-all; margin-bottom: 0.35rem;">
+                        {{ backup.filename }}
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <span>📦 <strong>Size:</strong> {{ backup.size_mb }} MB</span>
+                        <span>📄 <strong>Files:</strong> {{ backup.file_count }}</span>
+                        {% if backup.is_v2 %}
+                            <span style="color: var(--nordic-cyan);">🛡️ <strong>Type:</strong> Full Server Backup (v2)</span>
+                        {% else %}
+                            <span style="color: var(--text-muted);">🌍 <strong>Type:</strong> Legacy World-Only (v1)</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if server_running %}
+                <div style="background: rgba(245, 158, 11, 0.12); border-left: 3px solid #f59e0b; padding: 0.65rem 0.85rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; font-size: 0.8rem; color: #fbbf24; line-height: 1.4;">
+                    ⚡ <strong>Live Server Detected:</strong> The active Valheim server will be gracefully shut down (saving world state) before files are restored to avoid database corruption.
+                </div>
+                {% endif %}
+
+                <div style="margin-bottom: 0.6rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                    Select Components to Restore:
+                </div>
+
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- World Files -->
+                    <label class="form-check" style="cursor: {% if backup.has_world %}pointer{% else %}not-allowed; opacity: 0.5{% endif %};">
+                        <input type="checkbox" name="restore_world" value="true" {% if backup.has_world %}checked{% else %}disabled{% endif %} id="restore_world_cb" onchange="document.getElementById('prune_world_container').style.display = this.checked ? 'block' : 'none';">
+                        <div>
+                            <strong style="color: var(--nordic-cyan); font-size: 0.85rem;">🌍 World Save Files</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Restores active world database (.db), metadata (.fwl), and chunk directories.
+                            </div>
+                        </div>
+                    </label>
+
+                    <div id="prune_world_container" style="padding-left: 1.5rem; margin-top: -0.35rem; margin-bottom: 0.2rem;">
+                        <label class="form-check" style="cursor: pointer;">
+                            <input type="checkbox" name="prune_active_world" value="true" checked>
+                            <div>
+                                <strong style="font-size: 0.8rem; color: #fbbf24;">🧹 Clean Restore: Purge active world files &amp; chunks before extracting</strong>
+                                <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.35;">
+                                    Removes newer or orphaned chunks, caches, and auto-backups for <strong>{{ backup.manifest.active_world.name if backup.manifest and backup.manifest.active_world else (backup.manifest.world_name if backup.manifest else 'active world') }}</strong> only. Other worlds remain completely untouched.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Server Configs -->
+                    <label class="form-check" style="cursor: {% if backup.is_v2 and backup.has_server_configs %}pointer{% else %}not-allowed; opacity: 0.5{% endif %};">
+                        <input type="checkbox" name="restore_configs" value="true" {% if backup.is_v2 and backup.has_server_configs %}checked{% else %}disabled{% endif %}>
+                        <div>
+                            <strong style="font-size: 0.85rem;">⚙️ Server Configuration Files</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Restores adminlist.txt, bannedlist.txt, permittedlist.txt, and prefs to Unity save root.
+                                {% if not backup.is_v2 %}<span style="color: var(--text-muted);">(Not present in legacy archive)</span>{% endif %}
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- Web Manager Configs and Data -->
+                    <label class="form-check" style="cursor: {% if backup.is_v2 and backup.has_data %}pointer{% else %}not-allowed; opacity: 0.5{% endif %};">
+                        <input type="checkbox" name="restore_data" value="true" {% if backup.is_v2 and backup.has_data %}checked{% else %}disabled{% endif %}>
+                        <div>
+                            <strong style="font-size: 0.85rem;">📊 Web Manager Configs &amp; Data (.json)</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Restores server_config.json, user accounts, and player/server history JSON files.
+                                {% if not backup.is_v2 %}<span style="color: var(--text-muted);">(Not present in legacy archive)</span>{% endif %}
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- Logs -->
+                    <label class="form-check" style="cursor: {% if backup.is_v2 and backup.has_logs %}pointer{% else %}not-allowed; opacity: 0.5{% endif %};">
+                        <input type="checkbox" name="restore_logs" value="true" {% if not backup.is_v2 or not backup.has_logs %}disabled{% endif %}>
+                        <div>
+                            <strong style="font-size: 0.85rem;">📜 Server &amp; Game Logs</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Restores valheim_server.log, rotated history logs, and Unity Player.log.
+                                {% if not backup.is_v2 %}<span style="color: var(--text-muted);">(Not present in legacy archive)</span>{% endif %}
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- Restart Option -->
+                    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.6rem; margin-top: 0.2rem;">
+                        <label class="form-check">
+                            <input type="checkbox" name="restart_after" value="true" checked>
+                            <div>
+                                <strong style="color: var(--nordic-gold); font-size: 0.85rem;">🚀 Cleanly restart Valheim server after restore</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                    Spawns server binary once extraction and safety snapshot are complete.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; align-items: center;">
+                    <div id="restore-spinner" class="htmx-indicator" style="margin-right: auto;">
+                        <div class="spinner"></div>
+                        <span style="font-size: 0.8rem; color: var(--nordic-cyan);">Safely snapshotting &amp; restoring...</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="closeRestoreModal()">Cancel</button>
+                    <button type="submit" class="btn btn-warning" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <span>♻️</span>
+                        Confirm &amp; Restore
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

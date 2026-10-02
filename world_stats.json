@@ -1,8 +1,8 @@
 {
-  "current_day": 542,
-  "nights_slept": 148,
-  "last_day_timestamp": "09/29/2026 16:56:00",
-  "total_raids": 68,
+  "current_day": 599,
+  "nights_slept": 155,
+  "last_day_timestamp": "10/02/2026 01:57:07",
+  "total_raids": 74,
   "raids_history": [
     {
       "id": "raid_1",
@@ -615,6 +615,60 @@
       "quote": "A hostile army assaults Midgard!",
       "biome": "Unknown Biome",
       "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_69",
+      "timestamp": "09/30/2026 17:22:30",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_70",
+      "timestamp": "10/01/2026 14:49:43",
+      "event_code": "army_goblin",
+      "title": "Army Goblin",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_71",
+      "timestamp": "10/01/2026 18:39:34",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_72",
+      "timestamp": "10/01/2026 22:29:27",
+      "event_code": "skeletons",
+      "title": "Skeleton Surprise",
+      "quote": "Undead legions emerge from the soil.",
+      "biome": "Any",
+      "icon": "\u2620\ufe0f"
+    },
+    {
+      "id": "raid_73",
+      "timestamp": "10/02/2026 16:06:49",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_74",
+      "timestamp": "10/02/2026 17:38:47",
+      "event_code": "skeletons",
+      "title": "Skeleton Surprise",
+      "quote": "Undead legions emerge from the soil.",
+      "biome": "Any",
+      "icon": "\u2620\ufe0f"
     }
   ],
   "discovered_bosses": {
@@ -885,9 +939,9 @@
   ],
   "active_bosses_count": 0,
   "engaged_boss": null,
-  "total_dungeons_entered": 527,
-  "total_dungeon_rooms": 14677,
-  "connected_portals": 256,
+  "total_dungeons_entered": 604,
+  "total_dungeon_rooms": 17073,
+  "connected_portals": 290,
   "portal_pairs_map": {
     "-211647136:44032": "-211647136:46272",
     "-211647136:46272": "-211647136:44032",
@@ -1144,11 +1198,45 @@
     "1:377910": "2251259235:19384",
     "2251259235:19384": "1:377910",
     "1:377959": "2892460412:3188",
-    "2892460412:3188": "1:377959"
+    "2892460412:3188": "1:377959",
+    "2572203297:22192": "1:378722",
+    "1:378722": "2572203297:22192",
+    "1:378689": "2572203297:22250",
+    "2572203297:22250": "1:378689",
+    "1:378674": "1:378799",
+    "1:378799": "1:378674",
+    "1:378688": "1830634530:4042",
+    "1:378794": "1830634530:4099",
+    "1830634530:1345": "3750702751:967",
+    "1:378670": "2982799381:26690",
+    "1830634530:4099": "1:378794",
+    "1830634530:4042": "1:378688",
+    "2982799381:26690": "1:378670",
+    "1:378719": "2565057075:1072",
+    "2565057075:1072": "1:378719",
+    "2565057075:1693": "2565057075:1863",
+    "2565057075:1863": "2565057075:1693",
+    "1:378673": "2565057075:16066",
+    "2565057075:16066": "1:378673",
+    "3750702751:967": "1830634530:1345",
+    "-43306414:5032": "1:378663",
+    "1:378663": "-43306414:5032",
+    "3022516382:482": "3022516382:5393",
+    "3022516382:5393": "3022516382:482",
+    "2161783160:6252": "2572203297:22303",
+    "2572203297:22303": "2161783160:6252",
+    "343712208:2847": "343712208:3239",
+    "343712208:3239": "343712208:2847",
+    "3062041719:339": "3062041719:1079",
+    "3062041719:1079": "3062041719:339",
+    "3062041719:371": "3062041719:1230",
+    "3062041719:1230": "3062041719:371",
+    "1:378737": "3062041719:8526",
+    "3062041719:8526": "1:378737"
   },
-  "last_portal_update": "09/30/2026 01:51:17",
-  "last_log_offset": 19538,
+  "last_portal_update": "10/02/2026 17:57:05",
+  "last_log_offset": 384344,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1790699358.5025728,
-  "updated_at": "2026-09-30T02:29:22.921059"
+  "last_world_save_mtime": 1790933254.4857814,
+  "updated_at": "2026-10-02T19:43:47.492711"
 }

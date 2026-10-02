@@ -1,7 +1,7 @@
 <div id="backup-table-container" class="card" hx-get="/partials/backups" hx-trigger="refreshBackups from:body" hx-swap="outerHTML">
     <div class="card-header">
         <div class="card-title">
-            <span>💾</span> World Backup Archives
+            <span>💾</span> Server &amp; World Backup Archives
         </div>
         <div style="display: flex; align-items: center; gap: 1rem;">
             <div id="backup-spinner" class="htmx-indicator">
@@ -36,7 +36,16 @@
                     {% for b in backups %}
                         <tr>
                             <td style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--nordic-gold);">
-                                {{ b.filename }}
+                                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                    <span>{{ b.filename }}</span>
+                                    {% if b.is_safety %}
+                                        <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.68rem; padding: 0.1rem 0.4rem;">🛡️ Safety Snapshot</span>
+                                    {% elif b.is_v2 %}
+                                        <span class="badge" style="background: rgba(56, 189, 248, 0.18); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.68rem; padding: 0.1rem 0.4rem;">🛡️ Full Snapshot</span>
+                                    {% else %}
+                                        <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.25); font-size: 0.68rem; padding: 0.1rem 0.4rem;">🌍 World Only</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             <td>{{ b.size_mb }} MB</td>
                             <td style="color: var(--text-secondary);">{{ b.created }}</td>
@@ -48,12 +57,10 @@
                                         </a>
                                         {% if user.role == 'admin' %}
                                             <button class="btn btn-warning btn-sm"
-                                                    hx-post="/api/backups/restore/{{ b.filename }}"
-                                                    hx-confirm="Restore world from '{{ b.filename }}'? A safety snapshot will be created automatically before restoring."
-                                                    hx-target="#backup-table-container"
-                                                    hx-swap="outerHTML"
-                                                    hx-indicator="#backup-spinner"
-                                                    title="Restore backup">
+                                                    hx-get="/partials/backup/restore-modal/{{ b.filename }}"
+                                                    hx-target="#restore-modal-container"
+                                                    hx-swap="innerHTML"
+                                                    title="Restore backup options">
                                                 ♻️ Restore
                                             </button>
                                             <button class="btn btn-danger btn-sm"
@@ -77,11 +84,19 @@
                 {% else %}
                     <tr>
                         <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
-                            No backup archives found. Click <strong>Create Backup Now</strong> to take a snapshot of your world.
+                            No backup archives found. Click <strong>Create Backup Now</strong> to take a snapshot of your server.
                         </td>
                     </tr>
                 {% endif %}
             </tbody>
         </table>
     </div>
+
+    <div id="restore-modal-container"></div>
+    <script>
+        function closeRestoreModal() {
+            const container = document.getElementById('restore-modal-container');
+            if (container) container.innerHTML = '';
+        }
+    </script>
 </div>

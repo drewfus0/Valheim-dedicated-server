@@ -1,0 +1,223 @@
+<!-- Valheim Spawn & Grow Timers Dropdown Window -->
+<div class="timers-dropdown-container">
+    <button type="button" id="timers-toggle-btn" class="timers-trigger-btn" onclick="toggleTimersDropdown()" aria-expanded="false" aria-label="Toggle Timers Window" title="Valheim Timers (Berries, Crops, Surtling Cores, Spawners)">
+        <span class="timers-icon">⏱️</span>
+        <span class="timers-btn-label">Timers</span>
+        <span id="timers-active-badge" class="timers-badge" style="display: none;">0</span>
+        <span class="timers-arrow">▾</span>
+    </button>
+
+    <div id="timers-dropdown-menu" class="timers-menu" style="display: none;">
+        <!-- Header -->
+        <div class="timers-menu-header">
+            <div class="timers-header-title-wrap">
+                <div class="timers-header-title">
+                    <span>⏱️</span> Valheim Timers
+                </div>
+                <div class="timers-header-subtitle">
+                    Spawn, Growth & Production Trackers
+                </div>
+            </div>
+            <div class="timers-header-tools">
+                <button type="button" id="timer-hud-btn" class="timer-tool-btn" onclick="openTimersHud()" title="Show Movable Floating Screen Window">
+                    🪟
+                </button>
+                <button type="button" id="timer-sound-btn" class="timer-tool-btn" onclick="toggleTimerSound()" title="Sound Alert Toggle">
+                    🔔
+                </button>
+                <button type="button" id="timer-notify-btn" class="timer-tool-btn" onclick="toggleTimerNotifications()" title="Desktop Notifications Toggle">
+                    📱
+                </button>
+                <button type="button" class="timer-tool-btn close-btn" onclick="closeTimersDropdown()" title="Close Timers Window">
+                    ✕
+                </button>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="timers-menu-tabs">
+            <button type="button" class="timer-tab-btn active" data-tab="active" onclick="switchTimersTab('active')">
+                ⚡ Active (<span id="timers-tab-count">0</span>)
+            </button>
+            <button type="button" class="timer-tab-btn" data-tab="presets" onclick="switchTimersTab('presets')">
+                ➕ Presets
+            </button>
+            <button type="button" class="timer-tab-btn" data-tab="custom" onclick="switchTimersTab('custom')">
+                ✏️ Custom
+            </button>
+            <button type="button" class="timer-tab-btn" data-tab="guide" onclick="switchTimersTab('guide')">
+                📖 Guide
+            </button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="timers-menu-body">
+            <!-- TAB 1: Active Timers -->
+            <div id="timers-panel-active" class="timers-panel">
+                <div id="timers-active-list">
+                    <!-- Populated dynamically by timers.js -->
+                </div>
+                <div id="timers-active-footer" class="timers-panel-footer" style="display: none;">
+                    <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearCompletedTimers()" title="Clear completed timers">
+                            🧹 Clear Finished
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openTimersHud()" title="Show movable floating screen window">
+                            🪟 Show Window
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="clearAllTimers()" title="Clear all timers">
+                            🗑️ Clear All
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="switchTimersTab('presets')">
+                        ➕ Add Timer
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 2: Presets -->
+            <div id="timers-panel-presets" class="timers-panel" style="display: none;">
+                <!-- Category Filter Pills -->
+                <div class="timer-filter-pills">
+                    <button type="button" class="timer-pill-btn active" onclick="filterTimerPresets('all', this)">All</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('berries', this)">🫐 Berries</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('crops', this)">🌾 Crops</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('spawners', this)">🔥 Surtling/Cores</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('base', this)">🍯 Base/Craft</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('cycles', this)">⚡ Cycles</button>
+                </div>
+
+                <div id="timers-presets-grid" class="timers-presets-list">
+                    <!-- Populated dynamically by timers.js -->
+                </div>
+            </div>
+
+            <!-- TAB 3: Custom Timer Form -->
+            <div id="timers-panel-custom" class="timers-panel" style="display: none;">
+                <form onsubmit="submitCustomTimer(event)" class="timer-custom-form">
+                    <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <label class="form-label" for="ct_name" style="font-size: 0.8125rem;">Timer Name</label>
+                        <input type="text" id="ct_name" class="form-control" placeholder="e.g., Swamp Core Vent #1, Farm Barley" required style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.85rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="ct_hours" style="font-size: 0.8125rem;">Hours</label>
+                            <input type="number" id="ct_hours" class="form-control" min="0" max="99" value="0" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ct_mins" style="font-size: 0.8125rem;">Minutes</label>
+                            <input type="number" id="ct_mins" class="form-control" min="0" max="59" value="15" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ct_secs" style="font-size: 0.8125rem;">Seconds</label>
+                            <input type="number" id="ct_secs" class="form-control" min="0" max="59" value="0" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.35rem; margin-bottom: 0.85rem; flex-wrap: wrap;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); align-self: center; margin-right: 0.2rem;">Presets:</span>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=5; document.getElementById('ct_secs').value=0;">5m</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=20; document.getElementById('ct_secs').value=0;">20m</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=40; document.getElementById('ct_secs').value=0;">40m</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=1; document.getElementById('ct_mins').value=15; document.getElementById('ct_secs').value=0;">1h 15m</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=5; document.getElementById('ct_mins').value=0; document.getElementById('ct_secs').value=0;">5h</button>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <label class="form-label" for="ct_note" style="font-size: 0.8125rem;">Location / Note <span style="color: var(--text-muted); font-size: 0.72rem;">(Optional)</span></label>
+                        <input type="text" id="ct_note" class="form-control" placeholder="e.g., South Swamp portal, Plains base" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.15rem;">
+                        <label class="form-label" for="ct_icon" style="font-size: 0.8125rem;">Icon</label>
+                        <select id="ct_icon" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                            <option value="⏱️">⏱️ Stopwatch</option>
+                            <option value="🫐">🫐 Berries</option>
+                            <option value="🌾">🌾 Farm Crops</option>
+                            <option value="🔥">🔥 Surtling Core / Geyser</option>
+                            <option value="🍯">🍯 Beehive / Honey</option>
+                            <option value="🍺">🍺 Fermenter / Mead</option>
+                            <option value="⛏️">⛏️ Smelter / Kiln</option>
+                            <option value="⚡">⚡ Power / Buff</option>
+                            <option value="🌲">🌲 Trees / Saplings</option>
+                            <option value="🐗">🐗 Taming / Breeding</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-size: 0.875rem;">
+                        ▶️ Start Custom Timer
+                    </button>
+                </form>
+            </div>
+
+            <!-- TAB 4: Valheim Mechanics Guide -->
+            <div id="timers-panel-guide" class="timers-panel" style="display: none;">
+                <div class="timer-guide-content">
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🫐</span> Wild Berries & Foraging (5 Hours)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Raspberry, Blueberry, and Cloudberry bushes take <strong>300 minutes (5 real-world hours)</strong> to respawn. Wild bushes never permanently deplete.
+                        </p>
+                        <div class="timer-guide-tip">
+                            💡 <strong>Survival Tip:</strong> Never destroy the bushes with tools! World time must pass in active loaded sectors for respawn checks to advance.
+                        </div>
+                    </div>
+
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🌾</span> Cultivation & Crops (4000s - 5000s / ~1h 15m)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Domesticated plants (Carrots, Turnips, Onions, Barley, Flax, Jotun Puffs, Magecap) take <strong>4000 to 5000 seconds</strong> (average 4500s / 75 minutes, or ~2.1 in-game days) to mature.
+                        </p>
+                        <div class="timer-guide-tip">
+                            💡 <strong>Cultivation Rule:</strong> Plants must have cultivated soil, open sky above (no roofs), and at least 0.5m clearance. Crowded crops turn brown and wither.
+                        </div>
+                    </div>
+
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🔥</span> Surtling Core Spawners (5 Minutes)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Swamp fire geysers spawn <strong>3 Surtlings every 5 minutes (300 seconds)</strong> as long as fewer than 6 Surtlings are in the area.
+                        </p>
+                        <div class="timer-guide-tip">
+                            💡 <strong>Core Farm Automation:</strong> Use a pickaxe to lower the ground around the fire vent until water covers the soil. Newly spawned Surtlings instantly die in water, dropping Surtling Cores and Coal automatically!
+                        </div>
+                    </div>
+
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🍯</span> Beehives & Honey (20m / 80m Full)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Each happy beehive generates <strong>1 Honey every 20 minutes (1200 seconds)</strong>, holding a maximum capacity of 4 Honey (full after 80 minutes).
+                        </p>
+                    </div>
+
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🍺</span> Fermenter & Mead (40 Minutes)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Converting a mead base into 6 usable potions takes <strong>2400 seconds (40 real-world minutes)</strong>. Must be sheltered under a roof.
+                        </p>
+                    </div>
+
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>⛏️</span> Smelters & Charcoal Kilns (14s / item)
+                        </div>
+                        <p class="timer-guide-desc">
+                            Processes 1 ore / wood every <strong>14 seconds</strong>. 10 items take 2m 20s; a full 20/25 load takes approximately 5 minutes 50 seconds.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

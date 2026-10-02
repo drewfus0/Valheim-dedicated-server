@@ -131,6 +131,10 @@ class ValheimServerManager:
                 return self.process.pid
             return self.existing_pid
 
+    def is_running(self) -> bool:
+        with self.lock:
+            return self.state in ("Running", "Starting") or self.get_active_pid() is not None
+
     def get_status_data(self) -> Dict[str, Any]:
         with self.lock:
             state = self.state
@@ -185,6 +189,8 @@ class ValheimServerManager:
             "players_count": p_summary["online_count"],
             "players_list": p_summary["online_players"],
             "known_players_count": p_summary["known_count"],
+            "hidden_players_count": p_summary.get("hidden_count", 0),
+            "total_known_players_count": p_summary.get("total_known_count", len(p_summary["all_players"])),
             "total_deaths": p_summary.get("total_deaths", 0),
             "all_players": p_summary["all_players"],
             "player_sessions": p_summary["recent_events"],

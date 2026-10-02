@@ -59,6 +59,7 @@ class PlayerTracker:
         self.steam_id_to_player: Dict[str, str] = {}
         self.player_to_steam_id: Dict[str, str] = {}
         self._pending_steam_connects: List[str] = []
+        self.deleted_players: List[str] = []
         self._last_log_offset: int = 0
         self._last_log_inode: Optional[int] = None
         self._last_disk_mtime: Optional[float] = None
@@ -81,6 +82,7 @@ class PlayerTracker:
                     self.events = data.get("events", [])
                     self.steam_id_to_player = data.get("steam_id_to_player", {})
                     self.player_to_steam_id = data.get("player_to_steam_id", {})
+                    self.deleted_players = data.get("deleted_players", [])
                     self._last_log_offset = data.get("last_log_offset", 0)
                     self._last_log_inode = data.get("last_log_inode")
 
@@ -105,6 +107,7 @@ class PlayerTracker:
                     "events": self.events[-500:],  # Retain last 500 events
                     "steam_id_to_player": self.steam_id_to_player,
                     "player_to_steam_id": self.player_to_steam_id,
+                    "deleted_players": self.deleted_players,
                     "last_log_offset": self._last_log_offset,
                     "last_log_inode": self._last_log_inode,
                 }
@@ -317,11 +320,14 @@ class PlayerTracker:
 
     def _record_death(self, player_name: str, ts_str: str) -> None:
         """Record player death event without closing their active session."""
+        if player_name in self.deleted_players:
+            self.deleted_players.remove(player_name)
         s_id = self.player_to_steam_id.get(player_name)
         if player_name not in self.known_players:
             self.known_players[player_name] = {
                 "name": player_name,
                 "steam_id": s_id,
+                "is_hidden": False,
                 "first_seen": ts_str,
                 "last_seen": ts_str,
                 "is_online": True,
@@ -359,12 +365,15 @@ class PlayerTracker:
 
     def _record_login(self, player_name: str, ts_str: str, steam_id: Optional[str] = None) -> None:
         """Record player login event and activate session."""
+        if player_name in self.deleted_players:
+            self.deleted_players.remove(player_name)
         now_dt = parse_timestamp(ts_str)
         s_id = steam_id or self.player_to_steam_id.get(player_name)
         if player_name not in self.known_players:
             self.known_players[player_name] = {
                 "name": player_name,
                 "steam_id": s_id,
+                "is_hidden": False,
                 "first_seen": ts_str,
                 "last_seen": ts_str,
                 "is_online": True,
@@ -483,13 +492,11 @@ class PlayerTracker:
             self.process_new_logs()
 
             now = datetime.datetime.now()
-            online_names: List[str] = []
             all_players_list: List[Dict[str, Any]] = []
 
             for name, data in self.known_players.items():
                 is_online = data.get("is_online", False) and server_running
-                if is_online:
-                    online_names.append(name)
+                is_hidden = bool(data.get("is_hidden", False))
 
                 # Compute current session duration if online
                 session_time_str = None
@@ -507,6 +514,7 @@ class PlayerTracker:
                         "name": name,
                         "steam_id": steam_id,
                         "is_online": is_online,
+                        "is_hidden": is_hidden,
                         "first_seen": data.get("first_seen", "--"),
                         "last_seen": data.get("last_seen", "--"),
                         "session_time": session_time_str,
@@ -517,8 +525,8 @@ class PlayerTracker:
                     }
                 )
 
-            # Sort: online players first, then alphabetically by name
-            all_players_list.sort(key=lambda x: (not x["is_online"], x["name"].lower()))
+            # Sort: hidden players last, then online first, then alphabetically by name
+            all_players_list.sort(key=lambda x: (x["is_hidden"], not x["is_online"], x["name"].lower()))
 
             # Prepare formatted recent events (admin timeline)
             recent_events = []
@@ -530,28 +538,105 @@ class PlayerTracker:
 
                 p_name = evt.get("player_name", "")
                 s_id = evt.get("steam_id") or self.player_to_steam_id.get(p_name)
+                is_p_hidden = self.known_players.get(p_name, {}).get("is_hidden", False)
 
                 recent_events.append(
                     {
                         "id": evt.get("id"),
                         "player_name": p_name,
                         "steam_id": s_id,
+                        "is_hidden": is_p_hidden,
                         "event": e_type,
                         "timestamp": evt.get("timestamp"),
                         "duration_str": dur_str or ("Active Now" if e_type == "login" else "--"),
                     }
                 )
 
+            visible_players = [p for p in all_players_list if not p["is_hidden"]]
+            hidden_players = [p for p in all_players_list if p["is_hidden"]]
+            visible_online = [p for p in visible_players if p["is_online"]]
+            total_online = [p for p in all_players_list if p["is_online"]]
+
             total_deaths = sum(int(d.get("deaths", 0)) for d in self.known_players.values())
 
             return {
-                "online_count": len(online_names),
-                "online_players": online_names,
-                "known_count": len(all_players_list),
+                "online_count": len(visible_online),
+                "total_online_count": len(total_online),
+                "online_players": [p["name"] for p in visible_online],
+                "all_online_players": [p["name"] for p in total_online],
+                "known_count": len(visible_players),
+                "total_known_count": len(all_players_list),
+                "hidden_count": len(hidden_players),
                 "all_players": all_players_list,
                 "recent_events": recent_events,
                 "total_deaths": total_deaths,
             }
+
+    def _find_player_key(self, player_name: str) -> Optional[str]:
+        """Case-insensitive player key lookup."""
+        if player_name in self.known_players:
+            return player_name
+        for k in self.known_players:
+            if k.lower() == player_name.lower():
+                return k
+        return None
+
+    def hide_player(self, player_name: str) -> bool:
+        """Mark a player as hidden from public roster and views."""
+        with self.lock:
+            key = self._find_player_key(player_name)
+            if key:
+                self.known_players[key]["is_hidden"] = True
+                self._save_to_disk()
+                return True
+            return False
+
+    def unhide_player(self, player_name: str) -> bool:
+        """Mark a player as visible on public roster and views."""
+        with self.lock:
+            key = self._find_player_key(player_name)
+            if key:
+                self.known_players[key]["is_hidden"] = False
+                self._save_to_disk()
+                return True
+            return False
+
+    def delete_player(self, player_name: str) -> bool:
+        """Permanently delete a player and their historical sessions/events."""
+        with self.lock:
+            key = self._find_player_key(player_name) or player_name
+            removed = False
+
+            if key in self.known_players:
+                del self.known_players[key]
+                removed = True
+
+            if key not in self.deleted_players:
+                self.deleted_players.append(key)
+
+            # Clean bidirectional SteamID mappings
+            s_id = self.player_to_steam_id.pop(key, None)
+            if s_id and self.steam_id_to_player.get(s_id) == key:
+                del self.steam_id_to_player[s_id]
+
+            # Also check if another casing of name mapped to steam_id
+            for sid, pname in list(self.steam_id_to_player.items()):
+                if pname.lower() == key.lower():
+                    del self.steam_id_to_player[sid]
+                    self.player_to_steam_id.pop(pname, None)
+
+            # Clean sessions and events (case-insensitive)
+            initial_sess_len = len(self.sessions)
+            self.sessions = [s for s in self.sessions if s.get("player_name", "").lower() != key.lower()]
+            initial_evt_len = len(self.events)
+            self.events = [e for e in self.events if e.get("player_name", "").lower() != key.lower()]
+
+            if initial_sess_len != len(self.sessions) or initial_evt_len != len(self.events):
+                removed = True
+
+            if removed:
+                self._save_to_disk()
+            return removed
 
 
 # Singleton PlayerTracker instance

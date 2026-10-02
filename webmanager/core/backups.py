@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import random
 import re
@@ -9,7 +10,14 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.paths import BACKUP_DIR, WORLD_SAVE_DIR
+from core.paths import (
+    BACKUP_DIR,
+    CONFIG_FILE,
+    GAME_LOG,
+    LOGS_DIR,
+    SERVER_DIR,
+    WORLD_SAVE_DIR,
+)
 
 
 def dotnet_fw_hash(s: str) -> int:
@@ -123,6 +131,17 @@ def create_world_metadata(world_name: str, seed_name: str) -> Tuple[bool, str]:
         return False, f"Failed to create world metadata: {e}"
 
 
+def get_active_world_folder(world_name: str) -> str:
+    """Find whether world_name is in worlds_local or worlds, defaulting to worlds_local."""
+    for folder in ["worlds_local", "worlds"]:
+        wdir = WORLD_SAVE_DIR / folder
+        if (wdir / f"{world_name}.fwl").exists() or (wdir / f"{world_name}.db").exists():
+            return folder
+    if (WORLD_SAVE_DIR / "worlds_local").exists():
+        return "worlds_local"
+    return "worlds"
+
+
 def list_available_worlds() -> List[str]:
     """Scan world save directories and return unique, clean primary world names."""
     worlds = set()
@@ -141,18 +160,27 @@ def list_available_worlds() -> List[str]:
 
 
 def list_backups() -> List[Dict[str, Any]]:
-    """List existing backup zip files with size and formatted timestamp."""
+    """List existing backup zip files with size, formatted timestamp, and snapshot type."""
     if not BACKUP_DIR.exists():
         return []
 
     backups = []
     for f in sorted(BACKUP_DIR.glob("*.zip"), key=lambda x: x.stat().st_mtime, reverse=True):
         stat = f.stat()
+        is_safety = "safety_pre_restore" in f.name
+        is_v2 = False
+        try:
+            with zipfile.ZipFile(f, "r") as zf:
+                is_v2 = "manifest.json" in zf.namelist()
+        except Exception:
+            pass
         backups.append({
             "filename": f.name,
             "size_mb": round(stat.st_size / (1024 * 1024), 2),
             "created": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
             "mtime": stat.st_mtime,
+            "is_safety": is_safety,
+            "is_v2": is_v2,
         })
     return backups
 
@@ -166,70 +194,386 @@ def get_backup_path(filename: str) -> Optional[Path]:
     return None
 
 
-def create_backup(world_name: str = "world") -> Tuple[bool, str, Optional[str]]:
-    """Create a compressed zip backup of Valheim world directories."""
+def inspect_backup(filename: str) -> Optional[Dict[str, Any]]:
+    """Inspect backup archive and return detailed manifest and component flags."""
+    target = get_backup_path(filename)
+    if not target:
+        return None
+    try:
+        with zipfile.ZipFile(target, "r") as zf:
+            namelist = zf.namelist()
+            is_v2 = "manifest.json" in namelist
+            manifest = None
+            if is_v2:
+                try:
+                    manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+                except Exception:
+                    pass
+
+            has_world = any(n.startswith("world/") or n.startswith("worlds_local/") or n.startswith("worlds/") for n in namelist)
+            has_server_configs = any(n.startswith("configs/server/") for n in namelist)
+            has_data = any(n.startswith("data/") for n in namelist)
+            has_logs = any(n.startswith("logs/") for n in namelist)
+
+            return {
+                "filename": filename,
+                "size_mb": round(target.stat().st_size / (1024 * 1024), 2),
+                "is_v2": is_v2,
+                "manifest": manifest,
+                "has_world": has_world,
+                "has_server_configs": has_server_configs,
+                "has_data": has_data,
+                "has_logs": has_logs,
+                "file_count": len([n for n in namelist if not n.endswith("/")]),
+            }
+    except Exception:
+        return None
+
+
+def create_backup(
+    world_name: str = "world",
+    is_safety_snapshot: bool = False,
+) -> Tuple[bool, str, Optional[str]]:
+    """
+    Create a compressed zip backup of:
+    1. Active world directory ONLY (worlds_local OR worlds, not both).
+    2. Server configs outside the worlds folder (adminlist.txt, bannedlist.txt, permittedlist.txt, prefs, etc.).
+    3. Web manager configurations and state data (*.json in SERVER_DIR).
+    4. Server and game logs (valheim_server.log, logs/*.log, Player.log).
+    """
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_name = f"valheim_backup_{world_name}_{timestamp}.zip"
+    if is_safety_snapshot:
+        zip_name = f"valheim_safety_pre_restore_{world_name}_{timestamp}.zip"
+    else:
+        zip_name = f"valheim_backup_{world_name}_{timestamp}.zip"
     zip_path = BACKUP_DIR / zip_name
 
-    target_dirs = [WORLD_SAVE_DIR / "worlds_local", WORLD_SAVE_DIR / "worlds"]
-    found_any = False
+    active_folder = get_active_world_folder(world_name)
+    world_dir = WORLD_SAVE_DIR / active_folder
+
+    # Identify all top-level files/directories that belong to active world
+    active_world_root_items = []
+    if world_dir.exists():
+        for item in world_dir.iterdir():
+            if (
+                item.name == world_name
+                or item.name.startswith(f"{world_name}.")
+                or item.name.startswith(f"{world_name}_")
+            ):
+                active_world_root_items.append(item.name)
+    active_world_root_items.sort()
+
+    file_summary = {
+        "world_files": 0,
+        "server_configs": 0,
+        "manager_data": 0,
+        "logs": 0,
+    }
+    active_world_file_count = 0
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for tdir in target_dirs:
-                if tdir.exists():
-                    found_any = True
-                    for root, _, files in os.walk(tdir):
-                        for file in files:
-                            fpath = Path(root) / file
-                            arcname = fpath.relative_to(WORLD_SAVE_DIR)
-                            zf.write(fpath, arcname)
+            # 1. Active world folder ONLY (so worlds_local or worlds, not both)
+            if world_dir.exists():
+                for root, _, files in os.walk(world_dir):
+                    for file in files:
+                        fpath = Path(root) / file
+                        rel_path = fpath.relative_to(world_dir)
+                        arcname = f"world/{active_folder}/{rel_path}"
+                        zf.write(fpath, arcname)
+                        file_summary["world_files"] += 1
 
-        if not found_any:
-            if zip_path.exists():
-                zip_path.unlink()
-            return False, f"No world save directory found at {WORLD_SAVE_DIR}", None
+                        first_part = rel_path.parts[0] if rel_path.parts else ""
+                        if (
+                            first_part == world_name
+                            or first_part.startswith(f"{world_name}.")
+                            or first_part.startswith(f"{world_name}_")
+                        ):
+                            active_world_file_count += 1
+
+            # 2. Server config files in WORLD_SAVE_DIR outside world directories
+            server_config_filenames = [
+                "adminlist.txt",
+                "bannedlist.txt",
+                "permittedlist.txt",
+                "ps_blocked_players.txt",
+                "blocked_players.txt",
+                "prefs",
+            ]
+            for cname in server_config_filenames:
+                cpath = WORLD_SAVE_DIR / cname
+                if cpath.exists() and cpath.is_file():
+                    zf.write(cpath, f"configs/server/{cname}")
+                    file_summary["server_configs"] += 1
+
+            # 3. Web manager configs and state data (.json files in SERVER_DIR)
+            excluded_json = {"pyrightconfig.json", "server_config.example.json"}
+            for jfile in SERVER_DIR.glob("*.json"):
+                if jfile.name not in excluded_json and jfile.is_file():
+                    zf.write(jfile, f"data/{jfile.name}")
+                    file_summary["manager_data"] += 1
+
+            # 4. Logs (valheim_server.log, logs/*.log, Player.log)
+            if GAME_LOG.exists() and GAME_LOG.is_file():
+                zf.write(GAME_LOG, "logs/server/valheim_server.log")
+                file_summary["logs"] += 1
+
+            if LOGS_DIR.exists():
+                for lfile in LOGS_DIR.glob("*.log"):
+                    if lfile.is_file():
+                        zf.write(lfile, f"logs/history/{lfile.name}")
+                        file_summary["logs"] += 1
+
+            for plog_name in ["Player.log", "Player-prev.log"]:
+                plog_path = WORLD_SAVE_DIR / plog_name
+                if plog_path.exists() and plog_path.is_file():
+                    zf.write(plog_path, f"logs/unity/{plog_name}")
+                    file_summary["logs"] += 1
+
+            # 5. Manifest metadata
+            manifest = {
+                "version": 2,
+                "timestamp": timestamp,
+                "world_name": world_name,
+                "active_folder": active_folder,
+                "active_world": {
+                    "name": world_name,
+                    "folder": active_folder,
+                    "root_items": active_world_root_items,
+                    "file_count": active_world_file_count,
+                },
+                "summary": file_summary,
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
 
         size_mb = round(zip_path.stat().st_size / (1024 * 1024), 2)
-        return True, f"Backup created successfully: {zip_name} ({size_mb} MB)", zip_name
+        total_files = sum(file_summary.values())
+        return (
+            True,
+            f"Backup created: {zip_name} ({size_mb} MB, {total_files} files in {active_folder}, configs, data & logs)",
+            zip_name,
+        )
     except Exception as e:
+        if zip_path.exists():
+            zip_path.unlink()
         return False, f"Backup failed: {e}", None
 
 
-def restore_backup(filename: str) -> Tuple[bool, str]:
-    """Safely restore a world backup archive, taking a safety snapshot first."""
+def restore_backup(
+    filename: str,
+    restore_world: bool = True,
+    restore_configs: bool = True,
+    restore_data: bool = True,
+    restore_logs: bool = False,
+    prune_active_world: bool = True,
+    current_world_name: str = "world",
+) -> Tuple[bool, str]:
+    """
+    Safely restore a backup archive to original locations with a safety snapshot taken first.
+    Supports selective restoration of world files, server configs, web manager data, and logs.
+    If prune_active_world is True, purges stale/newer chunks and files for the active world
+    prior to extraction according to the manifest, leaving all other worlds untouched.
+    """
     zip_path = get_backup_path(filename)
     if not zip_path:
         return False, f"Backup archive '{filename}' not found."
 
     try:
-        # 1. Create safety snapshot of current worlds before extraction
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        safety_zip = BACKUP_DIR / f"valheim_safety_pre_restore_{timestamp}.zip"
-        target_dirs = [WORLD_SAVE_DIR / "worlds_local", WORLD_SAVE_DIR / "worlds"]
+        # 1. Create safety snapshot of current state before extraction
+        ok_snap, snap_msg, snap_name = create_backup(
+            world_name=current_world_name,
+            is_safety_snapshot=True,
+        )
+        if not ok_snap:
+            return False, f"Pre-restore safety snapshot failed: {snap_msg}"
 
-        with zipfile.ZipFile(safety_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-            for tdir in target_dirs:
-                if tdir.exists():
-                    for root, _, files in os.walk(tdir):
-                        for file in files:
-                            fpath = Path(root) / file
-                            arcname = fpath.relative_to(WORLD_SAVE_DIR)
-                            zf.write(fpath, arcname)
+        restored_items = []
 
-        # 2. Extract selected archive into WORLD_SAVE_DIR
-        WORLD_SAVE_DIR.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zf:
-            # Verify paths inside zip to prevent zip slip
-            for member in zf.namelist():
-                dest = (WORLD_SAVE_DIR / member).resolve()
-                if not str(dest).startswith(str(WORLD_SAVE_DIR.resolve())):
-                    raise ValueError(f"Illegal path in archive: {member}")
-            zf.extractall(WORLD_SAVE_DIR)
+            namelist = zf.namelist()
+            is_v2 = "manifest.json" in namelist
+            manifest = None
+            if is_v2:
+                try:
+                    manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+                except Exception:
+                    pass
 
-        return True, f"Successfully restored '{filename}'. Pre-restore safety backup saved as '{safety_zip.name}'."
+            # Zip Slip Security Verification
+            for member in namelist:
+                if member == "manifest.json":
+                    continue
+                if member.startswith("data/") or member.startswith("logs/server/"):
+                    base_check = SERVER_DIR
+                elif member.startswith("logs/history/"):
+                    base_check = LOGS_DIR
+                else:
+                    base_check = WORLD_SAVE_DIR
+
+                sub = member
+                for prefix in ["world/", "configs/server/", "data/", "logs/server/", "logs/history/", "logs/unity/"]:
+                    if member.startswith(prefix):
+                        sub = member[len(prefix):]
+                        break
+
+                dest = (base_check / sub).resolve()
+                if not str(dest).startswith(str(base_check.resolve())):
+                    raise ValueError(f"Illegal path in archive: {member}")
+
+            if is_v2:
+                # 2A. V2 Archive extraction by selected components
+                # A. World files
+                if restore_world:
+                    # Clean Purge for active world only (if requested)
+                    if prune_active_world:
+                        target_world = None
+                        target_folder = "worlds_local"
+                        manifest_root_items = []
+                        if manifest and "active_world" in manifest:
+                            target_world = manifest["active_world"].get("name")
+                            target_folder = manifest["active_world"].get("folder", "worlds_local")
+                            manifest_root_items = manifest["active_world"].get("root_items", [])
+                        elif manifest and "world_name" in manifest:
+                            target_world = manifest.get("world_name")
+                            target_folder = manifest.get("active_folder", "worlds_local")
+                        elif current_world_name:
+                            target_world = current_world_name
+
+                        if target_world:
+                            purge_dir = WORLD_SAVE_DIR / target_folder
+                            purged_count = 0
+                            if purge_dir.exists():
+                                for item in list(purge_dir.iterdir()):
+                                    matches = False
+                                    if manifest_root_items and item.name in manifest_root_items:
+                                        matches = True
+                                    elif (
+                                        item.name == target_world
+                                        or item.name.startswith(f"{target_world}.")
+                                        or item.name.startswith(f"{target_world}_")
+                                    ):
+                                        matches = True
+
+                                    if matches:
+                                        try:
+                                            if item.is_dir():
+                                                shutil.rmtree(item)
+                                            else:
+                                                item.unlink()
+                                            purged_count += 1
+                                        except Exception as pe:
+                                            print(f"[Backup] Warning: could not purge '{item.name}': {pe}")
+                            if purged_count > 0:
+                                restored_items.append(f"Purged {purged_count} old/orphaned items for '{target_world}'")
+
+                    # Extract world files
+                    world_count = 0
+                    for m in namelist:
+                        if m.startswith("world/") and not m.endswith("/"):
+                            rel = m[len("world/"):]
+                            dest = WORLD_SAVE_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            world_count += 1
+                    if world_count > 0:
+                        restored_items.append(f"World Files ({world_count})")
+
+                # B. Server configs outside worlds folder
+                if restore_configs:
+                    cfg_count = 0
+                    for m in namelist:
+                        if m.startswith("configs/server/") and not m.endswith("/"):
+                            rel = m[len("configs/server/"):]
+                            dest = WORLD_SAVE_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            cfg_count += 1
+                    if cfg_count > 0:
+                        restored_items.append(f"Server Configs ({cfg_count})")
+
+                # C. Web Manager configs and data (.json)
+                if restore_data:
+                    data_count = 0
+                    for m in namelist:
+                        if m.startswith("data/") and not m.endswith("/"):
+                            rel = m[len("data/"):]
+                            dest = SERVER_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            data_count += 1
+                    if data_count > 0:
+                        restored_items.append(f"Manager Data ({data_count})")
+
+                # D. Logs
+                if restore_logs:
+                    log_count = 0
+                    for m in namelist:
+                        if m.endswith("/"):
+                            continue
+                        if m.startswith("logs/server/"):
+                            rel = m[len("logs/server/"):]
+                            dest = SERVER_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            log_count += 1
+                        elif m.startswith("logs/history/"):
+                            rel = m[len("logs/history/"):]
+                            dest = LOGS_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            log_count += 1
+                        elif m.startswith("logs/unity/"):
+                            rel = m[len("logs/unity/"):]
+                            dest = WORLD_SAVE_DIR / rel
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(m) as src, open(dest, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            log_count += 1
+                    if log_count > 0:
+                        restored_items.append(f"Logs ({log_count})")
+
+            else:
+                # 2B. Legacy V1 Archive extraction (worlds_local / worlds only)
+                if restore_world:
+                    if prune_active_world and current_world_name:
+                        for folder in ["worlds_local", "worlds"]:
+                            pdir = WORLD_SAVE_DIR / folder
+                            if pdir.exists():
+                                for item in list(pdir.iterdir()):
+                                    if (
+                                        item.name == current_world_name
+                                        or item.name.startswith(f"{current_world_name}.")
+                                        or item.name.startswith(f"{current_world_name}_")
+                                    ):
+                                        try:
+                                            if item.is_dir():
+                                                shutil.rmtree(item)
+                                            else:
+                                                item.unlink()
+                                        except Exception:
+                                            pass
+                    WORLD_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+                    for member in namelist:
+                        dest = (WORLD_SAVE_DIR / member).resolve()
+                        if not str(dest).startswith(str(WORLD_SAVE_DIR.resolve())):
+                            raise ValueError(f"Illegal path in legacy archive: {member}")
+                    zf.extractall(WORLD_SAVE_DIR)
+                    restored_items.append("Legacy World Files")
+
+                if restore_configs or restore_data or restore_logs:
+                    restored_items.append("(Non-world components not present in legacy v1 archive)")
+
+        items_str = ", ".join(restored_items) if restored_items else "No components selected"
+        return (
+            True,
+            f"Successfully restored '{filename}' [{items_str}]. Safety backup saved as '{snap_name}'.",
+        )
     except Exception as e:
         return False, f"Restore failed: {e}"
 
