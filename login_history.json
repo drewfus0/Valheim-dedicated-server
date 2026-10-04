@@ -1,6 +1,18 @@
 {
   "history": [
     {
+      "id": "01e090a90623",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "failure_reason": null,
+      "timestamp": "10/04/2026 17:45:22",
+      "iso_timestamp": "2026-10-04T17:45:22.187150"
+    },
+    {
       "id": "a4de7036584e",
       "username": "admin",
       "role": "admin",

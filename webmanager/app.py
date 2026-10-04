@@ -365,13 +365,14 @@ async def partial_tab(request: Request, tab_name: str):
 
 
 @app.get("/partials/timeline/chunk", response_class=HTMLResponse)
-async def partial_timeline_chunk(request: Request, before_ts: Optional[float] = None):
+async def partial_timeline_chunk(request: Request, before_ts: Optional[str] = None, before: Optional[str] = None):
     redirect = require_auth(request)
     if redirect:
         return redirect
 
     user = get_current_user_from_request(request)
-    chunk = TIMELINE_ENGINE.get_chunk(before_ts)
+    cursor = before_ts if before_ts is not None else before
+    chunk = TIMELINE_ENGINE.get_chunk(cursor)
     return templates.TemplateResponse(
         request=request,
         name="partials/timeline_chunk.html",

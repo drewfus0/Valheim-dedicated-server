@@ -1,5 +1,6 @@
 import datetime
 import threading
+import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.players import PLAYER_TRACKER, format_duration, parse_timestamp
@@ -257,21 +258,53 @@ class TimelineEngine:
 
         return sessions, events, boss_triumphs, raids, altars
 
-    def get_chunk(self, before_ts: Optional[float] = None) -> Dict[str, Any]:
+    def _parse_cursor_dt(self, val: Any) -> Optional[datetime.datetime]:
+        """Robustly parse timeline cursor into a datetime object."""
+        if val is None:
+            return None
+        val_str = str(val).strip()
+        if not val_str or val_str.lower() in ("null", "none"):
+            return None
+        val_str = urllib.parse.unquote(val_str)
+        try:
+            return datetime.datetime.fromisoformat(val_str)
+        except Exception:
+            pass
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S", "%Y%m%d_%H%M%S"):
+            try:
+                return datetime.datetime.strptime(val_str, fmt)
+            except Exception:
+                pass
+        try:
+            ts = float(val_str)
+            return datetime.datetime.fromtimestamp(ts)
+        except Exception:
+            pass
+        return None
+
+    def get_chunk(self, before_ts: Optional[Any] = None) -> Dict[str, Any]:
         """Fetch the next timeline slice descending into the past."""
         earliest_dt = self.get_earliest_datetime()
         players = self.get_all_players()
         now = datetime.datetime.now()
 
         # Determine target window
-        if before_ts is None:
+        if before_ts is None or str(before_ts).strip() == "" or str(before_ts).strip().lower() in ("null", "none"):
             end_dt = now
-            if end_dt.minute != 0 or end_dt.second != 0:
+            if end_dt.minute != 0 or end_dt.second != 0 or end_dt.microsecond != 0:
                 start_dt = end_dt.replace(minute=0, second=0, microsecond=0)
             else:
                 start_dt = end_dt - datetime.timedelta(hours=1)
         else:
-            end_dt = datetime.datetime.fromtimestamp(before_ts)
+            parsed = self._parse_cursor_dt(before_ts)
+            if parsed is not None:
+                end_dt = parsed
+            else:
+                end_dt = now
+            start_dt = end_dt - datetime.timedelta(hours=1)
+
+        # Safety check: ensure start_dt strictly precedes end_dt
+        if start_dt >= end_dt:
             start_dt = end_dt - datetime.timedelta(hours=1)
 
         # Check for activity in [start_dt, end_dt]
@@ -289,6 +322,9 @@ class TimelineEngine:
                     break
                 gap_start = prev_start
 
+            if gap_start >= gap_end:
+                gap_start = gap_end - datetime.timedelta(hours=1)
+
             gap_seconds = (gap_end - gap_start).total_seconds()
             hours_val = round(gap_seconds / 3600.0, 1)
             is_end = (gap_start <= earliest_dt)
@@ -305,12 +341,12 @@ class TimelineEngine:
 
             return {
                 "type": "idle",
-                "chunk_id": f"idle_{int(gap_start.timestamp())}",
+                "chunk_id": f"idle_{gap_start.strftime('%Y%m%d_%H%M%S')}",
                 "gap_hours": hours_val,
                 "duration_label": dur_label,
                 "gap_start_str": gap_start.strftime("%a %d %b %H:%M"),
                 "gap_end_str": gap_end.strftime("%a %d %b %H:%M"),
-                "next_before_ts": gap_start.timestamp(),
+                "next_before_ts": gap_start.isoformat(),
                 "is_end": is_end,
                 "earliest_date_str": earliest_dt.strftime("%d %b %Y"),
                 "players": players,
@@ -334,8 +370,8 @@ class TimelineEngine:
                     if seg_end > seg_start:
                         top_ratio = (end_dt - seg_end).total_seconds() / total_seconds
                         height_ratio = (seg_end - seg_start).total_seconds() / total_seconds
-                        top_pct = round(top_ratio * 100.0, 2)
-                        height_pct = max(3.0, round(height_ratio * 100.0, 2))
+                        top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
+                        height_pct = max(3.0, min(100.0, round(height_ratio * 100.0, 2)))
                         dur_sec = int((seg_end - seg_start).total_seconds())
 
                         lane_sessions.append({
@@ -354,7 +390,7 @@ class TimelineEngine:
                 if e.get("event") == "death" and e.get("player_name") == pname:
                     death_dt = e["timestamp_dt"]
                     top_ratio = (end_dt - death_dt).total_seconds() / total_seconds
-                    top_pct = round(top_ratio * 100.0, 2)
+                    top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
                     lane_deaths.append({
                         "top_pct": top_pct,
                         "time_str": e["time_str"],
@@ -375,7 +411,7 @@ class TimelineEngine:
         for b in bosses:
             b_dt = b["timestamp_dt"]
             top_ratio = (end_dt - b_dt).total_seconds() / total_seconds
-            top_pct = round(top_ratio * 100.0, 2)
+            top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
             landmark_events.append({
                 "type": "boss",
                 "top_pct": top_pct,
@@ -391,7 +427,7 @@ class TimelineEngine:
         for r in raids:
             r_dt = r["timestamp_dt"]
             top_ratio = (end_dt - r_dt).total_seconds() / total_seconds
-            top_pct = round(top_ratio * 100.0, 2)
+            top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
             landmark_events.append({
                 "type": "raid",
                 "top_pct": top_pct,
@@ -407,7 +443,7 @@ class TimelineEngine:
         for a in altars:
             a_dt = a["timestamp_dt"]
             top_ratio = (end_dt - a_dt).total_seconds() / total_seconds
-            top_pct = round(top_ratio * 100.0, 2)
+            top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
             boss_ico = a.get("icon", "⚔️")
             landmark_events.append({
                 "type": "altar",
@@ -424,14 +460,14 @@ class TimelineEngine:
 
         return {
             "type": "active",
-            "chunk_id": f"chunk_{int(start_dt.timestamp())}",
+            "chunk_id": f"chunk_{start_dt.strftime('%Y%m%d_%H%M%S')}",
             "start_dt": start_dt,
             "end_dt": end_dt,
             "start_time_str": start_dt.strftime("%H:%M"),
-            "end_time_str": "NOW" if before_ts is None else end_dt.strftime("%H:%M"),
+            "end_time_str": "NOW" if (before_ts is None or str(before_ts).strip() == "" or str(before_ts).strip().lower() in ("null", "none")) else end_dt.strftime("%H:%M"),
             "end_time_badge": end_dt.strftime("%H:%M"),
             "date_str": start_dt.strftime("%a %d %b"),
-            "next_before_ts": start_dt.timestamp(),
+            "next_before_ts": start_dt.isoformat(),
             "is_end": is_end,
             "earliest_date_str": earliest_dt.strftime("%d %b %Y"),
             "players": players,
