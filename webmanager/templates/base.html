@@ -149,8 +149,8 @@
                 <button type="button" class="hud-btn" onclick="toggleHudMinimize()" id="hud-min-btn" title="Minimize / Expand">
                     _
                 </button>
-                <button type="button" class="hud-btn" onclick="toggleTimersDropdown()" title="Browse Presets / Add Timer">
-                    ➕
+                <button type="button" class="hud-btn" onclick="toggleTimersDropdown()" title="Manage Timers in Dropdown">
+                    ⚙️
                 </button>
                 <button type="button" class="hud-btn hud-close" onclick="closeTimersHud()" title="Close Floating Window">
                     ✕
@@ -158,19 +158,14 @@
             </div>
         </div>
         <div class="hud-body" id="hud-body">
-            <div class="hud-timers-list" id="hud-timers-list">
-                <!-- Rendered dynamically by timers.js -->
-            </div>
-            <div class="hud-footer">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="clearCompletedTimers()" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">
-                    🧹 Clear Done
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="resetHudPosition()" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reset position to top right">
-                    📍 Reset Pos
-                </button>
+            <div class="hud-timers-grid" id="hud-timers-list">
+                <!-- 4-to-a-row mini widgets rendered dynamically by timers.js -->
             </div>
         </div>
     </div>
+
+    <!-- Floating HUD Mini Widget Name Tooltip -->
+    <div id="hud-timer-tooltip" class="hud-timer-tooltip" style="display: none;"></div>
 
     <!-- Change Password Modal -->
     <div id="password-modal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">

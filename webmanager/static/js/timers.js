@@ -566,6 +566,10 @@
             // Ignore clicks on control buttons inside header
             if (e.target.closest('button')) return;
 
+            if (typeof window.hideMiniWidgetTooltip === 'function') {
+                window.hideMiniWidgetTooltip();
+            }
+
             isDragging = true;
             dragStartX = e.clientX;
             dragStartY = e.clientY;
@@ -634,8 +638,8 @@
             if (raw) {
                 const pos = JSON.parse(raw);
                 if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
-                    const hudWidth = hud.offsetWidth || 330;
-                    const hudHeight = hud.offsetHeight || 200;
+                    const hudWidth = hud.offsetWidth || 284;
+                    const hudHeight = hud.offsetHeight || 140;
                     const maxLeft = Math.max(10, window.innerWidth - hudWidth - 10);
                     const maxTop = Math.max(10, window.innerHeight - hudHeight - 10);
                     const clampedLeft = Math.min(maxLeft, Math.max(10, pos.left));
@@ -683,6 +687,9 @@
         const hud = document.getElementById('floating-timers-hud');
         const minBtn = document.getElementById('hud-min-btn');
         if (!hud) return;
+        if (typeof window.hideMiniWidgetTooltip === 'function') {
+            window.hideMiniWidgetTooltip();
+        }
         hudMinimized = !hudMinimized;
         hud.classList.toggle('minimized', hudMinimized);
         localStorage.setItem(HUD_MIN_KEY, hudMinimized);
@@ -692,6 +699,9 @@
     window.closeTimersHud = function() {
         const hud = document.getElementById('floating-timers-hud');
         if (!hud) return;
+        if (typeof window.hideMiniWidgetTooltip === 'function') {
+            window.hideMiniWidgetTooltip();
+        }
         hud.style.display = 'none';
         hudClosed = true;
         localStorage.setItem(HUD_CLOSED_KEY, 'true');
@@ -707,6 +717,55 @@
         restoreHudPosition();
         if (typeof window.showToast === 'function') {
             window.showToast('Movable floating timers window displayed 🪟', 'info');
+        }
+    };
+
+    window.showMiniWidgetTooltip = function(e) {
+        const el = e.currentTarget;
+        if (!el) return;
+        const name = el.getAttribute('data-timer-name') || el.getAttribute('title');
+        if (!name) return;
+
+        let tt = document.getElementById('hud-timer-tooltip');
+        if (!tt) {
+            tt = document.createElement('div');
+            tt.id = 'hud-timer-tooltip';
+            document.body.appendChild(tt);
+        }
+        tt.className = 'hud-timer-tooltip visible';
+        tt.textContent = name;
+        tt.style.display = 'block';
+
+        const rect = el.getBoundingClientRect();
+        const hud = document.getElementById('floating-timers-hud');
+        const hudRect = hud ? hud.getBoundingClientRect() : null;
+
+        const ttWidth = tt.offsetWidth || 120;
+        const ttHeight = tt.offsetHeight || 26;
+
+        let left = rect.left + (rect.width / 2) - (ttWidth / 2);
+        left = Math.max(10, Math.min(window.innerWidth - ttWidth - 10, left));
+
+        // Position cleanly above the floating HUD window aligned with hovered widget
+        let top = (hudRect ? hudRect.top : rect.top) - ttHeight - 8;
+        if (top < 10) {
+            // If floating window is near the top of viewport, show cleanly below HUD
+            top = (hudRect ? hudRect.bottom : rect.bottom) + 8;
+        }
+
+        tt.style.left = Math.round(left) + 'px';
+        tt.style.top = Math.round(top) + 'px';
+    };
+
+    window.hideMiniWidgetTooltip = function() {
+        const tt = document.getElementById('hud-timer-tooltip');
+        if (tt) {
+            tt.classList.remove('visible');
+            setTimeout(() => {
+                if (!tt.classList.contains('visible')) {
+                    tt.style.display = 'none';
+                }
+            }, 120);
         }
     };
 
@@ -726,6 +785,7 @@
 
         if (timers.length === 0 || hudClosed) {
             hud.style.display = 'none';
+            hideMiniWidgetTooltip();
             return;
         }
 
@@ -750,47 +810,42 @@
                 cycles: '#8b5cf6'
             };
             const catColor = isDone ? '#10b981' : (catColors[t.category] || 'var(--nordic-cyan)');
+            const secsText = isDone ? '0s' : `${rem}s`;
+            const displayName = t.name + (t.note ? ` (${t.note})` : '');
+            const safeDisplayName = escapeHtml(displayName);
 
             html += `
-                <div class="hud-timer-box ${isDone ? 'done' : ''} ${t.paused ? 'paused' : ''}" id="hud_t_${t.id}">
-                    <!-- The Icon inside a circle that slowly fills -->
-                    <div class="hud-timer-ring-wrap" title="${pct.toFixed(0)}% elapsed (${elapsed}s / ${t.durationSec}s)">
-                        <svg class="hud-timer-svg" viewBox="0 0 36 36">
-                            <path class="hud-timer-circle-bg"
+                <div class="hud-mini-widget ${isDone ? 'done' : ''} ${t.paused ? 'paused' : ''}"
+                     id="hud_t_${t.id}"
+                     title="${safeDisplayName}"
+                     data-timer-name="${safeDisplayName}"
+                     onmouseenter="showMiniWidgetTooltip(event)"
+                     onmouseleave="hideMiniWidgetTooltip()"
+                     onclick="toggleTimersDropdown()">
+                    <!-- Icon inside filling circle -->
+                    <div class="hud-mini-ring-wrap">
+                        <svg class="hud-mini-svg" viewBox="0 0 36 36">
+                            <path class="hud-mini-circle-bg"
                                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                  fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2.8"/>
-                            <path class="hud-timer-circle-fill ${isDone ? 'done' : ''}"
+                                  fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>
+                            <path class="hud-mini-circle-fill ${isDone ? 'done' : ''}"
                                   stroke-dasharray="100, 100"
                                   stroke-dashoffset="${offset}"
                                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                  fill="none" stroke="${catColor}" stroke-width="2.8" stroke-linecap="round"/>
+                                  fill="none" stroke="${catColor}" stroke-width="3" stroke-linecap="round"/>
                         </svg>
-                        <span class="hud-timer-icon">${t.icon || '⏱️'}</span>
+                        <span class="hud-mini-icon">${t.icon || '⏱️'}</span>
                     </div>
 
-                    <!-- Details: Name & Time in secs to go -->
-                    <div class="hud-timer-body">
-                        <div class="hud-timer-header-row">
-                            <strong class="hud-timer-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</strong>
-                            ${t.note ? `<span class="hud-timer-tag" title="${escapeHtml(t.note)}">📍 ${escapeHtml(t.note)}</span>` : ''}
-                        </div>
-                        <div class="hud-timer-countdown-row">
-                            <span class="hud-timer-secs-count ${isDone ? 'done' : ''}">
-                                ${isDone ? '✨ READY TO HARVEST!' : `${rem}s to go`}
-                            </span>
-                            ${!isDone && rem >= 60 ? `<span class="hud-timer-sub-time">(${formatDuration(rem)})</span>` : ''}
-                        </div>
-                    </div>
+                    <!-- Only text: seconds -->
+                    <span class="hud-mini-secs ${isDone ? 'done' : ''}">${secsText}</span>
 
-                    <!-- Controls: Restart Button and Dismiss Button -->
-                    <div class="hud-timer-controls">
-                        <button type="button" class="hud-btn-restart" onclick="event.stopPropagation(); restartTimer('${t.id}')" title="Restart Timer (${t.durationSec}s)">
-                            🔄 Restart
-                        </button>
-                        <button type="button" class="hud-btn-remove" onclick="event.stopPropagation(); deleteTimer('${t.id}')" title="Dismiss / Remove">
-                            ✕
-                        </button>
-                    </div>
+                    <!-- Restart button -->
+                    <button type="button" class="hud-mini-restart-btn"
+                            onclick="event.stopPropagation(); restartTimer('${t.id}')"
+                            title="Restart">
+                        🔄
+                    </button>
                 </div>
             `;
         });
