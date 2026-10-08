@@ -1,8 +1,8 @@
 {
-  "current_day": 672,
-  "nights_slept": 159,
-  "last_day_timestamp": "10/04/2026 00:43:43",
-  "total_raids": 83,
+  "current_day": 756,
+  "nights_slept": 166,
+  "last_day_timestamp": "10/07/2026 23:37:27",
+  "total_raids": 89,
   "raids_history": [
     {
       "id": "raid_1",
@@ -750,6 +750,60 @@
       "quote": "Undead legions emerge from the soil.",
       "biome": "Any",
       "icon": "\u2620\ufe0f"
+    },
+    {
+      "id": "raid_84",
+      "timestamp": "10/05/2026 01:03:05",
+      "event_code": "hildirboss1",
+      "title": "Hildirboss1",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_85",
+      "timestamp": "10/05/2026 01:49:04",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_86",
+      "timestamp": "10/05/2026 14:50:37",
+      "event_code": "foresttrolls",
+      "title": "The Ground is Shaking",
+      "quote": "Trolls stomp towards your settlement.",
+      "biome": "Black Forest",
+      "icon": "\ud83e\udea8"
+    },
+    {
+      "id": "raid_87",
+      "timestamp": "10/05/2026 16:24:08",
+      "event_code": "hildirboss1",
+      "title": "Hildirboss1",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_88",
+      "timestamp": "10/05/2026 20:59:58",
+      "event_code": "ghosts",
+      "title": "Ghosts",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_89",
+      "timestamp": "10/07/2026 22:16:25",
+      "event_code": "surtlings",
+      "title": "Sulfur in the Air",
+      "quote": "Surtlings burst into flames around you.",
+      "biome": "Swamp / Ashlands",
+      "icon": "\ud83d\udd25"
     }
   ],
   "discovered_bosses": {
@@ -904,6 +958,29 @@
       ],
       "slain_at": "09/24/2026 20:19:12",
       "world_day": 382
+    },
+    "yagluth": {
+      "id": "yagluth",
+      "name": "Yagluth",
+      "title": "Fallen Goblin Sorcerer",
+      "biome": "Plains",
+      "icon": "\ud83d\udc51",
+      "order": 5,
+      "defeat_count": 2,
+      "defeats": [
+        {
+          "defeat_number": 1,
+          "slain_at": "10/06/2026 19:29:05",
+          "world_day": 728
+        },
+        {
+          "defeat_number": 2,
+          "slain_at": "10/06/2026 19:56:42",
+          "world_day": 738
+        }
+      ],
+      "slain_at": "10/06/2026 19:56:42",
+      "world_day": 738
     }
   },
   "boss_triumphs": [
@@ -1016,13 +1093,35 @@
       "defeat_number": 1,
       "slain_at": "09/24/2026 20:19:12",
       "world_day": 382
+    },
+    {
+      "id": "yagluth",
+      "name": "Yagluth",
+      "title": "Fallen Goblin Sorcerer",
+      "biome": "Plains",
+      "icon": "\ud83d\udc51",
+      "order": 5,
+      "defeat_number": 1,
+      "slain_at": "10/06/2026 19:29:05",
+      "world_day": 728
+    },
+    {
+      "id": "yagluth",
+      "name": "Yagluth",
+      "title": "Fallen Goblin Sorcerer",
+      "biome": "Plains",
+      "icon": "\ud83d\udc51",
+      "order": 5,
+      "defeat_number": 2,
+      "slain_at": "10/06/2026 19:56:42",
+      "world_day": 738
     }
   ],
   "active_bosses_count": 0,
   "engaged_boss": null,
-  "total_dungeons_entered": 652,
-  "total_dungeon_rooms": 18918,
-  "connected_portals": 326,
+  "total_dungeons_entered": 688,
+  "total_dungeon_rooms": 20034,
+  "connected_portals": 350,
   "portal_pairs_map": {
     "-211647136:44032": "-211647136:46272",
     "-211647136:46272": "-211647136:44032",
@@ -1298,8 +1397,7 @@
     "2572203297:22303": "1954871280:27524",
     "343712208:2847": "343712208:3239",
     "3062041719:339": "1597731645:42337",
-    "3062041719:371": "3062041719:1230",
-    "3062041719:1230": "3062041719:371",
+    "3062041719:1230": "1669185534:24301",
     "1:378737": "3062041719:8526",
     "3062041719:8526": "1:378737",
     "-871218481:48": "34638305:3488",
@@ -1348,12 +1446,37 @@
     "1:378781": "1034611337:3992",
     "1034611337:3992": "1:378781",
     "1034611337:4019": "1:378782",
-    "1034611337:21336": "1:378729",
-    "1:378729": "1034611337:21336"
+    "1:378729": "1669185534:3879",
+    "1669185534:3879": "1:378729",
+    "1669185534:24301": "3062041719:1230",
+    "1:379489": "1:379536",
+    "1:379536": "1:379489",
+    "1:379473": "1528347035:1302",
+    "1528347035:1302": "1:379473",
+    "2236681938:9292": "1528347035:30650",
+    "1528347035:30650": "2236681938:9292",
+    "1:379703": "128205983:7960",
+    "128205983:7960": "1:379703",
+    "1:379660": "2584912452:4106",
+    "2584912452:4106": "1:379660",
+    "1:379646": "2584912452:13549",
+    "2584912452:13549": "1:379646",
+    "1:379645": "2584912452:14324",
+    "2584912452:14324": "1:379645",
+    "1:379644": "-872802493:15433",
+    "-872802493:15433": "1:379644",
+    "1:379747": "3871012462:3298",
+    "3871012462:3298": "1:379747",
+    "1:379600": "1:379759",
+    "1:379759": "1:379600",
+    "3623093072:5355": "3623093072:18549",
+    "3623093072:18549": "3623093072:5355",
+    "3623093072:25363": "3623093072:46364",
+    "3623093072:46364": "3623093072:25363"
   },
-  "last_portal_update": "10/04/2026 16:37:08",
-  "last_log_offset": 662700,
+  "last_portal_update": "10/08/2026 00:09:06",
+  "last_log_offset": 245847,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1791096251.5563002,
-  "updated_at": "2026-10-04T17:54:24.774344"
+  "last_world_save_mtime": 1791430681.3073967,
+  "updated_at": "2026-10-08T14:59:47.367568"
 }

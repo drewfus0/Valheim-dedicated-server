@@ -80,6 +80,7 @@
                 <!-- Category Filter Pills -->
                 <div class="timer-filter-pills">
                     <button type="button" class="timer-pill-btn active" onclick="filterTimerPresets('all', this)">All</button>
+                    <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('breeding', this)">🐣 Chickens & Breeding</button>
                     <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('berries', this)">🫐 Berries</button>
                     <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('crops', this)">🌾 Crops</button>
                     <button type="button" class="timer-pill-btn" onclick="filterTimerPresets('spawners', this)">🔥 Surtling/Cores</button>
@@ -97,7 +98,7 @@
                 <form onsubmit="submitCustomTimer(event)" class="timer-custom-form">
                     <div class="form-group" style="margin-bottom: 0.85rem;">
                         <label class="form-label" for="ct_name" style="font-size: 0.8125rem;">Timer Name</label>
-                        <input type="text" id="ct_name" class="form-control" placeholder="e.g., Swamp Core Vent #1, Farm Barley" required style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                        <input type="text" id="ct_name" class="form-control" placeholder="e.g., Coop Egg Hatch, Plains Barley, Swamp Cores" required style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.85rem;">
@@ -107,7 +108,7 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="ct_mins" style="font-size: 0.8125rem;">Minutes</label>
-                            <input type="number" id="ct_mins" class="form-control" min="0" max="59" value="15" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                            <input type="number" id="ct_mins" class="form-control" min="0" max="59" value="30" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="ct_secs" style="font-size: 0.8125rem;">Seconds</label>
@@ -119,19 +120,25 @@
                         <span style="font-size: 0.75rem; color: var(--text-muted); align-self: center; margin-right: 0.2rem;">Presets:</span>
                         <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=5; document.getElementById('ct_secs').value=0;">5m</button>
                         <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=20; document.getElementById('ct_secs').value=0;">20m</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=30; document.getElementById('ct_secs').value=0;">🥚 30m (Egg)</button>
                         <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=40; document.getElementById('ct_secs').value=0;">40m</button>
-                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=1; document.getElementById('ct_mins').value=15; document.getElementById('ct_secs').value=0;">1h 15m</button>
-                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=5; document.getElementById('ct_mins').value=0; document.getElementById('ct_secs').value=0;">5h</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" onclick="document.getElementById('ct_hours').value=0; document.getElementById('ct_mins').value=50; document.getElementById('ct_secs').value=0;">🐥 50m (Chick)</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=1; document.getElementById('ct_mins').value=15; document.getElementById('ct_secs').value=0;">1h 15m (Crop)</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" onclick="document.getElementById('ct_hours').value=1; document.getElementById('ct_mins').value=20; document.getElementById('ct_secs').value=0;">🐔 1h 20m (Full)</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;" onclick="document.getElementById('ct_hours').value=5; document.getElementById('ct_mins').value=0; document.getElementById('ct_secs').value=0;">5h (Berry)</button>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 0.85rem;">
                         <label class="form-label" for="ct_note" style="font-size: 0.8125rem;">Location / Note <span style="color: var(--text-muted); font-size: 0.72rem;">(Optional)</span></label>
-                        <input type="text" id="ct_note" class="form-control" placeholder="e.g., South Swamp portal, Plains base" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                        <input type="text" id="ct_note" class="form-control" placeholder="e.g., Coop firepit, Meadow base" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
                     </div>
 
                     <div class="form-group" style="margin-bottom: 1.15rem;">
                         <label class="form-label" for="ct_icon" style="font-size: 0.8125rem;">Icon</label>
                         <select id="ct_icon" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 0.65rem;">
+                            <option value="🥚">🥚 Egg (Hatching)</option>
+                            <option value="🐥">🐥 Chick (Growing)</option>
+                            <option value="🐔">🐔 Chicken / Hen (Breeding)</option>
                             <option value="⏱️">⏱️ Stopwatch</option>
                             <option value="🫐">🫐 Berries</option>
                             <option value="🌾">🌾 Farm Crops</option>
@@ -154,6 +161,20 @@
             <!-- TAB 4: Valheim Mechanics Guide -->
             <div id="timers-panel-guide" class="timers-panel" style="display: none;">
                 <div class="timer-guide-content">
+                    <div class="timer-guide-item">
+                        <div class="timer-guide-title">
+                            <span>🥚</span> Chickens: Egg Hatching & Growth (30m Egg + 50m Chick)
+                        </div>
+                        <p class="timer-guide-desc">
+                            <strong>1. Egg Incubation (30m / 1800s):</strong> Eggs must be dropped unstacked near a campfire or hearth (hover must display <em>"Warm"</em>) and sheltered under a roof. Hatches in 30 minutes into a Chick.<br>
+                            <strong>2. Chick Maturation (50m / 3000s):</strong> Chicks do <em>not</em> need food to grow into adult Hens. Maturation takes ~50 minutes (~2 in-game days) in active areas.<br>
+                            <strong>3. Hen Breeding & Eggs:</strong> Adult Hens lay eggs when fed Dandelions, Barley, or Seeds (Carrot, Turnip, Onion, Beech, Birch). Cap is ~10-12 hens per area.
+                        </p>
+                        <div class="timer-guide-tip">
+                            💡 <strong>Breeding Tip:</strong> Keep newly hatched chicks separated from open firepits so they do not wander into the flame! Use a raised iron grate or hearth partition.
+                        </div>
+                    </div>
+
                     <div class="timer-guide-item">
                         <div class="timer-guide-title">
                             <span>🫐</span> Wild Berries & Foraging (5 Hours)

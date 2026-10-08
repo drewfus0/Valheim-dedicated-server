@@ -2033,6 +2033,19 @@ table.data-table tr:hover td {
     font-weight: 500;
 }
 
+.timer-stage-badge {
+    font-size: 0.72rem;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.32);
+    border-radius: var(--radius-sm);
+    padding: 0.05rem 0.45rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .timer-card-sub {
     font-size: 0.72rem;
     color: var(--text-muted);

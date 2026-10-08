@@ -17,6 +17,22 @@
 
     // Preset Definitions with accurate Valheim in-game mechanics
     const PRESETS = [
+        // Breeding, Livestock & Chickens (Eggs, Chicks, Hens)
+        {
+            id: 'egg_to_chicken',
+            name: 'Egg ➔ Chick ➔ Chicken (Full Lifecycle)',
+            category: 'breeding',
+            icon: '🥚',
+            durationSec: 1800,
+            desc: '2-Stage lifecycle: Stage 1 Egg (30m) ➔ Stage 2 Chick (50m) [80m total]',
+            stages: [
+                { name: 'Egg Incubating (Warm & Sheltered)', icon: '🥚', durationSec: 1800 },
+                { name: 'Chick Growing (Infant Chick ➔ Adult Hen)', icon: '🐥', durationSec: 3000 }
+            ]
+        },
+        { id: 'egg_hatch', name: 'Egg Hatching (Egg ➔ Chick)', category: 'breeding', icon: '🥚', durationSec: 1800, desc: 'Warm egg near fire/hearth under roof hatches into chick (30m / 1800s)' },
+        { id: 'chick_growth', name: 'Chick Growth (Chick ➔ Hen)', category: 'breeding', icon: '🐥', durationSec: 3000, desc: 'Chick matures into adult hen without food (~2 in-game days / 50m / 3000s)' },
+
         // Wild Berries & Forage (Spawn / Respawn)
         { id: 'raspberries', name: 'Raspberries', category: 'berries', icon: '🫐', durationSec: 18000, desc: 'Meadows bushes respawn (5h / 300m)' },
         { id: 'blueberries', name: 'Blueberries', category: 'berries', icon: '🫐', durationSec: 18000, desc: 'Black Forest bushes respawn (5h / 300m)' },
@@ -206,21 +222,34 @@
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
-    function addTimer(name, category, durationSec, note = '', icon = '⏱️') {
+    function addTimer(name, category, durationSec, note = '', icon = '⏱️', stages = null, currentStageIndex = 0) {
         initAudio();
         const now = Date.now();
+        const timerStages = (stages && Array.isArray(stages) && stages.length > 0)
+            ? JSON.parse(JSON.stringify(stages))
+            : null;
+        const curStageIdx = timerStages ? Math.max(0, Math.min(currentStageIndex, timerStages.length - 1)) : 0;
+        const activeStage = timerStages ? timerStages[curStageIdx] : null;
+
+        const effectiveDuration = activeStage ? activeStage.durationSec : durationSec;
+        const effectiveIcon = activeStage ? (activeStage.icon || icon) : icon;
+        const effectiveStageName = activeStage ? activeStage.name : '';
+
         const newTimer = {
             id: 'timer_' + now + '_' + Math.random().toString(36).substring(2, 6),
             name: name,
             category: category || 'custom',
-            icon: icon || '⏱️',
+            icon: effectiveIcon || '⏱️',
             note: note || '',
-            durationSec: durationSec,
+            durationSec: effectiveDuration,
             startedAt: now,
-            targetAt: now + (durationSec * 1000),
+            targetAt: now + (effectiveDuration * 1000),
             paused: false,
-            remainingSec: durationSec,
-            notified: false
+            remainingSec: effectiveDuration,
+            notified: false,
+            stages: timerStages,
+            currentStageIndex: curStageIdx,
+            stageName: effectiveStageName
         };
 
         timers.unshift(newTimer);
@@ -234,11 +263,39 @@
         renderFloatingHud();
 
         if (typeof window.showToast === 'function') {
-            window.showToast(`Started timer: ${name} (${durationSec}s)`, 'info');
+            const toastMsg = timerStages 
+                ? `Started lifecycle: ${name} (Stage 1: ${formatDuration(effectiveDuration)})`
+                : `Started timer: ${name} (${formatDuration(effectiveDuration)})`;
+            window.showToast(toastMsg, 'info');
         }
 
         // Switch to active tab in dropdown if open
         switchTimersTab('active');
+    }
+
+    function advanceTimerStage(id) {
+        const t = timers.find(item => item.id === id);
+        if (!t || !t.stages || t.currentStageIndex >= t.stages.length - 1) return;
+        const now = Date.now();
+        t.currentStageIndex += 1;
+        const nextStage = t.stages[t.currentStageIndex];
+        t.stageName = nextStage.name;
+        t.icon = nextStage.icon || t.icon;
+        t.durationSec = nextStage.durationSec;
+        t.remainingSec = nextStage.durationSec;
+        t.startedAt = now;
+        t.targetAt = now + (nextStage.durationSec * 1000);
+        t.paused = false;
+        t.notified = false;
+
+        saveTimers();
+        renderActiveTimers();
+        renderFloatingHud();
+
+        playVikingChime();
+        if (typeof window.showToast === 'function') {
+            window.showToast(`Advanced to ${nextStage.name} (${formatDuration(nextStage.durationSec)})!`, 'info');
+        }
     }
 
     function deleteTimer(id) {
@@ -269,10 +326,19 @@
         renderFloatingHud();
     }
 
-    function restartTimer(id) {
+    function restartTimer(id, restartAllStages = true) {
         const t = timers.find(item => item.id === id);
         if (!t) return;
         const now = Date.now();
+
+        if (t.stages && t.stages.length > 0 && restartAllStages) {
+            t.currentStageIndex = 0;
+            const firstStage = t.stages[0];
+            t.stageName = firstStage.name;
+            t.icon = firstStage.icon || t.icon;
+            t.durationSec = firstStage.durationSec;
+        }
+
         t.startedAt = now;
         t.targetAt = now + (t.durationSec * 1000);
         t.remainingSec = t.durationSec;
@@ -282,7 +348,10 @@
         renderActiveTimers();
         renderFloatingHud();
         if (typeof window.showToast === 'function') {
-            window.showToast(`Restarted timer: ${t.name} (${t.durationSec}s)`, 'info');
+            const toastMsg = (t.stages && t.stages.length > 1)
+                ? `Restarted lifecycle from Stage 1: ${t.name}`
+                : `Restarted timer: ${t.name} (${formatDuration(t.durationSec)})`;
+            window.showToast(toastMsg, 'info');
         }
     }
 
@@ -397,16 +466,24 @@
     window.startPresetTimer = function(presetId) {
         const p = PRESETS.find(item => item.id === presetId);
         if (!p) return;
-        addTimer(p.name, p.category, p.durationSec, '', p.icon);
+        if (p.stages && p.stages.length > 0) {
+            addTimer(p.name, p.category, p.stages[0].durationSec, '', p.stages[0].icon || p.icon, p.stages, 0);
+        } else {
+            addTimer(p.name, p.category, p.durationSec, '', p.icon);
+        }
     };
 
     // Quick add with custom note prompt
     window.startPresetTimerWithNote = function(presetId) {
         const p = PRESETS.find(item => item.id === presetId);
         if (!p) return;
-        const note = prompt(`Optional label or location for ${p.name} (e.g. "Swamp base geyser #1"):`);
+        const note = prompt(`Optional label or location for ${p.name} (e.g. "Main Base Coop"):`);
         if (note !== null) {
-            addTimer(p.name, p.category, p.durationSec, note.trim(), p.icon);
+            if (p.stages && p.stages.length > 0) {
+                addTimer(p.name, p.category, p.stages[0].durationSec, note.trim(), p.stages[0].icon || p.icon, p.stages, 0);
+            } else {
+                addTimer(p.name, p.category, p.durationSec, note.trim(), p.icon);
+            }
         }
     };
 
@@ -803,6 +880,7 @@
             const offset = (100 - pct).toFixed(1);
 
             const catColors = {
+                breeding: '#f59e0b',
                 berries: 'var(--nordic-cyan)',
                 crops: '#10b981',
                 spawners: '#f97316',
@@ -811,7 +889,11 @@
             };
             const catColor = isDone ? '#10b981' : (catColors[t.category] || 'var(--nordic-cyan)');
             const secsText = isDone ? '0s' : `${rem}s`;
-            const displayName = t.name + (t.note ? ` (${t.note})` : '');
+            let displayName = t.name;
+            if (t.stages && t.stages.length > 1) {
+                displayName += ` [Stage ${t.currentStageIndex + 1}/${t.stages.length}: ${t.stageName || ''}]`;
+            }
+            if (t.note) displayName += ` (${t.note})`;
             const safeDisplayName = escapeHtml(displayName);
 
             html += `
@@ -870,6 +952,7 @@
         let html = '';
         filtered.forEach(p => {
             const catColors = {
+                breeding: '#f59e0b',
                 berries: 'var(--nordic-cyan)',
                 crops: '#10b981',
                 spawners: '#f97316',
@@ -877,6 +960,25 @@
                 cycles: '#8b5cf6'
             };
             const catColor = catColors[p.category] || 'var(--text-secondary)';
+
+            let badgeHtml = '';
+            let quickStartBtnLabel = `▶️ Start (${p.durationSec}s)`;
+
+            if (p.stages && p.stages.length > 1) {
+                const totalSec = p.stages.reduce((acc, s) => acc + s.durationSec, 0);
+                badgeHtml = `
+                    <span class="timer-duration-badge" style="color: ${catColor}; border-color: ${catColor}44;" title="${p.stages.map(s => `${s.name} (${formatDuration(s.durationSec)})`).join(' ➔ ')}">
+                        ${p.stages.length} Stages &bull; ${formatDuration(totalSec)} total
+                    </span>
+                `;
+                quickStartBtnLabel = `▶️ Start Lifecycle (${formatDuration(totalSec)})`;
+            } else {
+                badgeHtml = `
+                    <span class="timer-duration-badge" style="color: ${catColor}; border-color: ${catColor}44;">
+                        ${p.durationSec}s (${formatDuration(p.durationSec)})
+                    </span>
+                `;
+            }
 
             html += `
                 <div class="timer-preset-card">
@@ -888,16 +990,14 @@
                                 <div class="timer-preset-desc">${p.desc}</div>
                             </div>
                         </div>
-                        <span class="timer-duration-badge" style="color: ${catColor}; border-color: ${catColor}44;">
-                            ${p.durationSec}s (${formatDuration(p.durationSec)})
-                        </span>
+                        ${badgeHtml}
                     </div>
                     <div class="timer-preset-actions">
                         <button type="button" class="btn btn-secondary btn-sm" onclick="startPresetTimerWithNote('${p.id}')" title="Start with custom label/location">
                             🏷️ + Note
                         </button>
                         <button type="button" class="btn btn-primary btn-sm timer-quick-start-btn" onclick="startPresetTimer('${p.id}')">
-                            ▶️ Start (${p.durationSec}s)
+                            ${quickStartBtnLabel}
                         </button>
                     </div>
                 </div>
@@ -918,10 +1018,10 @@
                     <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">⏱️</div>
                     <strong style="color: var(--text-primary); font-size: 0.95rem;">No Running Timers</strong>
                     <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0.35rem 0 1rem 0;">
-                        Track berry respawns, farm crop growth, surtling core spawners, fermenters, and custom Viking timers.
+                        Track chicken & egg incubation, berry respawns, farm crops, surtling cores, fermenters, and custom Viking timers.
                     </p>
                     <button type="button" class="btn btn-primary btn-sm" onclick="switchTimersTab('presets')">
-                        ⚡ Browse Presets (Berries, Crops, Cores)
+                        ⚡ Browse Presets (Chickens, Crops, Cores)
                     </button>
                 </div>
             `;
@@ -939,10 +1039,34 @@
             const elapsed = Math.max(0, t.durationSec - rem);
             const pct = Math.min(100, Math.max(0, (elapsed / t.durationSec) * 100));
             const isDone = rem <= 0;
+            const hasMultipleStages = Boolean(t.stages && t.stages.length > 1);
+            const hasNextStage = Boolean(hasMultipleStages && t.currentStageIndex < t.stages.length - 1);
 
             let cardClass = 'timer-active-card';
             if (isDone) cardClass += ' timer-card-done';
             if (t.paused) cardClass += ' timer-card-paused';
+
+            let stageBadgeHtml = '';
+            if (hasMultipleStages) {
+                stageBadgeHtml = `
+                    <span class="timer-stage-badge" title="Stage ${t.currentStageIndex + 1} of ${t.stages.length}">
+                        Stage ${t.currentStageIndex + 1}/${t.stages.length}: ${escapeHtml(t.stageName || '')}
+                    </span>
+                `;
+            }
+
+            let subTextHtml = '';
+            if (isDone) {
+                const readyLabel = hasMultipleStages ? '🐔 ADULT CHICKEN READY!' : '✨ READY TO HARVEST!';
+                subTextHtml = `<span class="timer-ready-badge">${readyLabel}</span>`;
+            } else {
+                let nextStageSnippet = '';
+                if (hasNextStage) {
+                    const nextSt = t.stages[t.currentStageIndex + 1];
+                    nextStageSnippet = ` &bull; <span style="color: #fbbf24; font-weight: 500;">Next: ${escapeHtml(nextSt.name)}</span>`;
+                }
+                subTextHtml = `<span>${rem}s to go</span> &bull; <span>ETA: ${formatClockTime(t.targetAt)}</span>${nextStageSnippet}`;
+            }
 
             html += `
                 <div class="${cardClass}" id="card_${t.id}">
@@ -952,12 +1076,11 @@
                             <div class="timer-card-headings">
                                 <div class="timer-card-title">
                                     <strong>${t.name}</strong>
+                                    ${stageBadgeHtml}
                                     ${t.note ? `<span class="timer-card-note">📍 ${escapeHtml(t.note)}</span>` : ''}
                                 </div>
                                 <div class="timer-card-sub">
-                                    ${isDone 
-                                        ? `<span class="timer-ready-badge">✨ READY TO HARVEST!</span>` 
-                                        : `<span>${rem}s to go</span> &bull; <span>ETA: ${formatClockTime(t.targetAt)}</span>`}
+                                    ${subTextHtml}
                                 </div>
                             </div>
                         </div>
@@ -972,17 +1095,22 @@
 
                     <div class="timer-card-actions">
                         ${isDone ? `
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="restartTimer('${t.id}')" title="Restart timer">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="restartTimer('${t.id}')" title="Restart full lifecycle">
                                 🔄 Restart (${t.durationSec}s)
                             </button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="deleteTimer('${t.id}')" style="background: var(--status-running); border-color: var(--status-running);">
-                                ✓ Harvested / Done
+                                ✓ Done / Collected
                             </button>
                         ` : `
                             <div class="timer-action-group-left">
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="restartTimer('${t.id}')" title="Restart timer to full ${t.durationSec}s">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="restartTimer('${t.id}')" title="Restart timer">
                                     🔄 Restart
                                 </button>
+                                ${hasNextStage ? `
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="advanceTimerStage('${t.id}')" title="Skip or advance to next stage (${escapeHtml(t.stages[t.currentStageIndex + 1].name)})" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.35);">
+                                        ⏭️ Next Stage
+                                    </button>
+                                ` : ''}
                                 <button type="button" class="btn btn-secondary btn-sm" onclick="extendTimer('${t.id}', 300)" title="Add +300s (5m)">
                                     +300s
                                 </button>
@@ -1017,6 +1145,40 @@
 
             const rem = Math.max(0, Math.round((t.targetAt - now) / 1000));
             if (rem <= 0 && !t.notified) {
+                // Check if this is a multi-stage timer that should auto-advance to next stage
+                if (t.stages && t.currentStageIndex < t.stages.length - 1) {
+                    const finishedStage = t.stages[t.currentStageIndex];
+                    t.currentStageIndex += 1;
+                    const nextStage = t.stages[t.currentStageIndex];
+
+                    // Transition to next stage
+                    t.stageName = nextStage.name;
+                    t.icon = nextStage.icon || t.icon;
+                    t.durationSec = nextStage.durationSec;
+                    t.remainingSec = nextStage.durationSec;
+                    t.startedAt = now;
+                    t.targetAt = now + (nextStage.durationSec * 1000);
+                    t.notified = false;
+                    changed = true;
+
+                    // Sound chime
+                    playVikingChime();
+
+                    // Desktop Notification
+                    sendDesktopNotification(
+                        `🐣 Stage Complete: ${finishedStage.name}!`,
+                        `"${t.name}": Advanced to Stage ${t.currentStageIndex + 1} (${nextStage.name}, ${formatDuration(nextStage.durationSec)}).`,
+                        nextStage.icon || t.icon
+                    );
+
+                    // In-App Toast
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`🐣 ${finishedStage.name} finished! Now: ${nextStage.name}!`, 'success');
+                    }
+                    return;
+                }
+
+                // Final timer completion
                 t.notified = true;
                 changed = true;
 
@@ -1024,15 +1186,20 @@
                 playVikingChime();
 
                 // Desktop Notification
-                sendDesktopNotification(
-                    `⚔️ Valheim Timer Complete!`,
-                    `"${t.name}"${t.note ? ' (' + t.note + ')' : ''} is ready to harvest or spawn!`,
-                    t.icon
-                );
+                const isHenLifecycle = Boolean(t.stages && t.stages.length > 1);
+                const title = isHenLifecycle ? `🐔 Adult Chicken Ready!` : `⚔️ Valheim Timer Complete!`;
+                const body = isHenLifecycle
+                    ? `"${t.name}"${t.note ? ' (' + t.note + ')' : ''} has grown into an adult Hen ready for breeding & egg laying!`
+                    : `"${t.name}"${t.note ? ' (' + t.note + ')' : ''} is ready to harvest or spawn!`;
+
+                sendDesktopNotification(title, body, t.icon);
 
                 // In-App Toast
                 if (typeof window.showToast === 'function') {
-                    window.showToast(`✨ Ready: "${t.name}" is ready to harvest!`, 'success');
+                    const toastText = isHenLifecycle
+                        ? `🐔 Ready: "${t.name}" has grown into a mature Hen!`
+                        : `✨ Ready: "${t.name}" is ready to harvest!`;
+                    window.showToast(toastText, 'success');
                 }
             }
         });
@@ -1065,6 +1232,7 @@
     window.deleteTimer = deleteTimer;
     window.togglePauseTimer = togglePauseTimer;
     window.restartTimer = restartTimer;
+    window.advanceTimerStage = advanceTimerStage;
     window.extendTimer = extendTimer;
     window.clearCompletedTimers = clearCompletedTimers;
     window.clearAllTimers = clearAllTimers;
