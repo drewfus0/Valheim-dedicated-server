@@ -27,6 +27,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── playit.py        # Playit.gg live tunnel auto-detection
 │   │   ├── system.py        # Power profile confirmation, sleep policy supervisor & safe reboot
 │   │   ├── server.py        # Valheim process supervisor (SIGINT shutdown, PID attachment)
+│   │   ├── server_history.py # Server run session & world save event tracking
 │   │   ├── logs.py          # Reverse-seeking log tailer & SSE stream generator
 │   │   └── backups.py       # Backup lifecycle (create, list, download, restore, delete)
 │   ├── templates/           # Jinja2 HTML Templates & HTMX Partials
@@ -36,6 +37,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   └── partials/        # Reactive HTMX components
 │   │       ├── status_card.html
 │   │       ├── header_status.html
+│   │       ├── server_history.html
 │   │       ├── player_list.html
 │   │       ├── connection_card.html
 │   │       ├── terminal.html

@@ -1,6 +1,102 @@
 {
   "history": [
     {
+      "id": "33f1cd7edb45",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0",
+      "failure_reason": null,
+      "timestamp": "10/14/2026 22:10:08",
+      "iso_timestamp": "2026-10-14T22:10:08.936240"
+    },
+    {
+      "id": "9ccc7dd6d3fa",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0",
+      "failure_reason": null,
+      "timestamp": "10/14/2026 22:07:33",
+      "iso_timestamp": "2026-10-14T22:07:33.063905"
+    },
+    {
+      "id": "6dfdcdcd314f",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "192.168.1.124",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0",
+      "failure_reason": null,
+      "timestamp": "10/14/2026 21:51:42",
+      "iso_timestamp": "2026-10-14T21:51:42.908143"
+    },
+    {
+      "id": "186397f3953b",
+      "username": "Pentbot",
+      "role": "operator",
+      "status": "success",
+      "ip": "127.44.138.41",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0",
+      "failure_reason": null,
+      "timestamp": "10/12/2026 16:53:37",
+      "iso_timestamp": "2026-10-12T16:53:37.137242"
+    },
+    {
+      "id": "beb14752ddff",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "failure_reason": null,
+      "timestamp": "10/11/2026 20:55:50",
+      "iso_timestamp": "2026-10-11T20:55:50.939620"
+    },
+    {
+      "id": "bc2444b9f5c5",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Windows)",
+      "raw_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "failure_reason": null,
+      "timestamp": "10/11/2026 20:55:50",
+      "iso_timestamp": "2026-10-11T20:55:50.879742"
+    },
+    {
+      "id": "11537158a2dd",
+      "username": "admin",
+      "role": "admin",
+      "status": "success",
+      "ip": "127.158.188.24",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "failure_reason": null,
+      "timestamp": "10/11/2026 13:27:09",
+      "iso_timestamp": "2026-10-11T13:27:09.300319"
+    },
+    {
+      "id": "55633a22825c",
+      "username": "Pentbot",
+      "role": "operator",
+      "status": "success",
+      "ip": "127.27.52.52",
+      "user_agent": "Firefox (Linux)",
+      "raw_user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0",
+      "failure_reason": null,
+      "timestamp": "10/10/2026 21:23:11",
+      "iso_timestamp": "2026-10-10T21:23:11.110407"
+    },
+    {
       "id": "d607a225177d",
       "username": "admin",
       "role": "admin",

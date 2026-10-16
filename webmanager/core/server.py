@@ -395,6 +395,7 @@ class ValheimServerManager:
             if state == "Running":
                 PLAYER_TRACKER.process_new_logs()
                 WORLD_STATS.process_new_logs()
+                SERVER_HISTORY.process_new_logs()
                 if proc:
                     ret = proc.poll()
                     if ret is not None:

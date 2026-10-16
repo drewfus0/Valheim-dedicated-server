@@ -1,8 +1,8 @@
 {
-  "current_day": 756,
-  "nights_slept": 166,
-  "last_day_timestamp": "10/07/2026 23:37:27",
-  "total_raids": 89,
+  "current_day": 858,
+  "nights_slept": 171,
+  "last_day_timestamp": "10/16/2026 11:51:33",
+  "total_raids": 98,
   "raids_history": [
     {
       "id": "raid_1",
@@ -804,6 +804,87 @@
       "quote": "Surtlings burst into flames around you.",
       "biome": "Swamp / Ashlands",
       "icon": "\ud83d\udd25"
+    },
+    {
+      "id": "raid_90",
+      "timestamp": "10/08/2026 16:39:47",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_91",
+      "timestamp": "10/09/2026 21:00:49",
+      "event_code": "skeletons",
+      "title": "Skeleton Surprise",
+      "quote": "Undead legions emerge from the soil.",
+      "biome": "Any",
+      "icon": "\u2620\ufe0f"
+    },
+    {
+      "id": "raid_92",
+      "timestamp": "10/10/2026 02:22:39",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_93",
+      "timestamp": "10/10/2026 23:03:57",
+      "event_code": "blobs",
+      "title": "A Foul Smell",
+      "quote": "Blobs and Oozers emerge from the murky swamp.",
+      "biome": "Swamp",
+      "icon": "\ud83e\uddea"
+    },
+    {
+      "id": "raid_94",
+      "timestamp": "10/11/2026 02:07:51",
+      "event_code": "army_gjall",
+      "title": "Army Gjall",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_95",
+      "timestamp": "10/12/2026 16:04:08",
+      "event_code": "hildirboss1",
+      "title": "Hildirboss1",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_96",
+      "timestamp": "10/12/2026 21:25:57",
+      "event_code": "hildirboss1",
+      "title": "Hildirboss1",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_97",
+      "timestamp": "10/13/2026 13:31:25",
+      "event_code": "hildirboss3",
+      "title": "Hildirboss3",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
+    },
+    {
+      "id": "raid_98",
+      "timestamp": "10/15/2026 04:49:39",
+      "event_code": "bats",
+      "title": "Bats",
+      "quote": "A hostile army assaults Midgard!",
+      "biome": "Unknown Biome",
+      "icon": "\u2694\ufe0f"
     }
   ],
   "discovered_bosses": {
@@ -1119,9 +1200,9 @@
   ],
   "active_bosses_count": 0,
   "engaged_boss": null,
-  "total_dungeons_entered": 688,
-  "total_dungeon_rooms": 20034,
-  "connected_portals": 350,
+  "total_dungeons_entered": 725,
+  "total_dungeon_rooms": 21612,
+  "connected_portals": 386,
   "portal_pairs_map": {
     "-211647136:44032": "-211647136:46272",
     "-211647136:46272": "-211647136:44032",
@@ -1469,14 +1550,50 @@
     "3871012462:3298": "1:379747",
     "1:379600": "1:379759",
     "1:379759": "1:379600",
-    "3623093072:5355": "3623093072:18549",
-    "3623093072:18549": "3623093072:5355",
-    "3623093072:25363": "3623093072:46364",
-    "3623093072:46364": "3623093072:25363"
+    "3623093072:46364": "2654362460:15991",
+    "2198415403:360": "1:379752",
+    "1:379752": "2198415403:360",
+    "2654362460:4381": "1:379717",
+    "1:379717": "2654362460:4381",
+    "2654362460:9637": "1:379761",
+    "1:379761": "2654362460:9637",
+    "1:379620": "2837858782:16640",
+    "2837858782:16640": "1:379620",
+    "2654362460:15991": "3623093072:46364",
+    "2837858782:20885": "3623093072:18549",
+    "3623093072:18549": "2837858782:20885",
+    "2540443233:589": "1:379679",
+    "1:379679": "2540443233:589",
+    "1:379705": "-930184375:5284",
+    "-930184375:5284": "1:379705",
+    "1:379612": "1696774653:36337",
+    "1696774653:36337": "1:379612",
+    "1:379678": "1696774653:46045",
+    "1696774653:46045": "1:379678",
+    "2143310748:27595": "1:379951",
+    "1:379951": "2143310748:27595",
+    "1:379937": "2101072167:2765",
+    "2101072167:2765": "1:379937",
+    "2101072167:12368": "2915004181:3113",
+    "2915004181:3113": "2101072167:12368",
+    "1:379966": "2770746312:12152",
+    "2770746312:12152": "1:379966",
+    "1:379996": "2770746312:19969",
+    "2770746312:19969": "1:379996",
+    "1330935965:16220": "1:380103",
+    "1:380103": "1330935965:16220",
+    "1330935965:16291": "1:380105",
+    "1:380105": "1330935965:16291",
+    "1468101827:957": "1468101827:1067",
+    "1468101827:1067": "1468101827:957",
+    "1:380165": "1289157336:5192",
+    "1289157336:5192": "1:380165",
+    "2287228992:1981": "2287228992:6457",
+    "2287228992:6457": "2287228992:1981"
   },
-  "last_portal_update": "10/08/2026 00:09:06",
-  "last_log_offset": 245847,
+  "last_portal_update": "10/15/2026 16:01:03",
+  "last_log_offset": 111550,
   "last_log_inode": 2003366,
-  "last_world_save_mtime": 1791430681.3073967,
-  "updated_at": "2026-10-08T14:59:47.367568"
+  "last_world_save_mtime": 1792156921.0670342,
+  "updated_at": "2026-10-17T00:37:16.812866"
 }

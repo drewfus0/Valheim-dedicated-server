@@ -385,6 +385,7 @@ _last_status_state = {
     "players_count": None,
     "sessions_count": None,
     "runs_count": None,
+    "saves_count": None,
     "boss_battle": None,
     "slain_count": None,
     "active_raid": None,
@@ -404,6 +405,7 @@ async def partial_status(request: Request):
     curr_players = status.get("players_count")
     curr_sessions = len(status.get("player_sessions", []))
     curr_runs = (status.get("server_history") or {}).get("total_runs", 0)
+    curr_saves = (status.get("server_history") or {}).get("total_saves", 0)
     world_stats = status.get("world_stats") or {}
     curr_boss_battle = world_stats.get("is_boss_battle_active")
     curr_slain = world_stats.get("slain_bosses_count")
@@ -416,7 +418,7 @@ async def partial_status(request: Request):
         if curr_sessions != _last_status_state["sessions_count"]:
             triggers["sessionHistoryUpdated"] = True
             triggers["statusChanged"] = True
-        if curr_runs != _last_status_state["runs_count"]:
+        if curr_runs != _last_status_state.get("runs_count") or curr_saves != _last_status_state.get("saves_count"):
             triggers["serverHistoryUpdated"] = True
         if curr_boss_battle != _last_status_state.get("boss_battle") or curr_slain != _last_status_state.get("slain_count"):
             triggers["worldSagaUpdated"] = True
@@ -429,6 +431,7 @@ async def partial_status(request: Request):
     _last_status_state["players_count"] = curr_players
     _last_status_state["sessions_count"] = curr_sessions
     _last_status_state["runs_count"] = curr_runs
+    _last_status_state["saves_count"] = curr_saves
     _last_status_state["boss_battle"] = curr_boss_battle
     _last_status_state["slain_count"] = curr_slain
     _last_status_state["active_raid"] = curr_active_raid

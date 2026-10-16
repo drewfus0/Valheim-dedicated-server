@@ -5,13 +5,16 @@ import re
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.paths import GAME_LOG, LOGS_DIR, SERVER_DIR, SERVER_HISTORY_FILE, SERVER_HISTORY_LOG
 
 RE_LOG_TIMESTAMP = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):")
 RE_WORLD_LOAD = re.compile(r"Load world:\s*([^\s(]+)")
 RE_CLEAN_SHUTDOWN = re.compile(r"(?:Game - OnApplicationQuit|ZNet Shutdown|ZNet OnDestroy|OnApplicationQuit|Net scene destroyed)")
+RE_SAVE_NUMBER = re.compile(r"World save \(1/5\).*?=>\s*Save number\s*(\d+)")
+RE_SAVE_CHUNK_DONE = re.compile(r"World save \(5/5\) done\.\s*Total time\s*\[([^\]]+)\]")
+RE_SAVE_CLASSIC_DONE = re.compile(r"World saved\s*\(\s*([^)]+)\s*\)")
 
 
 def parse_log_timestamp(ts_str: str) -> Optional[datetime.datetime]:
@@ -45,17 +48,22 @@ def format_duration(seconds: Optional[float]) -> str:
 
 
 class ServerHistoryTracker:
-    """Thread-safe persistent server run history and uptime tracker."""
+    """Thread-safe persistent server run history, uptime, and world save tracker."""
 
     def __init__(self, auto_load: bool = True):
         self.lock = threading.RLock()
         self.auto_load = auto_load
         self.runs: List[Dict[str, Any]] = []
+        self._last_log_offset = 0
+        self._last_log_inode = None
+        self._pending_save_number: Optional[int] = None
 
         if self.auto_load:
             self._load_from_disk()
             if not self.runs:
                 self._backfill_from_logs()
+            else:
+                self._backfill_saves_if_needed()
 
     def _load_from_disk(self) -> None:
         """Load persistent history from server_history.json if present."""
@@ -134,8 +142,136 @@ class ServerHistoryTracker:
                 except Exception as e:
                     print(f"[ServerHistory] Error initializing {SERVER_HISTORY_LOG}: {e}")
 
+    def _backfill_saves_if_needed(self) -> None:
+        """Populate save history for existing runs if not previously tracked."""
+        with self.lock:
+            needs_backfill = any("save_count" not in r for r in self.runs)
+            if not needs_backfill:
+                return
+
+            print("[ServerHistory] Backfilling world save events from logs...")
+            log_files = sorted(LOGS_DIR.glob("valheim_server_*.log"))
+
+            cache: Dict[str, Tuple[Optional[datetime.datetime], List[Dict[str, Any]]]] = {}
+            for lf in log_files:
+                first_dt = None
+                try:
+                    with open(lf, "r", encoding="utf-8", errors="ignore") as f:
+                        lines = f.readlines()
+                    for line in lines:
+                        m = RE_LOG_TIMESTAMP.match(line)
+                        if m:
+                            first_dt = parse_log_timestamp(m.group(1))
+                            break
+                    cache[lf.name] = (first_dt, self._extract_saves_from_lines(lines))
+                except Exception as e:
+                    print(f"[ServerHistory] Error caching {lf}: {e}")
+
+            current_saves: List[Dict[str, Any]] = []
+            if GAME_LOG.exists() and GAME_LOG.stat().st_size > 0:
+                try:
+                    with open(GAME_LOG, "r", encoding="utf-8", errors="ignore") as f:
+                        current_saves = self._extract_saves_from_lines(f.readlines())
+                except Exception:
+                    current_saves = []
+
+            claimed_logs = set()
+            for r in self.runs:
+                if "save_count" in r:
+                    continue
+
+                r_id = r.get("id", "")
+                r_ts_str = r.get("start_time")
+                r_dt = None
+                if r_ts_str:
+                    try:
+                        r_dt = datetime.datetime.strptime(r_ts_str, "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        pass
+
+                matched_saves: List[Dict[str, Any]] = []
+
+                if r.get("status") == "Running" and current_saves:
+                    matched_saves = current_saves
+                else:
+                    raw_ts = r_id.replace("run_", "")
+                    target_fname = f"valheim_server_{raw_ts}.log"
+                    if target_fname in cache and target_fname not in claimed_logs:
+                        matched_saves = cache[target_fname][1]
+                        claimed_logs.add(target_fname)
+                    elif r_dt:
+                        best_lf = None
+                        min_diff = 999999
+                        for lf_name, (l_dt, l_saves) in cache.items():
+                            if lf_name in claimed_logs or not l_dt:
+                                continue
+                            diff = abs((r_dt - l_dt).total_seconds())
+                            if diff < min_diff:
+                                min_diff = diff
+                                best_lf = lf_name
+                        if min_diff <= 60 and best_lf:
+                            matched_saves = cache[best_lf][1]
+                            claimed_logs.add(best_lf)
+
+                r["save_count"] = len(matched_saves)
+                r["last_save_time"] = matched_saves[-1]["time"] if matched_saves else None
+                r["last_save_duration"] = matched_saves[-1].get("duration") if matched_saves else None
+                r["last_save_number"] = matched_saves[-1].get("save_number") if matched_saves else None
+                r["saves"] = matched_saves
+
+            self._save_to_disk()
+            print(f"[ServerHistory] Backfill complete. Populated saves across {len(self.runs)} runs.")
+
+    def _extract_saves_from_lines(self, lines: List[str]) -> List[Dict[str, Any]]:
+        """Extract all world save events from a sequence of log lines."""
+        saves: List[Dict[str, Any]] = []
+        pending_save_number: Optional[int] = None
+
+        for line in lines:
+            nm = RE_SAVE_NUMBER.search(line)
+            if nm:
+                try:
+                    pending_save_number = int(nm.group(1))
+                except Exception:
+                    pending_save_number = None
+
+            cm = RE_SAVE_CHUNK_DONE.search(line)
+            if cm:
+                duration = cm.group(1).strip()
+                num = pending_save_number
+                pending_save_number = None
+                dt = None
+                m = RE_LOG_TIMESTAMP.match(line)
+                if m:
+                    dt = parse_log_timestamp(m.group(1))
+                if dt:
+                    saves.append({
+                        "time": format_dt(dt),
+                        "timestamp": dt.timestamp(),
+                        "duration": duration,
+                        "save_number": num,
+                    })
+                continue
+
+            cl = RE_SAVE_CLASSIC_DONE.search(line)
+            if cl:
+                duration = cl.group(1).strip()
+                dt = None
+                m = RE_LOG_TIMESTAMP.match(line)
+                if m:
+                    dt = parse_log_timestamp(m.group(1))
+                if dt:
+                    saves.append({
+                        "time": format_dt(dt),
+                        "timestamp": dt.timestamp(),
+                        "duration": duration,
+                        "save_number": None,
+                    })
+
+        return saves
+
     def _parse_log_file(self, log_path: Path, is_current: bool = False) -> Optional[Dict[str, Any]]:
-        """Parse a single log file to extract run details."""
+        """Parse a single log file to extract run details and world save occurrences."""
         start_dt: Optional[datetime.datetime] = None
         stop_dt: Optional[datetime.datetime] = None
         world_name = "ValheimTest"
@@ -149,6 +285,8 @@ class ServerHistoryTracker:
 
         if not lines:
             return None
+
+        saves = self._extract_saves_from_lines(lines)
 
         for line in lines:
             m = RE_LOG_TIMESTAMP.match(line)
@@ -210,6 +348,11 @@ class ServerHistoryTracker:
                 "world_name": world_name,
                 "port": 2456,
                 "source": "live",
+                "save_count": len(saves),
+                "last_save_time": saves[-1]["time"] if saves else None,
+                "last_save_duration": saves[-1].get("duration") if saves else None,
+                "last_save_number": saves[-1].get("save_number") if saves else None,
+                "saves": saves,
             }
         else:
             duration_sec = max(0, int((stop_dt - start_dt).total_seconds()))
@@ -229,6 +372,11 @@ class ServerHistoryTracker:
                 "world_name": world_name,
                 "port": 2456,
                 "source": "backfilled" if not is_current else "historical",
+                "save_count": len(saves),
+                "last_save_time": saves[-1]["time"] if saves else None,
+                "last_save_duration": saves[-1].get("duration") if saves else None,
+                "last_save_number": saves[-1].get("save_number") if saves else None,
+                "saves": saves,
             }
 
     def on_server_start(
@@ -272,6 +420,11 @@ class ServerHistoryTracker:
                 "world_name": world_name,
                 "port": port,
                 "source": "live",
+                "save_count": 0,
+                "last_save_time": None,
+                "last_save_duration": None,
+                "last_save_number": None,
+                "saves": [],
             }
             self.runs.append(new_run)
             self._save_to_disk()
@@ -300,7 +453,13 @@ class ServerHistoryTracker:
                     r["server_name"] = server_name
                     r["world_name"] = world_name
                     r["port"] = port
+                    r.setdefault("save_count", 0)
+                    r.setdefault("last_save_time", None)
+                    r.setdefault("last_save_duration", None)
+                    r.setdefault("last_save_number", None)
+                    r.setdefault("saves", [])
                     self._save_to_disk()
+                    self.process_new_logs()
                     return
 
             now_dt = datetime.datetime.now()
@@ -324,9 +483,15 @@ class ServerHistoryTracker:
                 "world_name": world_name,
                 "port": port,
                 "source": "live",
+                "save_count": 0,
+                "last_save_time": None,
+                "last_save_duration": None,
+                "last_save_number": None,
+                "saves": [],
             }
             self.runs.append(new_run)
             self._save_to_disk()
+            self.process_new_logs()
 
             log_msg = (
                 f"[{format_dt(now_dt)}] [ATTACHED] Attached to running Valheim server PID {pid} "
@@ -434,9 +599,119 @@ class ServerHistoryTracker:
             if modified:
                 self._save_to_disk()
 
-    def get_summary(self, server_running: bool = False, pid: Optional[int] = None) -> Dict[str, Any]:
-        """Compute aggregated server uptime metrics and formatted run list."""
+    def process_new_logs(self) -> None:
+        """Incrementally read newly appended lines from GAME_LOG and record live saves."""
+        if not self.auto_load:
+            return
         with self.lock:
+            if not GAME_LOG.exists():
+                self._last_log_offset = 0
+                return
+
+            try:
+                stat = GAME_LOG.stat()
+                curr_size = stat.st_size
+                curr_inode = getattr(stat, "st_ino", None)
+
+                # Detect log rotation or truncation
+                if curr_size < self._last_log_offset or (self._last_log_inode and curr_inode != self._last_log_inode):
+                    self._last_log_offset = 0
+
+                self._last_log_inode = curr_inode
+
+                if curr_size <= self._last_log_offset:
+                    return
+
+                with open(GAME_LOG, "r", encoding="utf-8", errors="replace") as f:
+                    f.seek(self._last_log_offset)
+                    new_lines = f.readlines()
+                    self._last_log_offset = f.tell()
+
+                if not new_lines:
+                    return
+
+                active_run: Optional[Dict[str, Any]] = None
+                for r in reversed(self.runs):
+                    if r.get("status") == "Running":
+                        active_run = r
+                        break
+
+                modified = False
+                for line in new_lines:
+                    nm = RE_SAVE_NUMBER.search(line)
+                    if nm:
+                        try:
+                            self._pending_save_number = int(nm.group(1))
+                        except Exception:
+                            self._pending_save_number = None
+
+                    dur = None
+                    num = None
+                    is_save = False
+
+                    cm = RE_SAVE_CHUNK_DONE.search(line)
+                    if cm:
+                        dur = cm.group(1).strip()
+                        num = self._pending_save_number
+                        self._pending_save_number = None
+                        is_save = True
+                    else:
+                        cl = RE_SAVE_CLASSIC_DONE.search(line)
+                        if cl:
+                            dur = cl.group(1).strip()
+                            num = None
+                            is_save = True
+
+                    if is_save:
+                        dt = None
+                        m = RE_LOG_TIMESTAMP.match(line)
+                        if m:
+                            dt = parse_log_timestamp(m.group(1))
+                        if not dt:
+                            dt = datetime.datetime.now()
+
+                        time_str = format_dt(dt)
+                        save_entry = {
+                            "time": time_str,
+                            "timestamp": dt.timestamp(),
+                            "duration": dur,
+                            "save_number": num,
+                        }
+
+                        if active_run:
+                            if "saves" not in active_run or not isinstance(active_run["saves"], list):
+                                active_run["saves"] = []
+                            # Avoid duplicates
+                            if not any(s.get("time") == time_str for s in active_run["saves"]):
+                                active_run["saves"].append(save_entry)
+                                active_run["save_count"] = len(active_run["saves"])
+                                active_run["last_save_time"] = time_str
+                                active_run["last_save_duration"] = dur
+                                active_run["last_save_number"] = num
+                                modified = True
+
+                        world_name = active_run.get("world_name", "Midgard") if active_run else "Midgard"
+                        save_details = f"World: '{world_name}'"
+                        if num:
+                            save_details += f" | Save #{num}"
+                        if dur:
+                            save_details += f" | Duration: {dur}"
+
+                        log_msg = f"[{time_str}] [SAVE] World saved ({save_details})"
+                        print(f"[ServerHistory] {log_msg}")
+                        self._append_to_plain_log(log_msg)
+
+                if modified:
+                    self._save_to_disk()
+
+            except Exception as e:
+                print(f"[ServerHistory] Error in incremental log reading: {e}")
+
+    def get_summary(self, server_running: bool = False, pid: Optional[int] = None) -> Dict[str, Any]:
+        """Compute aggregated server uptime metrics, world saves, and formatted run list."""
+        with self.lock:
+            if server_running:
+                self.process_new_logs()
             self.reconcile_with_server_state(server_running, pid=pid)
             now_ts = time.time()
             total_runs = len(self.runs)
@@ -491,11 +766,22 @@ class ServerHistoryTracker:
                         current_run = r
                         break
 
+            total_saves = 0
+            latest_save_time = None
+            for r in formatted_runs:
+                cnt = r.get("save_count", 0)
+                total_saves += cnt
+                if r.get("last_save_time"):
+                    if latest_save_time is None or r["last_save_time"] > latest_save_time:
+                        latest_save_time = r["last_save_time"]
+
             return {
                 "total_runs": total_runs,
                 "total_uptime_seconds": total_seconds,
                 "total_uptime_str": format_duration(total_seconds),
                 "longest_run_str": format_duration(longest_seconds),
+                "total_saves": total_saves,
+                "last_save_time": latest_save_time,
                 "current_run": current_run,
                 "recent_runs": recent_runs,
             }

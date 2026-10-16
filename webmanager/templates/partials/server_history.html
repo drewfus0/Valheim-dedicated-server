@@ -73,6 +73,16 @@
         </div>
 
         <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">💾 Total World Saves</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: #a78bfa; font-family: var(--font-mono);">
+                {{ status.server_history.total_saves if status.server_history else 0 }}
+                {% if status.status == 'Running' and status.server_history and status.server_history.current_run %}
+                    <span style="font-size: 0.72rem; color: #c4b5fd; font-weight: 500;">({{ status.server_history.current_run.save_count if status.server_history.current_run.save_count else 0 }} this run)</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
             <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">🟢 Current Session</div>
             <div style="font-size: 1.1rem; font-weight: 700; color: #6ee7b7; font-family: var(--font-mono);">
                 {% if status.status == 'Running' and status.server_history and status.server_history.current_run %}
@@ -92,12 +102,13 @@
             <table class="table data-table" style="font-size: 0.8125rem; width: 100%; margin: 0; border-collapse: separate; border-spacing: 0;">
                 <thead style="position: sticky; top: 0; background: var(--bg-surface-elevated); z-index: 10; border-bottom: 1px solid var(--border-color); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);">
                     <tr>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 16%;">Status</th>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 20%;">Started</th>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 20%;">Stopped</th>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 15%;">Duration</th>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 14%;">World / Port</th>
-                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 15%;">Exit Status / Details</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 14%;">Status</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 16%;">Started</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 16%;">Stopped</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 12%;">Duration</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 13%;">World / Port</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 15%;">World Saves</th>
+                        <th style="padding: 0.65rem 0.85rem; text-align: left; width: 14%;">Exit Status / Details</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -142,6 +153,42 @@
                         <td style="padding: 0.6rem 0.85rem; font-size: 0.775rem; color: var(--text-primary);">
                             <span style="font-weight: 600;">{{ run.world_name }}</span>
                             <span style="color: var(--text-muted); font-size: 0.72rem; font-family: var(--font-mono);">:{{ run.port }}</span>
+                        </td>
+                        <td style="padding: 0.6rem 0.85rem; font-size: 0.775rem;">
+                            {% if run.save_count and run.save_count > 0 %}
+                                <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.35rem;">
+                                        <span class="badge" style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.35); padding: 0.12rem 0.45rem; font-size: 0.72rem; font-family: var(--font-mono); font-weight: 600;">
+                                            💾 {{ run.save_count }} {{ 'save' if run.save_count == 1 else 'saves' }}
+                                        </span>
+                                    </div>
+                                    {% if run.last_save_time %}
+                                        <div style="font-size: 0.7rem; color: var(--text-secondary); font-family: var(--font-mono);" title="Last Save Time">
+                                            Last: {{ run.last_save_time }}
+                                        </div>
+                                    {% endif %}
+                                    {% if run.saves and run.saves|length > 0 %}
+                                        <details style="font-size: 0.72rem; margin-top: 0.1rem; cursor: pointer;">
+                                            <summary style="color: var(--nordic-cyan); font-size: 0.7rem; outline: none; user-select: none;">
+                                                Timestamps ({{ run.saves|length }})
+                                            </summary>
+                                            <div style="max-height: 140px; overflow-y: auto; background: var(--bg-surface); padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 0.25rem; font-family: var(--font-mono); font-size: 0.7rem; min-width: 190px;">
+                                                {% for s in run.saves|reverse %}
+                                                    <div style="display: flex; justify-content: space-between; gap: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.15rem 0;">
+                                                        <span style="color: var(--text-primary);">{{ s.time }}</span>
+                                                        <span style="color: var(--text-muted); font-size: 0.68rem;">
+                                                            {% if s.save_number %}#{{ s.save_number }}{% endif %}
+                                                            {% if s.duration %}({{ s.duration }}){% endif %}
+                                                        </span>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </details>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span style="color: var(--text-muted); font-size: 0.75rem;">None</span>
+                            {% endif %}
                         </td>
                         <td style="padding: 0.6rem 0.85rem; font-size: 0.775rem; color: var(--text-secondary);">
                             {{ run.exit_reason }}
