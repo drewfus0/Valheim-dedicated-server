@@ -26,7 +26,36 @@
             <span class="metric-label">Server Uptime</span>
             <span class="metric-value">{{ status.uptime }}</span>
         </div>
-        {% if status.world_stats %}
+        {% if status.world_stats and status.world_stats.time_of_day %}
+        <div class="metric-box in-game-time-box" title="Valheim In-Game Clock: {{ status.world_stats.time_of_day.time_12h }} ({{ status.world_stats.time_of_day.sub_phase }}) | {{ status.world_stats.time_of_day.next_event_text }}{% if status.world_stats.time_of_day.is_frozen %} (Clock paused - no players online){% endif %}">
+            <span class="metric-label" style="display: flex; align-items: center; justify-content: space-between;">
+                <span>{{ status.world_stats.time_of_day.phase_icon }} In-Game Time</span>
+                <span style="font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#a78bfa{% endif %};">
+                    {{ status.world_stats.time_of_day.phase }}
+                </span>
+            </span>
+            <span class="metric-value" style="color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#c084fc{% endif %}; font-feature-settings: 'tnum'; display: flex; align-items: baseline; gap: 0.4rem;">
+                {{ status.world_stats.time_of_day.time_24h }}
+                <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">(Day {{ status.world_stats.current_day }})</span>
+            </span>
+            <span style="font-size: 0.72rem; color: {% if status.world_stats.time_of_day.is_day %}#fbbf24{% else %}#d8b4fe{% endif %}; margin-top: 0.2rem; display: flex; align-items: center; gap: 0.35rem;">
+                <span>{{ status.world_stats.time_of_day.next_event_icon }}</span>
+                <strong>{{ status.world_stats.time_of_day.next_event_text }}</strong>
+                {% if status.world_stats.time_of_day.is_frozen %}
+                    <span style="color: var(--text-muted); font-size: 0.65rem;">(paused)</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="metric-box" title="Midgard In-Game World Calendar | {{ status.world_stats.nights_slept }} nights skipped by sleeping">
+            <span class="metric-label">World Calendar</span>
+            <span class="metric-value" style="color: #38bdf8;">
+                Day {{ status.world_stats.current_day }}
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
+                🌙 {{ status.world_stats.nights_slept }} Slept &bull; {{ status.world_stats.time_of_day.sub_phase }}
+            </span>
+        </div>
+        {% elif status.world_stats %}
         <div class="metric-box" title="Midgard In-Game World Calendar">
             <span class="metric-label">World Calendar</span>
             <span class="metric-value" style="color: #38bdf8;">

@@ -4,5 +4,11 @@
     {% if status.status == "Running" %}
         <span style="color: var(--text-muted);">&bull;</span>
         <span style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.8rem;">{{ status.uptime }}</span>
+        {% if status.world_stats and status.world_stats.time_of_day %}
+            <span style="color: var(--text-muted);">&bull;</span>
+            <span style="color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#c084fc{% endif %}; font-family: var(--font-mono); font-size: 0.8rem;" title="{{ status.world_stats.time_of_day.time_12h }} | {{ status.world_stats.time_of_day.next_event_text }} (Day {{ status.world_stats.current_day }})">
+                {{ status.world_stats.time_of_day.phase_icon }} {{ status.world_stats.time_of_day.time_24h }}
+            </span>
+        {% endif %}
     {% endif %}
 </div>

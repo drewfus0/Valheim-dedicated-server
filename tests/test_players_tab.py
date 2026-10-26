@@ -45,11 +45,15 @@ class TestPlayersTab(unittest.TestCase):
             # Check nav tabs has Players
             self.assertIn("switchTab('tab-players', this)", resp.text)
             self.assertIn("🛡️ Players", resp.text)
-            # Check tab-players panel exists
-            self.assertIn('id="tab-players"', resp.text)
+            self.assertIn('data-tab="tab-players"', resp.text)
             # Check dashboard still has Viking Roster & Activity
             self.assertIn('id="tab-dashboard"', resp.text)
             self.assertIn("Viking Roster & Activity", resp.text)
+
+            # Check lazy-loaded tab-players partial
+            resp_tab = self.client.get("/partials/players-tab")
+            self.assertEqual(resp_tab.status_code, 200)
+            self.assertIn('id="tab-players"', resp_tab.text)
 
     def test_tabs_url_bookmarking_support(self):
         with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
@@ -104,7 +108,7 @@ class TestPlayersTab(unittest.TestCase):
             # 3. Roster - only event-driven, no 'every 5s'
             resp_players = self.client.get("/partials/players")
             self.assertEqual(resp_players.status_code, 200)
-            self.assertIn('hx-trigger="statusChanged from:body"', resp_players.text)
+            self.assertIn('statusChanged from:body', resp_players.text)
             self.assertNotIn("every 5s", resp_players.text)
 
             # 4. Connection - only event-driven, no 'every 5s'

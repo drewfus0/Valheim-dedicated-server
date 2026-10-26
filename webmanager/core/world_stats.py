@@ -174,7 +174,7 @@ for b in FORSAKEN_BOSSES:
 
 # Regex parsers for Valheim dedicated server log lines
 RE_RAID = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Random event set:(\w+)")
-RE_DAY = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Time\s+[\d\.]+,\s+day:(\d+)(?:.*?skipspeed:([\d\.]+))?")
+RE_DAY = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Time\s+([\d\.]+),\s+day:(\d+)(?:.*?skipspeed:([\d\.]+))?")
 RE_LOCATION = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Found location of type\s+(\w+)")
 RE_DUNGEON_LOAD = re.compile(r"Dungeon loaded with")
 RE_ROOMS = re.compile(r"Placed\s+(\d+)\s+rooms")
@@ -192,7 +192,7 @@ def parse_timestamp(ts_str: str) -> Optional[datetime.datetime]:
 
 
 def extract_world_keys(world_name: str) -> Dict[str, Any]:
-    """Extract global keys and activebosses count from Valheim world save (.db2 or .db)."""
+    """Extract global keys, activebosses count, and net_time from Valheim world save (.db2 or .db)."""
     chunked_dir = WORLD_SAVE_DIR / "worlds_local" / world_name
     db2_files = list(chunked_dir.glob("_main.*.db2"))
     target_file: Optional[Path] = None
@@ -208,12 +208,21 @@ def extract_world_keys(world_name: str) -> Dict[str, Any]:
                 break
 
     if not target_file or not target_file.exists():
-        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None}
+        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None, "net_time": None}
 
     try:
         mtime = target_file.stat().st_mtime
         with open(target_file, "rb") as f:
             raw = f.read()
+
+        net_time: Optional[float] = None
+        if len(raw) >= 12:
+            try:
+                val_net_time, = struct.unpack_from("<d", raw, 4)
+                if val_net_time >= 0:
+                    net_time = val_net_time
+            except Exception:
+                pass
 
         if is_chunked:
             gz_idx = raw.find(b"\x1f\x8b")
@@ -238,11 +247,12 @@ def extract_world_keys(world_name: str) -> Dict[str, Any]:
             "keys": keys,
             "active_bosses": active_bosses,
             "mtime": mtime,
+            "net_time": net_time,
             "file": str(target_file),
         }
     except Exception as e:
         print(f"[WorldStats] Error reading world save {target_file}: {e}")
-        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None}
+        return {"keys": set(), "active_bosses": 0, "mtime": None, "file": None, "net_time": None}
 
 
 def extract_world_portals(world_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -370,6 +380,8 @@ class WorldStatsTracker:
         self._last_log_inode: Optional[int] = None
         self._last_disk_mtime: Optional[float] = None
         self._last_world_save_mtime: Optional[float] = None
+        self._saved_net_time: Optional[float] = None
+        self._saved_net_time_mtime: Optional[float] = None
         self._cached_portals_network: List[Dict[str, Any]] = []
         self._cached_portals_mtime: Optional[float] = None
 
@@ -410,6 +422,8 @@ class WorldStatsTracker:
                     self._last_log_offset = data.get("last_log_offset", 0)
                     self._last_log_inode = data.get("last_log_inode")
                     self._last_world_save_mtime = data.get("last_world_save_mtime")
+                    self._saved_net_time = data.get("saved_net_time")
+                    self._saved_net_time_mtime = data.get("saved_net_time_mtime")
 
                 # Ensure consistent defeat_count and defeats list
                 for b_id, b_data in self.slain_bosses.items():
@@ -455,6 +469,8 @@ class WorldStatsTracker:
                     "last_log_offset": self._last_log_offset,
                     "last_log_inode": self._last_log_inode,
                     "last_world_save_mtime": self._last_world_save_mtime,
+                    "saved_net_time": self._saved_net_time,
+                    "saved_net_time_mtime": self._saved_net_time_mtime,
                     "updated_at": datetime.datetime.now().isoformat(),
                 }
                 tmp_path = WORLD_STATS_FILE.with_suffix(".tmp")
@@ -756,18 +772,30 @@ class WorldStatsTracker:
             return changed
 
     def check_world_save(self, world_name: Optional[str] = None) -> None:
-        """Check world save file for active bosses and defeated Forsaken keys."""
+        """Check world save file for active bosses, net_time, and defeated Forsaken keys."""
         with self.lock:
             if not world_name:
                 world_name = self._get_active_world_name()
 
             res = extract_world_keys(world_name)
             mtime = res.get("mtime")
+            net_time = res.get("net_time")
             if mtime is None:
                 return
 
+            changed = False
+            if net_time is not None:
+                self._saved_net_time = net_time
+                self._saved_net_time_mtime = mtime
+                calc_day = int(net_time / 1800.0)
+                if calc_day > self.current_day:
+                    self.current_day = calc_day
+                    changed = True
+
             # Skip disk re-parse if mtime hasn't changed and slain_bosses is populated
             if self._last_world_save_mtime == mtime and self.slain_bosses:
+                if changed:
+                    self._save_to_disk()
                 return
 
             keys: Set[str] = res.get("keys", set())
@@ -775,8 +803,6 @@ class WorldStatsTracker:
             prev_active = self.active_bosses_count
             self.active_bosses_count = active_bosses
             self._last_world_save_mtime = mtime
-
-            changed = False
 
             # Check if active boss battle started
             if active_bosses > 0:
@@ -1009,12 +1035,16 @@ class WorldStatsTracker:
             # 2. Check World Day & Night Sleep
             m_day = RE_DAY.match(line)
             if m_day:
-                ts_str, day_num_str, skip_speed_str = m_day.groups()
+                ts_str, time_str, day_num_str, skip_speed_str = m_day.groups()
                 try:
                     day_num = int(day_num_str)
                     if day_num > self.current_day:
                         self.current_day = day_num
                     self.last_day_timestamp = ts_str
+                    if time_str:
+                        self._saved_net_time = float(time_str)
+                        dt = parse_timestamp(ts_str)
+                        self._saved_net_time_mtime = dt.timestamp() if dt else time.time()
                     if skip_speed_str and float(skip_speed_str) > 1.0:
                         self.nights_slept += 1
                 except Exception:
@@ -1079,13 +1109,139 @@ class WorldStatsTracker:
             if RE_WORLD_SAVE.search(line):
                 self.check_world_save()
 
-    def get_summary(self, server_running: bool = True) -> Dict[str, Any]:
+    def get_time_of_day_data(self, server_running: bool = True, players_count: int = 0) -> Dict[str, Any]:
+        """Calculate authoritative in-game time, clock string, phase, and countdown to sunset/sunrise."""
+        with self.lock:
+            # 1. Determine base net time and reference timestamp
+            base_time = self._saved_net_time
+            base_mtime = self._saved_net_time_mtime
+
+            if base_time is None:
+                res = extract_world_keys(self._get_active_world_name())
+                if res.get("net_time") is not None and res.get("mtime") is not None:
+                    self._saved_net_time = res["net_time"]
+                    self._saved_net_time_mtime = res["mtime"]
+                    base_time = self._saved_net_time
+                    base_mtime = self._saved_net_time_mtime
+
+            if base_time is None:
+                base_time = float(self.current_day * 1800.0)
+                base_mtime = time.time()
+
+            # 2. Advance time if server is running and players are actively online
+            now = time.time()
+            if server_running and players_count > 0 and base_mtime is not None:
+                elapsed = max(0.0, now - base_mtime)
+                current_net_time = base_time + elapsed
+            else:
+                current_net_time = base_time
+
+            # In Valheim: full day is 1800s (30m).
+            day_number = int(current_net_time / 1800.0)
+            if day_number > self.current_day:
+                self.current_day = day_number
+
+            day_fraction = (current_net_time / 1800.0) % 1.0
+
+            # Map day fraction (0.0 - 1.0) to 24-hour clock (86400 seconds)
+            day_seconds = day_fraction * 86400.0
+            clock_hours = int(day_seconds // 3600)
+            clock_minutes = int((day_seconds % 3600) // 60)
+            clock_seconds = int(day_seconds % 60)
+
+            # 12-hour format with AM/PM
+            period = "AM" if clock_hours < 12 else "PM"
+            h12 = clock_hours % 12 or 12
+            time_12h = f"{h12}:{clock_minutes:02d} {period}"
+            time_24h = f"{clock_hours:02d}:{clock_minutes:02d}"
+
+            # Day vs Night
+            # 0.25 (06:00) is Dawn/Sunrise
+            # 0.75 (18:00) is Dusk/Sunset
+            is_day = 0.25 <= day_fraction < 0.75
+
+            if is_day:
+                phase = "Day"
+                phase_icon = "☀️"
+                if clock_hours < 12:
+                    sub_phase = "Morning"
+                elif clock_hours < 16:
+                    sub_phase = "Midday"
+                else:
+                    sub_phase = "Late Afternoon"
+
+                fraction_to_sunset = 0.75 - day_fraction
+                real_seconds_to_event = fraction_to_sunset * 1800.0
+                next_event_name = "Sunset"
+                next_event_icon = "🌅"
+                next_event_time = "18:00"
+                phase_progress = ((day_fraction - 0.25) / 0.50) * 100.0
+            else:
+                phase = "Night"
+                phase_icon = "🌙"
+                if clock_hours >= 18 and clock_hours < 21:
+                    sub_phase = "Dusk / Twilight"
+                elif clock_hours >= 21 or clock_hours < 4:
+                    sub_phase = "Midnight / Deep Night"
+                else:
+                    sub_phase = "Dawn Twilight"
+
+                if day_fraction >= 0.75:
+                    fraction_to_sunrise = (1.0 - day_fraction) + 0.25
+                    night_elapsed_frac = day_fraction - 0.75
+                else:
+                    fraction_to_sunrise = 0.25 - day_fraction
+                    night_elapsed_frac = day_fraction + 0.25
+
+                real_seconds_to_event = fraction_to_sunrise * 1800.0
+                next_event_name = "Sunrise"
+                next_event_icon = "🌄"
+                next_event_time = "06:00"
+                phase_progress = (night_elapsed_frac / 0.50) * 100.0
+
+            phase_progress = max(0.0, min(100.0, phase_progress))
+
+            rem_m = int(real_seconds_to_event // 60)
+            rem_s = int(real_seconds_to_event % 60)
+            if rem_m > 0:
+                time_to_event_str = f"{rem_m}m {rem_s:02d}s"
+            else:
+                time_to_event_str = f"{rem_s}s"
+
+            next_event_text = f"{next_event_name} in {time_to_event_str}"
+
+            return {
+                "net_time": current_net_time,
+                "current_day": day_number,
+                "day_fraction": round(day_fraction, 4),
+                "time_24h": time_24h,
+                "time_12h": time_12h,
+                "clock_hours": clock_hours,
+                "clock_minutes": clock_minutes,
+                "clock_seconds": clock_seconds,
+                "is_day": is_day,
+                "phase": phase,
+                "phase_icon": phase_icon,
+                "sub_phase": sub_phase,
+                "phase_progress_pct": round(phase_progress, 1),
+                "next_event_name": next_event_name,
+                "next_event_icon": next_event_icon,
+                "next_event_time": next_event_time,
+                "seconds_to_event": int(real_seconds_to_event),
+                "time_to_event_str": time_to_event_str,
+                "next_event_text": next_event_text,
+                "is_frozen": not (server_running and players_count > 0),
+            }
+
+    def get_summary(self, server_running: bool = True, players_count: int = 0) -> Dict[str, Any]:
         """Generate formatted world stats summary for templates and API responses."""
         with self.lock:
             # Process any newly appended log lines, world save checks, and player log scans first
             self.process_new_logs()
             self.check_world_save()
             self.check_player_logs_for_boss_kills()
+
+            time_of_day = self.get_time_of_day_data(server_running=server_running, players_count=players_count)
 
             # Check if active raid is still ongoing (Valheim raids last ~120-180 seconds)
             active = None
@@ -1164,7 +1320,8 @@ class WorldStatsTracker:
             unlinked_count = sum(1 for p in portals_network if not p.get("linked"))
 
             return {
-                "current_day": self.current_day,
+                "current_day": time_of_day["current_day"],
+                "time_of_day": time_of_day,
                 "nights_slept": self.nights_slept,
                 "last_day_timestamp": self.last_day_timestamp,
                 "total_raids": self.total_raids,

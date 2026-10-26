@@ -28,6 +28,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── system.py        # Power profile confirmation, sleep policy supervisor & safe reboot
 │   │   ├── server.py        # Valheim process supervisor (SIGINT shutdown, PID attachment)
 │   │   ├── server_history.py # Server run session & world save event tracking
+│   │   ├── world_stats.py   # World telemetry, in-game clock, celestial sunset/sunrise & boss sagas
 │   │   ├── logs.py          # Reverse-seeking log tailer & SSE stream generator
 │   │   └── backups.py       # Backup lifecycle (create, list, download, restore, delete)
 │   ├── templates/           # Jinja2 HTML Templates & HTMX Partials

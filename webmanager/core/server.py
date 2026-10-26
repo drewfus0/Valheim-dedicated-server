@@ -196,7 +196,7 @@ class ValheimServerManager:
             "player_sessions": p_summary["recent_events"],
             "server_history": s_summary,
             "server_runs": s_summary["recent_runs"],
-            "world_stats": WORLD_STATS.get_summary(server_running=(state == "Running")),
+            "world_stats": WORLD_STATS.get_summary(server_running=(state == "Running"), players_count=p_summary["online_count"]),
             "cpu_freq": cpu_freq,
             "power_status": power_status,
             "auto_start_on_boot": cfg.get("auto_start_on_boot", True),

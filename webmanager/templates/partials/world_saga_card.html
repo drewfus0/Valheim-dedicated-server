@@ -1,10 +1,15 @@
 <div id="world-saga-panel" class="card" style="margin-bottom: 1.5rem;" hx-get="/partials/world-saga" hx-trigger="every 5s, worldSagaUpdated from:body" hx-swap="outerHTML">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
-        <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;">
             <span>🛡️</span> Midgard World Saga Telemetry
             <span class="badge" style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); color: var(--nordic-cyan); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
                 ☀️ Day {{ status.world_stats.current_day if status.world_stats else 1 }}
             </span>
+            {% if status.world_stats and status.world_stats.time_of_day %}
+            <span class="badge" style="font-size: 0.72rem; background: {% if status.world_stats.time_of_day.is_day %}rgba(245, 158, 11, 0.15){% else %}rgba(167, 139, 250, 0.15){% endif %}; color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#c084fc{% endif %}; border: 1px solid {% if status.world_stats.time_of_day.is_day %}rgba(245, 158, 11, 0.3){% else %}rgba(167, 139, 250, 0.3){% endif %}; padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                {{ status.world_stats.time_of_day.phase_icon }} {{ status.world_stats.time_of_day.time_24h }} &bull; {{ status.world_stats.time_of_day.next_event_text }}
+            </span>
+            {% endif %}
         </div>
         <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono);">
             {{ status.world_stats.slain_bosses_count if status.world_stats else 0 }}/{{ status.world_stats.total_bosses_count if status.world_stats else 7 }} Forsaken Slain ({{ status.world_stats.total_boss_defeats_count if status.world_stats else 0 }} Total Kills) &bull; {{ status.world_stats.total_raids if status.world_stats else 0 }} Invasions &bull; {{ status.world_stats.dungeons_entered if status.world_stats else 0 }} Crypts
@@ -13,14 +18,20 @@
 
     <!-- 4 Telemetry Metrics Grid -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
-        <!-- 1. Midgard Calendar -->
-        <div class="metric-box">
-            <span class="metric-label">☀️ World Calendar</span>
-            <span class="metric-value" style="color: var(--nordic-cyan);">
-                Day {{ status.world_stats.current_day if status.world_stats else 1 }}
+        <!-- 1. Midgard Calendar & Time of Day -->
+        <div class="metric-box" title="Valheim In-Game Clock: {{ status.world_stats.time_of_day.time_12h if status.world_stats and status.world_stats.time_of_day else '' }} ({{ status.world_stats.time_of_day.sub_phase if status.world_stats and status.world_stats.time_of_day else '' }}) | {{ status.world_stats.time_of_day.next_event_text if status.world_stats and status.world_stats.time_of_day else '' }}">
+            <span class="metric-label">{{ status.world_stats.time_of_day.phase_icon if status.world_stats and status.world_stats.time_of_day else '☀️' }} In-Game Time & Day</span>
+            <span class="metric-value" style="color: {% if status.world_stats and status.world_stats.time_of_day and not status.world_stats.time_of_day.is_day %}#c084fc{% else %}var(--nordic-cyan){% endif %};">
+                Day {{ status.world_stats.current_day if status.world_stats else 1 }} &bull; {{ status.world_stats.time_of_day.time_24h if status.world_stats and status.world_stats.time_of_day else '--:--' }}
             </span>
-            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
-                🌙 {{ status.world_stats.nights_slept if status.world_stats else 0 }} Nights Slept Through
+            <span style="font-size: 0.72rem; color: {% if status.world_stats and status.world_stats.time_of_day and not status.world_stats.time_of_day.is_day %}#d8b4fe{% else %}var(--text-muted){% endif %}; margin-top: 0.2rem; display: flex; align-items: center; gap: 0.35rem;">
+                {% if status.world_stats and status.world_stats.time_of_day %}
+                    <span>{{ status.world_stats.time_of_day.next_event_icon }}</span>
+                    <strong>{{ status.world_stats.time_of_day.next_event_text }}</strong>
+                    <span style="color: var(--text-muted);">&bull; 🌙 {{ status.world_stats.nights_slept }} Slept</span>
+                {% else %}
+                    🌙 {{ status.world_stats.nights_slept if status.world_stats else 0 }} Nights Slept Through
+                {% endif %}
             </span>
         </div>
 
