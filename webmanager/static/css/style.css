@@ -1076,7 +1076,7 @@ table.data-table tr:hover td {
 .legend-pill {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-secondary);
+    color: var(--text-muted);
     border-radius: var(--radius-full);
     padding: 0.22rem 0.7rem;
     font-size: 0.72rem;
@@ -1086,15 +1086,22 @@ table.data-table tr:hover td {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+    opacity: 0.5;
+    user-select: none;
 }
 
 .legend-pill:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #f8fafc;
-    border-color: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.25);
+    opacity: 0.85;
 }
 
 .legend-pill.active {
+    opacity: 1;
+}
+
+.legend-pill.active[data-filter="all"] {
     background: rgba(56, 189, 248, 0.18);
     border-color: rgba(56, 189, 248, 0.65);
     color: #38bdf8;
@@ -1140,7 +1147,13 @@ table.data-table tr:hover td {
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background: #64748b;
+    transition: background-color 0.2s ease;
+}
+
+.legend-pill.active .pill-dot.all {
     background: #38bdf8;
+    box-shadow: 0 0 6px #38bdf8;
 }
 
 /* Sticky Player Legend Header */
@@ -1461,6 +1474,15 @@ table.data-table tr:hover td {
     inset: 0;
     pointer-events: none;
     z-index: 20;
+}
+
+/* Persistent Stream Filtering Rules (applies automatically to all currently loaded & infinitely scrolled tiles) */
+#timeline-stream.filter-hide-sunrise .timeline-event-line.sunrise,
+#timeline-stream.filter-hide-sunset .timeline-event-line.sunset,
+#timeline-stream.filter-hide-boss .timeline-event-line.boss,
+#timeline-stream.filter-hide-raid .timeline-event-line.raid,
+#timeline-stream.filter-hide-altar .timeline-event-line.altar {
+    display: none !important;
 }
 
 .timeline-event-line {

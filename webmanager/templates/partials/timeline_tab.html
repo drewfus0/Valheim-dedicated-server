@@ -70,24 +70,24 @@
 
         <!-- Timeline Legend & Quick Filter Strip -->
         <div class="timeline-legend-strip">
-            <span class="legend-label">TIMELINE INDICATORS:</span>
+            <span class="legend-label">TIMELINE FILTERS:</span>
             <div class="timeline-legend-items">
-                <button type="button" class="legend-pill active" data-filter="all" onclick="filterTimelineEvents('all', this)" title="Show all events and celestial indicators">
+                <button type="button" class="legend-pill active" data-filter="all" onclick="toggleTimelineFilter('all', this)" title="Toggle all event indicators on/off">
                     <span class="pill-dot all"></span> All Events
                 </button>
-                <button type="button" class="legend-pill sunrise-pill" data-filter="sunrise" onclick="filterTimelineEvents('sunrise', this)" title="Filter to in-game sunrise (06:00) indicators">
+                <button type="button" class="legend-pill sunrise-pill active" data-filter="sunrise" onclick="toggleTimelineFilter('sunrise', this)" title="Toggle Sunrise (06:00) indicators">
                     <span>🌄</span> Sunrise
                 </button>
-                <button type="button" class="legend-pill sunset-pill" data-filter="sunset" onclick="filterTimelineEvents('sunset', this)" title="Filter to in-game sunset (18:00) indicators">
+                <button type="button" class="legend-pill sunset-pill active" data-filter="sunset" onclick="toggleTimelineFilter('sunset', this)" title="Toggle Sunset (18:00) indicators">
                     <span>🌅</span> Sunset
                 </button>
-                <button type="button" class="legend-pill boss-pill" data-filter="boss" onclick="filterTimelineEvents('boss', this)" title="Filter to Forsaken Boss Triumphs">
+                <button type="button" class="legend-pill boss-pill active" data-filter="boss" onclick="toggleTimelineFilter('boss', this)" title="Toggle Forsaken Boss Triumphs">
                     <span>⚔️</span> Bosses
                 </button>
-                <button type="button" class="legend-pill raid-pill" data-filter="raid" onclick="filterTimelineEvents('raid', this)" title="Filter to Raids">
+                <button type="button" class="legend-pill raid-pill active" data-filter="raid" onclick="toggleTimelineFilter('raid', this)" title="Toggle Raid indicators">
                     <span>⚡</span> Raids
                 </button>
-                <button type="button" class="legend-pill altar-pill" data-filter="altar" onclick="filterTimelineEvents('altar', this)" title="Filter to Boss Altars">
+                <button type="button" class="legend-pill altar-pill active" data-filter="altar" onclick="toggleTimelineFilter('altar', this)" title="Toggle Boss Altar indicators">
                     <span>🗝️</span> Altars
                 </button>
             </div>
@@ -123,26 +123,111 @@
     </div>
 
     <script>
-    function filterTimelineEvents(filterType, btn) {
-        if (!btn) return;
-        const container = btn.closest('.timeline-legend-items');
-        if (container) {
-            container.querySelectorAll('.legend-pill').forEach(p => p.classList.remove('active'));
-            btn.classList.add('active');
+    (function() {
+        const ALL_EVENT_TYPES = ['sunrise', 'sunset', 'boss', 'raid', 'altar'];
+        const STORAGE_KEY = 'valheim_timeline_filters_state';
+
+        function getStoredFilters() {
+            try {
+                const raw = sessionStorage.getItem(STORAGE_KEY);
+                if (raw) return JSON.parse(raw);
+            } catch (e) {}
+            return { sunrise: true, sunset: true, boss: true, raid: true, altar: true };
         }
-        const stream = document.getElementById('timeline-stream');
-        if (!stream) return;
-        const lines = stream.querySelectorAll('.timeline-event-line');
-        lines.forEach(line => {
-            const type = line.getAttribute('data-event-type') || '';
+
+        function saveFilters(filters) {
+            try {
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+            } catch (e) {}
+        }
+
+        window.toggleTimelineFilter = function(filterType, btn) {
+            const stream = document.getElementById('timeline-stream');
+            const container = btn ? btn.closest('.timeline-legend-items') : document.querySelector('.timeline-legend-items');
+            if (!stream || !container) return;
+
+            const filters = getStoredFilters();
+
             if (filterType === 'all') {
-                line.style.display = '';
-            } else if (filterType === 'celestial') {
-                line.style.display = (type === 'sunrise' || type === 'sunset') ? '' : 'none';
+                const allBtn = container.querySelector('.legend-pill[data-filter="all"]');
+                const allCurrentlyActive = ALL_EVENT_TYPES.every(t => filters[t] !== false);
+                const targetState = !allCurrentlyActive; // if all on, toggle all off; otherwise turn all on
+
+                ALL_EVENT_TYPES.forEach(t => {
+                    filters[t] = targetState;
+                    const hideClass = `filter-hide-${t}`;
+                    if (targetState) {
+                        stream.classList.remove(hideClass);
+                    } else {
+                        stream.classList.add(hideClass);
+                    }
+                    const pill = container.querySelector(`.legend-pill[data-filter="${t}"]`);
+                    if (pill) {
+                        if (targetState) pill.classList.add('active');
+                        else pill.classList.remove('active');
+                    }
+                });
+
+                if (allBtn) {
+                    if (targetState) allBtn.classList.add('active');
+                    else allBtn.classList.remove('active');
+                }
             } else {
-                line.style.display = (type === filterType) ? '' : 'none';
+                const isCurrentlyActive = filters[filterType] !== false;
+                const newState = !isCurrentlyActive;
+                filters[filterType] = newState;
+
+                const hideClass = `filter-hide-${filterType}`;
+                if (newState) {
+                    stream.classList.remove(hideClass);
+                    if (btn) btn.classList.add('active');
+                } else {
+                    stream.classList.add(hideClass);
+                    if (btn) btn.classList.remove('active');
+                }
+
+                const allBtn = container.querySelector('.legend-pill[data-filter="all"]');
+                const allActive = ALL_EVENT_TYPES.every(t => filters[t] !== false);
+                if (allBtn) {
+                    if (allActive) allBtn.classList.add('active');
+                    else allBtn.classList.remove('active');
+                }
             }
-        });
-    }
+
+            saveFilters(filters);
+        };
+
+        // Backward compatibility
+        window.filterTimelineEvents = window.toggleTimelineFilter;
+
+        // Apply and restore stored filter classes on initial render
+        function applyCurrentFilters() {
+            const stream = document.getElementById('timeline-stream');
+            const container = document.querySelector('.timeline-legend-items');
+            if (!stream || !container) return;
+
+            const filters = getStoredFilters();
+            ALL_EVENT_TYPES.forEach(t => {
+                const hideClass = `filter-hide-${t}`;
+                const pill = container.querySelector(`.legend-pill[data-filter="${t}"]`);
+                if (filters[t] === false) {
+                    stream.classList.add(hideClass);
+                    if (pill) pill.classList.remove('active');
+                } else {
+                    stream.classList.remove(hideClass);
+                    if (pill) pill.classList.add('active');
+                }
+            });
+
+            const allBtn = container.querySelector('.legend-pill[data-filter="all"]');
+            const allActive = ALL_EVENT_TYPES.every(t => filters[t] !== false);
+            if (allBtn) {
+                if (allActive) allBtn.classList.add('active');
+                else allBtn.classList.remove('active');
+            }
+        }
+
+        applyCurrentFilters();
+    })();
     </script>
 </div>
