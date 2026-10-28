@@ -883,6 +883,264 @@ table.data-table tr:hover td {
 
 .timeline-header-card {
     margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+/* Timeline Celestial Strip in Header Card */
+.timeline-celestial-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: 0.85rem 1.25rem;
+    margin: 0 0.85rem 0.65rem 0.85rem;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    flex-wrap: wrap;
+}
+
+.celestial-strip-time {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 190px;
+}
+
+.celestial-strip-icon {
+    font-size: 1.85rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.65));
+}
+
+.celestial-strip-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.celestial-strip-clock {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+}
+
+.celestial-sep {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.celestial-clock-24 {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.celestial-phase-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.celestial-phase-badge.day {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fde68a;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.celestial-phase-badge.night {
+    background: rgba(99, 102, 241, 0.15);
+    color: #c7d2fe;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.celestial-strip-progress-wrap {
+    flex: 1;
+    min-width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.celestial-progress-markers {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.c-marker.sunrise {
+    color: #fef08a;
+}
+
+.c-marker.sunset {
+    color: #fed7aa;
+}
+
+.celestial-progress-track {
+    position: relative;
+    height: 7px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 9999px;
+    overflow: visible;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.celestial-progress-bar.day {
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #f59e0b, #fde047, #f59e0b);
+    box-shadow: 0 0 10px rgba(253, 224, 71, 0.5);
+}
+
+.celestial-progress-bar.night {
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #3b82f6, #818cf8, #c084fc);
+    box-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
+}
+
+.celestial-orb-pin {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9));
+    cursor: default;
+    pointer-events: none;
+}
+
+.celestial-strip-next {
+    display: flex;
+    align-items: center;
+}
+
+.celestial-countdown-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.95rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.celestial-countdown-badge.sunset {
+    background: rgba(249, 115, 22, 0.16);
+    border: 1px solid rgba(249, 115, 22, 0.45);
+    color: #fed7aa;
+}
+
+.celestial-countdown-badge.sunrise {
+    background: rgba(234, 179, 8, 0.16);
+    border: 1px solid rgba(234, 179, 8, 0.45);
+    color: #fef08a;
+}
+
+.next-evt-clock {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    opacity: 0.85;
+}
+
+/* Timeline Legend Strip */
+.timeline-legend-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 1.15rem 0.75rem 1.15rem;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 23, 42, 0.4);
+}
+
+.legend-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.timeline-legend-items {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.legend-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    padding: 0.22rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.legend-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.legend-pill.active {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(56, 189, 248, 0.65);
+    color: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.legend-pill.sunrise-pill.active {
+    background: rgba(250, 204, 21, 0.18);
+    border-color: rgba(250, 204, 21, 0.75);
+    color: #fde047;
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.35);
+}
+
+.legend-pill.sunset-pill.active {
+    background: rgba(168, 85, 247, 0.18);
+    border-color: rgba(168, 85, 247, 0.75);
+    color: #d8b4fe;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+}
+
+.legend-pill.boss-pill.active {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.75);
+    color: #fbbf24;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
+.legend-pill.raid-pill.active {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.75);
+    color: #f87171;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+}
+
+.legend-pill.altar-pill.active {
+    background: rgba(45, 212, 191, 0.18);
+    border-color: rgba(45, 212, 191, 0.75);
+    color: #2dd4bf;
+    box-shadow: 0 0 10px rgba(45, 212, 191, 0.35);
+}
+
+.pill-dot.all {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #38bdf8;
 }
 
 /* Sticky Player Legend Header */
@@ -1216,6 +1474,23 @@ table.data-table tr:hover td {
     pointer-events: auto;
 }
 
+/* Badge alignment: Far Left for Sunrise, Far Right for Sunset, Center for Landmark Triumphs */
+.timeline-event-line.sunrise {
+    justify-content: flex-start;
+}
+
+.timeline-event-line.sunrise .timeline-event-badge {
+    margin-left: 0.85rem;
+}
+
+.timeline-event-line.sunset {
+    justify-content: flex-end;
+}
+
+.timeline-event-line.sunset .timeline-event-badge {
+    margin-right: 0.85rem;
+}
+
 .timeline-event-beam {
     position: absolute;
     left: 0;
@@ -1223,52 +1498,99 @@ table.data-table tr:hover td {
     height: 2px;
 }
 
+/* 1. Boss: Legendary Gold / Amber */
 .timeline-event-beam.boss {
-    background: linear-gradient(90deg, transparent 2%, #fbbf24 25%, #f59e0b 50%, #fbbf24 75%, transparent 98%);
-    box-shadow: 0 0 10px #fbbf24;
+    background: linear-gradient(90deg, transparent 2%, #d97706 20%, #fbbf24 50%, #d97706 80%, transparent 98%);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.75);
 }
 
+/* 2. Raid: Crimson Threat / Blood-Red */
 .timeline-event-beam.raid {
-    background: linear-gradient(90deg, transparent 2%, #ef4444 25%, #dc2626 50%, #ef4444 75%, transparent 98%);
-    box-shadow: 0 0 10px #ef4444;
+    background: linear-gradient(90deg, transparent 2%, #b91c1c 20%, #ef4444 50%, #b91c1c 80%, transparent 98%);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.75);
 }
 
+/* 3. Altar: Arcane Rune Teal */
 .timeline-event-beam.altar {
-    background: linear-gradient(90deg, transparent 2%, #38bdf8 25%, #0284c7 50%, #38bdf8 75%, transparent 98%);
-    box-shadow: 0 0 10px #38bdf8;
+    background: linear-gradient(90deg, transparent 2%, #0d9488 20%, #2dd4bf 50%, #0d9488 80%, transparent 98%);
+    box-shadow: 0 0 12px rgba(45, 212, 191, 0.75);
+}
+
+/* 4. Sunrise: Solar Dawn Sunburst Yellow (Originating from the left) */
+.timeline-event-beam.sunrise {
+    background: linear-gradient(90deg, #fef08a 0%, #facc15 15%, rgba(250, 204, 21, 0.5) 45%, rgba(250, 204, 21, 0.15) 80%, transparent 100%);
+    box-shadow: 0 0 12px rgba(250, 204, 21, 0.75);
+}
+
+/* 5. Sunset: Twilight Dusk Violet / Purple (Radiating from the right) */
+.timeline-event-beam.sunset {
+    background: linear-gradient(270deg, #d8b4fe 0%, #a855f7 15%, rgba(168, 85, 247, 0.5) 45%, rgba(168, 85, 247, 0.15) 80%, transparent 100%);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.75);
 }
 
 .timeline-event-badge {
     position: relative;
     z-index: 2;
-    padding: 0.25rem 0.85rem;
+    padding: 0.22rem 0.75rem;
     border-radius: var(--radius-full);
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    font-size: 0.75rem;
+    gap: 0.4rem;
+    font-size: 0.74rem;
     font-weight: 700;
+    white-space: nowrap;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.timeline-event-badge:hover {
+    transform: scale(1.05);
+}
+
+/* 1. Boss Badge: Royal Amber / Gold */
 .timeline-event-badge.boss {
-    background: rgba(28, 19, 8, 0.94);
-    border: 1px solid rgba(251, 191, 36, 0.75);
-    color: #fde68a;
+    background: rgba(35, 22, 6, 0.95);
+    border: 1px solid rgba(245, 158, 11, 0.85);
+    color: #fef3c7;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 10px rgba(245, 158, 11, 0.35);
 }
 
+/* 2. Raid Badge: Blood-Red Crimson */
 .timeline-event-badge.raid {
-    background: rgba(28, 10, 10, 0.94);
-    border: 1px solid rgba(239, 68, 68, 0.75);
-    color: #fca5a5;
+    background: rgba(35, 8, 8, 0.95);
+    border: 1px solid rgba(239, 68, 68, 0.85);
+    color: #fee2e2;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 10px rgba(239, 68, 68, 0.35);
 }
 
+/* 3. Altar Badge: Mystic Rune Teal */
 .timeline-event-badge.altar {
-    background: rgba(8, 24, 38, 0.94);
-    border: 1px solid rgba(56, 189, 248, 0.75);
-    color: #bae6fd;
+    background: rgba(6, 30, 32, 0.95);
+    border: 1px solid rgba(45, 212, 191, 0.85);
+    color: #ccfbf1;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 10px rgba(45, 212, 191, 0.35);
+}
+
+/* 4. Sunrise Badge: Solar Dawn Gold/Yellow (Far-Left) */
+.timeline-event-badge.sunrise {
+    background: rgba(38, 30, 4, 0.95);
+    border: 1px solid rgba(250, 204, 21, 0.9);
+    color: #fef9c3;
+    padding: 0.18rem 0.65rem;
+    font-size: 0.72rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 14px rgba(250, 204, 21, 0.45);
+}
+
+/* 5. Sunset Badge: Twilight Violet / Purple (Far-Right) */
+.timeline-event-badge.sunset {
+    background: rgba(28, 12, 42, 0.95);
+    border: 1px solid rgba(192, 132, 252, 0.9);
+    color: #f3e8ff;
+    padding: 0.18rem 0.65rem;
+    font-size: 0.72rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 14px rgba(168, 85, 247, 0.45);
 }
 
 .timeline-event-badge .evt-sub {

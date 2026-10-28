@@ -32,7 +32,7 @@
         {% if chunk.events %}
             <div class="timeline-events-overlay">
                 {% for evt in chunk.events %}
-                    <div class="timeline-event-line {{ evt.type }}" style="top: {{ evt.top_pct }}%;" title="{{ evt.title }} ({{ evt.timestamp_full }})">
+                    <div class="timeline-event-line {{ evt.type }}" data-event-type="{{ evt.type }}" style="top: {{ evt.top_pct }}%;" title="{{ evt.title }} ({{ evt.timestamp_full }})">
                         <div class="timeline-event-beam {{ evt.type }}"></div>
                         <div class="timeline-event-badge {{ evt.type }}">
                             <span class="evt-icon">{{ evt.icon }}</span>
@@ -40,7 +40,9 @@
                             {% if evt.sub %}
                                 <span class="evt-sub">{{ evt.sub }}</span>
                             {% endif %}
-                            <span class="evt-time">{{ evt.time_str }}</span>
+                            {% if evt.time_str and evt.type not in ('sunrise', 'sunset') %}
+                                <span class="evt-time">{{ evt.time_str }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 {% endfor %}

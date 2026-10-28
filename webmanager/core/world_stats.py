@@ -174,7 +174,7 @@ for b in FORSAKEN_BOSSES:
 
 # Regex parsers for Valheim dedicated server log lines
 RE_RAID = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Random event set:(\w+)")
-RE_DAY = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Time\s+([\d\.]+),\s+day:(\d+)(?:.*?skipspeed:([\d\.]+))?")
+RE_DAY = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Time\s+([\d\.]+),\s+day:(\d+)(?:.*?nextm:([\d\.]+))?(?:.*?skipspeed:([\d\.]+))?")
 RE_LOCATION = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}):\s*Found location of type\s+(\w+)")
 RE_DUNGEON_LOAD = re.compile(r"Dungeon loaded with")
 RE_ROOMS = re.compile(r"Placed\s+(\d+)\s+rooms")
@@ -376,6 +376,8 @@ class WorldStatsTracker:
         self.portal_pairs_map: Dict[str, str] = {}
         self.last_portal_update: Optional[str] = None
 
+        self.sleep_events: List[Dict[str, Any]] = []
+
         self._last_log_offset: int = 0
         self._last_log_inode: Optional[int] = None
         self._last_disk_mtime: Optional[float] = None
@@ -389,6 +391,7 @@ class WorldStatsTracker:
             self._load_from_disk()
             self._backfill_if_needed()
             self._backfill_portals_if_needed()
+            self._backfill_sleep_events_if_needed()
             self._backfill_boss_locations_if_needed()
             self.check_player_logs_for_boss_kills()
             self.check_world_save()
@@ -424,6 +427,7 @@ class WorldStatsTracker:
                     self._last_world_save_mtime = data.get("last_world_save_mtime")
                     self._saved_net_time = data.get("saved_net_time")
                     self._saved_net_time_mtime = data.get("saved_net_time_mtime")
+                    self.sleep_events = data.get("sleep_events", [])
 
                 # Ensure consistent defeat_count and defeats list
                 for b_id, b_data in self.slain_bosses.items():
@@ -466,6 +470,7 @@ class WorldStatsTracker:
                     "connected_portals": self.connected_portals,
                     "portal_pairs_map": self.portal_pairs_map,
                     "last_portal_update": self.last_portal_update,
+                    "sleep_events": self.sleep_events[-500:],
                     "last_log_offset": self._last_log_offset,
                     "last_log_inode": self._last_log_inode,
                     "last_world_save_mtime": self._last_world_save_mtime,
@@ -570,6 +575,52 @@ class WorldStatsTracker:
                             self.last_portal_update = ts_match.group(1)
         except Exception as e:
             print(f"[WorldStats] Error scanning {log_path} for portals: {e}")
+
+    def _backfill_sleep_events_if_needed(self) -> None:
+        """Backfill historical sleep/day events from logs if unpopulated."""
+        with self.lock:
+            if self.sleep_events:
+                return
+
+            def _scan(file_path: Path):
+                if not file_path.exists():
+                    return
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            m = RE_DAY.match(line)
+                            if m:
+                                ts_str, time_str, day_str, nextm_str, speed_str = m.groups()
+                                try:
+                                    dt = parse_timestamp(ts_str)
+                                    self.sleep_events.append({
+                                        "timestamp": ts_str,
+                                        "timestamp_dt": dt.isoformat() if dt else ts_str,
+                                        "net_time": float(time_str) if time_str else 0.0,
+                                        "day": int(day_str),
+                                        "nextm": float(nextm_str) if nextm_str else None,
+                                        "skipspeed": float(speed_str) if speed_str else 1.0,
+                                    })
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+
+            if LOGS_DIR.exists():
+                for log_file in sorted(LOGS_DIR.glob("valheim_server_*.log")):
+                    _scan(log_file)
+
+            if GAME_LOG.exists():
+                _scan(GAME_LOG)
+
+            self.sleep_events.sort(key=lambda s: s.get("timestamp_dt", ""))
+            if self.sleep_events:
+                self._save_to_disk()
+
+    def get_sleep_events(self) -> List[Dict[str, Any]]:
+        """Return thread-safe copy of recorded sleep events."""
+        with self.lock:
+            return list(self.sleep_events)
 
     def _backfill_boss_locations_if_needed(self) -> None:
         """Backfill discovered boss locations from logs if unpopulated or missing."""
@@ -1035,18 +1086,27 @@ class WorldStatsTracker:
             # 2. Check World Day & Night Sleep
             m_day = RE_DAY.match(line)
             if m_day:
-                ts_str, time_str, day_num_str, skip_speed_str = m_day.groups()
+                ts_str, time_str, day_num_str, nextm_str, skip_speed_str = m_day.groups()
                 try:
                     day_num = int(day_num_str)
                     if day_num > self.current_day:
                         self.current_day = day_num
                     self.last_day_timestamp = ts_str
+                    dt = parse_timestamp(ts_str)
                     if time_str:
                         self._saved_net_time = float(time_str)
-                        dt = parse_timestamp(ts_str)
                         self._saved_net_time_mtime = dt.timestamp() if dt else time.time()
                     if skip_speed_str and float(skip_speed_str) > 1.0:
                         self.nights_slept += 1
+
+                    self.sleep_events.append({
+                        "timestamp": ts_str,
+                        "timestamp_dt": dt.isoformat() if dt else ts_str,
+                        "net_time": float(time_str) if time_str else 0.0,
+                        "day": day_num,
+                        "nextm": float(nextm_str) if nextm_str else None,
+                        "skipspeed": float(skip_speed_str) if skip_speed_str else 1.0,
+                    })
                 except Exception:
                     pass
                 continue

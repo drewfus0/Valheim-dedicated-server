@@ -47,9 +47,11 @@ backups/
 users.json
 # Contains server passwords and playit tunnel addresses
 server_config.json
-# Auto-generated runtime session histories
+# Auto-generated runtime telemetry and session histories
 player_history.json
 server_history.json
+world_stats.json
+login_history.json
 
 # --- Temporary & Scratch Files ---
 *.tmp

@@ -282,6 +282,176 @@ class TimelineEngine:
             pass
         return None
 
+    def get_celestial_events_in_window(
+        self, start_dt: datetime.datetime, end_dt: datetime.datetime, sessions: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Compute exact in-game Sunrise (06:00) and Sunset (18:00) events during player sessions."""
+        if not sessions:
+            return []
+
+        total_seconds = max(1.0, (end_dt - start_dt).total_seconds())
+
+        # 1. Retrieve all sleep events from WORLD_STATS
+        raw_sleeps = WORLD_STATS.get_sleep_events()
+        sleeps: List[Dict[str, Any]] = []
+        for sl in raw_sleeps:
+            s_dt = parse_timestamp(sl.get("timestamp", ""))
+            if not s_dt and sl.get("timestamp_dt"):
+                try:
+                    s_dt = datetime.datetime.fromisoformat(sl["timestamp_dt"])
+                except Exception:
+                    pass
+            if s_dt:
+                sleeps.append({
+                    "dt": s_dt,
+                    "time": float(sl.get("net_time", 0.0)),
+                    "day": int(sl.get("day", 1)),
+                    "nextm": float(sl["nextm"]) if sl.get("nextm") is not None else None,
+                    "skipspeed": float(sl.get("skipspeed", 1.0)),
+                })
+        sleeps.sort(key=lambda s: s["dt"])
+
+        # 2. Collect and merge all historical & active player sessions into disjoint active intervals
+        raw_intervals: List[Tuple[datetime.datetime, datetime.datetime]] = []
+        with PLAYER_TRACKER.lock:
+            for s in PLAYER_TRACKER.sessions:
+                t1 = parse_timestamp(s.get("login_time", ""))
+                t2 = parse_timestamp(s.get("logout_time") or s.get("login_time", ""))
+                if t1 and t2 and t2 > t1:
+                    raw_intervals.append((t1, t2))
+            now = datetime.datetime.now()
+            for pname, pdata in PLAYER_TRACKER.known_players.items():
+                if pdata.get("is_online"):
+                    t_in = parse_timestamp(pdata.get("current_session_start", ""))
+                    if t_in and now > t_in:
+                        raw_intervals.append((t_in, now))
+
+        raw_intervals.sort(key=lambda x: x[0])
+        merged_intervals: List[List[datetime.datetime]] = []
+        for s_t, e_t in raw_intervals:
+            if not merged_intervals or s_t > merged_intervals[-1][1]:
+                merged_intervals.append([s_t, e_t])
+            else:
+                merged_intervals[-1][1] = max(merged_intervals[-1][1], e_t)
+
+        # 3. Identify active intervals overlapping the chunk [start_dt, end_dt]
+        chunk_overlaps: List[Tuple[datetime.datetime, datetime.datetime]] = []
+        for m_s, m_e in merged_intervals:
+            s_ov = max(start_dt, m_s)
+            e_ov = min(end_dt, m_e)
+            if e_ov > s_ov:
+                chunk_overlaps.append((s_ov, e_ov))
+
+        if not chunk_overlaps:
+            return []
+
+        events: List[Dict[str, Any]] = []
+
+        # 4. For each active segment within the chunk, resolve net_time range and celestial events
+        for s_ov, e_ov in chunk_overlaps:
+            dur_seg = (e_ov - s_ov).total_seconds()
+            if dur_seg <= 0:
+                continue
+
+            prev_sleeps = [s for s in sleeps if s["dt"] <= e_ov]
+            next_sleeps = [s for s in sleeps if s["dt"] >= s_ov]
+
+            # A. Check if players slept during this segment
+            sleeps_in_seg = [s for s in sleeps if s_ov <= s["dt"] <= e_ov]
+            for sl in sleeps_in_seg:
+                top_ratio = (end_dt - sl["dt"]).total_seconds() / total_seconds
+                top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
+                events.append({
+                    "type": "sunrise",
+                    "top_pct": top_pct,
+                    "time_str": "",
+                    "timestamp_full": sl["dt"].strftime("%m/%d/%Y %H:%M:%S"),
+                    "title": f"Sunrise · Day {sl['day'] + 1}",
+                    "sub": "",
+                    "icon": "🌄",
+                    "day": sl["day"] + 1,
+                    "timestamp_dt": sl["dt"],
+                })
+
+            # B. Determine net_time at start of this segment
+            if prev_sleeps:
+                s_anc = prev_sleeps[-1]
+                act_sec = 0.0
+                for m_s, m_e in merged_intervals:
+                    if m_e > s_anc["dt"] and m_s < s_ov:
+                        act_sec += (min(s_ov, m_e) - max(s_anc["dt"], m_s)).total_seconds()
+                base_net = s_anc["nextm"] if s_anc["nextm"] is not None else s_anc["time"]
+                net_start = base_net + act_sec
+            elif next_sleeps:
+                s_anc = next_sleeps[0]
+                act_sec = 0.0
+                for m_s, m_e in merged_intervals:
+                    if m_e > e_ov and m_s < s_anc["dt"]:
+                        act_sec += (min(s_anc["dt"], m_e) - max(e_ov, m_s)).total_seconds()
+                base_net = s_anc["time"]
+                net_end = base_net - act_sec
+                net_start = net_end - dur_seg
+            else:
+                with WORLD_STATS.lock:
+                    latest_time = WORLD_STATS._saved_net_time or float(WORLD_STATS.current_day * 1800.0)
+                    latest_mtime = datetime.datetime.fromtimestamp(WORLD_STATS._saved_net_time_mtime) if WORLD_STATS._saved_net_time_mtime else datetime.datetime.now()
+                act_sec = 0.0
+                for m_s, m_e in merged_intervals:
+                    if m_e > e_ov and m_s < latest_mtime:
+                        act_sec += (min(latest_mtime, m_e) - max(e_ov, m_s)).total_seconds()
+                net_end = latest_time - act_sec
+                net_start = net_end - dur_seg
+
+            net_end = net_start + dur_seg
+
+            # C. Detect in-game Sunrise (0.25 fraction) and Sunset (0.75 fraction)
+            d_min = int(net_start / 1800.0)
+            d_max = int(net_end / 1800.0) + 1
+
+            for d in range(d_min, d_max + 1):
+                # Sunrise: (d + 0.25) * 1800
+                sr_net = (d + 0.25) * 1800.0
+                if net_start <= sr_net <= net_end:
+                    t_offset = sr_net - net_start
+                    ev_dt = s_ov + datetime.timedelta(seconds=t_offset)
+                    # Deduplicate if sleep occurred within 120s of this morning
+                    if not any(abs((ev_dt - sl["timestamp_dt"]).total_seconds()) < 120 for sl in events if sl["type"] == "sunrise"):
+                        top_ratio = (end_dt - ev_dt).total_seconds() / total_seconds
+                        top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
+                        events.append({
+                            "type": "sunrise",
+                            "top_pct": top_pct,
+                            "time_str": "",
+                            "timestamp_full": ev_dt.strftime("%m/%d/%Y %H:%M:%S"),
+                            "title": f"Sunrise · Day {d}",
+                            "sub": "",
+                            "icon": "🌄",
+                            "day": d,
+                            "timestamp_dt": ev_dt,
+                        })
+
+                # Sunset: (d + 0.75) * 1800
+                ss_net = (d + 0.75) * 1800.0
+                if net_start <= ss_net <= net_end:
+                    t_offset = ss_net - net_start
+                    ev_dt = s_ov + datetime.timedelta(seconds=t_offset)
+                    top_ratio = (end_dt - ev_dt).total_seconds() / total_seconds
+                    top_pct = max(0.0, min(100.0, round(top_ratio * 100.0, 2)))
+                    events.append({
+                        "type": "sunset",
+                        "top_pct": top_pct,
+                        "time_str": "",
+                        "timestamp_full": ev_dt.strftime("%m/%d/%Y %H:%M:%S"),
+                        "title": "Sunset",
+                        "sub": "",
+                        "icon": "🌅",
+                        "day": d,
+                        "timestamp_dt": ev_dt,
+                    })
+
+        events.sort(key=lambda x: x["timestamp_dt"])
+        return events
+
     def get_chunk(self, before_ts: Optional[Any] = None) -> Dict[str, Any]:
         """Fetch the next timeline slice descending into the past."""
         earliest_dt = self.get_earliest_datetime()
@@ -456,6 +626,14 @@ class TimelineEngine:
                 "biome": a.get("biome", "Midgard"),
             })
 
+        # Celestial Indicators (In-Game Sunrise 06:00 & Sunset 18:00)
+        celestial_events = self.get_celestial_events_in_window(start_dt, end_dt, sessions)
+        for c_evt in celestial_events:
+            landmark_events.append(c_evt)
+
+        # Sort all landmark events chronologically descending (by top_pct, top of block to bottom)
+        landmark_events.sort(key=lambda x: x.get("top_pct", 0.0))
+
         is_end = (start_dt <= earliest_dt)
 
         return {
@@ -473,6 +651,9 @@ class TimelineEngine:
             "players": players,
             "lanes": player_lanes,
             "events": landmark_events,
+            "celestial_events_count": len(celestial_events),
+            "sunrises_in_chunk": sum(1 for e in celestial_events if e.get("type") == "sunrise"),
+            "sunsets_in_chunk": sum(1 for e in celestial_events if e.get("type") == "sunset"),
             "deaths_in_chunk": sum(len(l["deaths"]) for l in player_lanes),
             "sessions_in_chunk": sum(len(l["sessions"]) for l in player_lanes),
         }

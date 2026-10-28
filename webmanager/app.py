@@ -355,10 +355,18 @@ async def partial_tab(request: Request, tab_name: str):
     elif tab in ("timeline", "chronicles", "temporal"):
         chunk = TIMELINE_ENGINE.get_chunk()
         players = TIMELINE_ENGINE.get_all_players()
+        status = SERVER_MANAGER.get_status_data()
+        time_of_day = status.get("world_stats", {}).get("time_of_day") if status.get("world_stats") else WORLD_STATS.get_time_of_day_data()
         return templates.TemplateResponse(
             request=request,
             name="partials/timeline_tab.html",
-            context={"chunk": chunk, "players": players, "user": user},
+            context={
+                "chunk": chunk,
+                "players": players,
+                "user": user,
+                "time_of_day": time_of_day,
+                "current_day": WORLD_STATS.current_day,
+            },
         )
     else:
         raise HTTPException(status_code=404, detail="Tab not found")

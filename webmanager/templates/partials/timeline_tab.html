@@ -1,6 +1,6 @@
 {# Partial: Vertical Timeline Tab #}
 <div class="timeline-tab-wrapper">
-    <!-- Header Banner -->
+    <!-- Header Banner & Celestial Status -->
     <div class="card timeline-header-card">
         <div class="card-header" style="flex-wrap: wrap; gap: 1rem; border-bottom: none; padding-bottom: 0.5rem;">
             <div>
@@ -8,7 +8,7 @@
                     <span>⏳</span> Midgard Temporal Timeline
                 </h2>
                 <p style="margin: 0.3rem 0 0 0; font-size: 0.825rem; color: var(--text-secondary);">
-                    Live vertical chronology descending from <strong style="color: #38bdf8;">Now</strong> into the past. Tracks Viking presence, fallen comrades, and landmark realm events.
+                    Live vertical chronology descending from <strong style="color: #38bdf8;">Now</strong> into the past. Tracks Viking presence, fallen comrades, in-game sunrise/sunset transitions, and landmark realm events.
                 </p>
             </div>
             <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -18,6 +18,77 @@
                         hx-swap="innerHTML"
                         title="Reload timeline from current time">
                     <span>🔄</span> Refresh to Now
+                </button>
+            </div>
+        </div>
+
+        {% if time_of_day %}
+        <!-- Midgard Celestial In-Game Indicators -->
+        <div class="timeline-celestial-strip">
+            <div class="celestial-strip-time">
+                <span class="celestial-strip-icon">{{ time_of_day.phase_icon }}</span>
+                <div class="celestial-strip-details">
+                    <div class="celestial-strip-clock">
+                        <strong style="color: #f8fafc;">Day {{ time_of_day.current_day }}</strong>
+                        <span class="celestial-sep">•</span>
+                        <span style="font-family: var(--font-mono); color: var(--nordic-cyan);">{{ time_of_day.time_12h }}</span>
+                        <span class="celestial-clock-24">({{ time_of_day.time_24h }})</span>
+                    </div>
+                    <div class="celestial-strip-sub">
+                        <span class="celestial-phase-badge {% if time_of_day.is_day %}day{% else %}night{% endif %}">{{ time_of_day.sub_phase }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="celestial-strip-progress-wrap">
+                <div class="celestial-progress-markers">
+                    <span class="c-marker sunrise" title="Sunrise / Dawn (06:00)">🌄 Dawn 06:00</span>
+                    <span class="c-marker noon" title="Noon (12:00)">☀️ Noon 12:00</span>
+                    <span class="c-marker sunset" title="Sunset / Dusk (18:00)">🌅 Dusk 18:00</span>
+                    <span class="c-marker midnight" title="Midnight (00:00)">🌙 Night 00:00</span>
+                </div>
+                <div class="celestial-progress-track">
+                    <div class="celestial-progress-bar {% if time_of_day.is_day %}day{% else %}night{% endif %}"
+                         style="width: {{ time_of_day.phase_progress_pct }}%;"></div>
+                    <div class="celestial-orb-pin" style="left: {{ time_of_day.phase_progress_pct }}%;" title="Current In-Game Time: {{ time_of_day.time_12h }}">
+                        {{ time_of_day.phase_icon }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="celestial-strip-next">
+                <div class="celestial-countdown-badge {% if time_of_day.next_event_name == 'Sunset' %}sunset{% else %}sunrise{% endif %}"
+                     title="Next in-game celestial event transition">
+                    <span class="next-evt-icon">{{ time_of_day.next_event_icon }}</span>
+                    <span class="next-evt-label">{{ time_of_day.next_event_name }} in</span>
+                    <strong class="next-evt-time">{{ (time_of_day.seconds_to_event // 60)|string + 'm ' + (time_of_day.seconds_to_event % 60)|string + 's' if time_of_day.seconds_to_event >= 60 else (time_of_day.seconds_to_event|string) + 's' }}</strong>
+                    <span class="next-evt-clock">({{ time_of_day.next_event_time }})</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Timeline Legend & Quick Filter Strip -->
+        <div class="timeline-legend-strip">
+            <span class="legend-label">TIMELINE INDICATORS:</span>
+            <div class="timeline-legend-items">
+                <button type="button" class="legend-pill active" data-filter="all" onclick="filterTimelineEvents('all', this)" title="Show all events and celestial indicators">
+                    <span class="pill-dot all"></span> All Events
+                </button>
+                <button type="button" class="legend-pill sunrise-pill" data-filter="sunrise" onclick="filterTimelineEvents('sunrise', this)" title="Filter to in-game sunrise (06:00) indicators">
+                    <span>🌄</span> Sunrise
+                </button>
+                <button type="button" class="legend-pill sunset-pill" data-filter="sunset" onclick="filterTimelineEvents('sunset', this)" title="Filter to in-game sunset (18:00) indicators">
+                    <span>🌅</span> Sunset
+                </button>
+                <button type="button" class="legend-pill boss-pill" data-filter="boss" onclick="filterTimelineEvents('boss', this)" title="Filter to Forsaken Boss Triumphs">
+                    <span>⚔️</span> Bosses
+                </button>
+                <button type="button" class="legend-pill raid-pill" data-filter="raid" onclick="filterTimelineEvents('raid', this)" title="Filter to Raids">
+                    <span>⚡</span> Raids
+                </button>
+                <button type="button" class="legend-pill altar-pill" data-filter="altar" onclick="filterTimelineEvents('altar', this)" title="Filter to Boss Altars">
+                    <span>🗝️</span> Altars
                 </button>
             </div>
         </div>
@@ -50,4 +121,28 @@
     <div id="timeline-stream" class="timeline-stream-container">
         {% include "partials/timeline_chunk.html" %}
     </div>
+
+    <script>
+    function filterTimelineEvents(filterType, btn) {
+        if (!btn) return;
+        const container = btn.closest('.timeline-legend-items');
+        if (container) {
+            container.querySelectorAll('.legend-pill').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        const stream = document.getElementById('timeline-stream');
+        if (!stream) return;
+        const lines = stream.querySelectorAll('.timeline-event-line');
+        lines.forEach(line => {
+            const type = line.getAttribute('data-event-type') || '';
+            if (filterType === 'all') {
+                line.style.display = '';
+            } else if (filterType === 'celestial') {
+                line.style.display = (type === 'sunrise' || type === 'sunset') ? '' : 'none';
+            } else {
+                line.style.display = (type === filterType) ? '' : 'none';
+            }
+        });
+    }
+    </script>
 </div>
