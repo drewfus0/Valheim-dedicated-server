@@ -284,10 +284,10 @@ class TimelineEngine:
 
     def get_celestial_events_in_window(
         self, start_dt: datetime.datetime, end_dt: datetime.datetime, sessions: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Compute exact in-game Sunrise (06:00) and Sunset (18:00) events during player sessions."""
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Compute exact in-game Sunrise (06:00) and Sunset (18:00) events and daytime bands during player sessions."""
         if not sessions:
-            return []
+            return [], []
 
         total_seconds = max(1.0, (end_dt - start_dt).total_seconds())
 
@@ -343,9 +343,10 @@ class TimelineEngine:
                 chunk_overlaps.append((s_ov, e_ov))
 
         if not chunk_overlaps:
-            return []
+            return [], []
 
         events: List[Dict[str, Any]] = []
+        daylight_bands: List[Dict[str, Any]] = []
 
         # 4. For each active segment within the chunk, resolve net_time range and celestial events
         for s_ov, e_ov in chunk_overlaps:
@@ -449,8 +450,24 @@ class TimelineEngine:
                         "timestamp_dt": ev_dt,
                     })
 
+                # Daytime interval [sr_net, ss_net] in this segment
+                o_start = max(net_start, sr_net)
+                o_end = min(net_end, ss_net)
+                if o_start < o_end:
+                    dt_d_start = s_ov + datetime.timedelta(seconds=(o_start - net_start))
+                    dt_d_end = s_ov + datetime.timedelta(seconds=(o_end - net_start))
+                    top_end = max(0.0, min(100.0, round((end_dt - dt_d_end).total_seconds() / total_seconds * 100.0, 2)))
+                    top_start = max(0.0, min(100.0, round((end_dt - dt_d_start).total_seconds() / total_seconds * 100.0, 2)))
+                    height = max(0.5, round(top_start - top_end, 2))
+                    daylight_bands.append({
+                        "day": d,
+                        "top_pct": top_end,
+                        "height_pct": height,
+                    })
+
         events.sort(key=lambda x: x["timestamp_dt"])
-        return events
+        daylight_bands.sort(key=lambda x: x["top_pct"])
+        return events, daylight_bands
 
     def get_chunk(self, before_ts: Optional[Any] = None) -> Dict[str, Any]:
         """Fetch the next timeline slice descending into the past."""
@@ -627,7 +644,7 @@ class TimelineEngine:
             })
 
         # Celestial Indicators (In-Game Sunrise 06:00 & Sunset 18:00)
-        celestial_events = self.get_celestial_events_in_window(start_dt, end_dt, sessions)
+        celestial_events, daylight_bands = self.get_celestial_events_in_window(start_dt, end_dt, sessions)
         for c_evt in celestial_events:
             landmark_events.append(c_evt)
 
@@ -651,6 +668,7 @@ class TimelineEngine:
             "players": players,
             "lanes": player_lanes,
             "events": landmark_events,
+            "daylight_bands": daylight_bands,
             "celestial_events_count": len(celestial_events),
             "sunrises_in_chunk": sum(1 for e in celestial_events if e.get("type") == "sunrise"),
             "sunsets_in_chunk": sum(1 for e in celestial_events if e.get("type") == "sunset"),

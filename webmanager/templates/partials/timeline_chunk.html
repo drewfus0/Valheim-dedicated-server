@@ -17,35 +17,60 @@
             <span class="marker-dot"></span>
             <span class="marker-time">{{ chunk.start_time_str }}</span>
         </div>
+    </div>
 
-        <!-- In-Column Celestial Markers (Right-aligned in Time Column) -->
+    <!-- Option 2: Dedicated Narrow Celestial Spine Track -->
+    <div class="timeline-celestial-col">
         {% if chunk.events %}
-            <div class="timeline-time-celestial-overlay">
-                {% for evt in chunk.events %}
-                    {% if evt.type in ('sunrise', 'sunset') %}
-                        <div class="time-col-celestial-badge {{ evt.type }}"
-                             data-event-type="{{ evt.type }}"
-                             style="top: {{ evt.top_pct }}%;"
-                             title="{{ evt.title }} ({{ evt.timestamp_full }})">
-                            <span class="c-badge-icon">{{ evt.icon }}</span>
-                            {% if evt.type == "sunrise" %}
-                                <span class="c-badge-day">Day {{ evt.day }}</span>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
+            {% for evt in chunk.events %}
+                {% if evt.type in ('sunrise', 'sunset') %}
+                    <div class="celestial-col-badge {{ evt.type }}"
+                         data-event-type="{{ evt.type }}"
+                         style="top: {{ evt.top_pct }}%;"
+                         title="{{ evt.title }} ({{ evt.timestamp_full }})">
+                        <span class="c-badge-icon">{{ evt.icon }}</span>
+                        {% if evt.type == "sunrise" %}
+                            <span class="c-badge-val">{{ evt.day }}</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
         {% endif %}
     </div>
 
     <!-- Main Swimlanes Grid -->
     <div class="timeline-grid-area">
+        <!-- Option 3: Ambient Daylight Background Bands (Fades in/out over daytime, dark blue at night) -->
+        {% if chunk.daylight_bands %}
+            <div class="timeline-daylight-bands">
+                {% for band in chunk.daylight_bands %}
+                    <div class="timeline-daylight-band"
+                         style="top: {{ band.top_pct }}%; height: {{ band.height_pct }}%;"
+                         title="Day {{ band.day }} Daytime across Midgard (06:00 to 18:00)"></div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
         <!-- Background Lane Guides -->
         <div class="timeline-lanes-bg">
             {% for lane in chunk.lanes %}
                 <div class="timeline-lane-guide" style="border-left-color: {{ lane.player.border }};"></div>
             {% endfor %}
         </div>
+
+        <!-- Option 4: Subtle 1px Celestial Horizon Hairlines (15% Opacity, behind presence bars) -->
+        {% if chunk.events %}
+            <div class="timeline-celestial-hairlines">
+                {% for evt in chunk.events %}
+                    {% if evt.type in ('sunrise', 'sunset') %}
+                        <div class="celestial-hairline {{ evt.type }}"
+                             data-event-type="{{ evt.type }}"
+                             style="top: {{ evt.top_pct }}%;"
+                             title="{{ evt.title }} ({{ evt.timestamp_full }})"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
 
         <!-- Full-Width Horizontal Landmark Events (Bosses, Raids, Altars ONLY) -->
         {% if chunk.events %}
