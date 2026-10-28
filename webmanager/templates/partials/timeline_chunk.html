@@ -17,6 +17,25 @@
             <span class="marker-dot"></span>
             <span class="marker-time">{{ chunk.start_time_str }}</span>
         </div>
+
+        <!-- In-Column Celestial Markers (Right-aligned in Time Column) -->
+        {% if chunk.events %}
+            <div class="timeline-time-celestial-overlay">
+                {% for evt in chunk.events %}
+                    {% if evt.type in ('sunrise', 'sunset') %}
+                        <div class="time-col-celestial-badge {{ evt.type }}"
+                             data-event-type="{{ evt.type }}"
+                             style="top: {{ evt.top_pct }}%;"
+                             title="{{ evt.title }} ({{ evt.timestamp_full }})">
+                            <span class="c-badge-icon">{{ evt.icon }}</span>
+                            {% if evt.type == "sunrise" %}
+                                <span class="c-badge-day">Day {{ evt.day }}</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 
     <!-- Main Swimlanes Grid -->
@@ -28,23 +47,25 @@
             {% endfor %}
         </div>
 
-        <!-- Full-Width Horizontal Landmark Events (Bosses & Raids) -->
+        <!-- Full-Width Horizontal Landmark Events (Bosses, Raids, Altars ONLY) -->
         {% if chunk.events %}
             <div class="timeline-events-overlay">
                 {% for evt in chunk.events %}
-                    <div class="timeline-event-line {{ evt.type }}" data-event-type="{{ evt.type }}" style="top: {{ evt.top_pct }}%;" title="{{ evt.title }} ({{ evt.timestamp_full }})">
-                        <div class="timeline-event-beam {{ evt.type }}"></div>
-                        <div class="timeline-event-badge {{ evt.type }}">
-                            <span class="evt-icon">{{ evt.icon }}</span>
-                            <strong class="evt-title">{{ evt.title }}</strong>
-                            {% if evt.sub %}
-                                <span class="evt-sub">{{ evt.sub }}</span>
-                            {% endif %}
-                            {% if evt.time_str and evt.type not in ('sunrise', 'sunset') %}
-                                <span class="evt-time">{{ evt.time_str }}</span>
-                            {% endif %}
+                    {% if evt.type not in ('sunrise', 'sunset') %}
+                        <div class="timeline-event-line {{ evt.type }}" data-event-type="{{ evt.type }}" style="top: {{ evt.top_pct }}%;" title="{{ evt.title }} ({{ evt.timestamp_full }})">
+                            <div class="timeline-event-beam {{ evt.type }}"></div>
+                            <div class="timeline-event-badge {{ evt.type }}">
+                                <span class="evt-icon">{{ evt.icon }}</span>
+                                <strong class="evt-title">{{ evt.title }}</strong>
+                                {% if evt.sub %}
+                                    <span class="evt-sub">{{ evt.sub }}</span>
+                                {% endif %}
+                                {% if evt.time_str %}
+                                    <span class="evt-time">{{ evt.time_str }}</span>
+                                {% endif %}
+                            </div>
                         </div>
-                    </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% endif %}

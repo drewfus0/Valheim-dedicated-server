@@ -1178,8 +1178,8 @@ table.data-table tr:hover td {
 }
 
 .timeline-sticky-time-label {
-    width: 125px;
-    min-width: 125px;
+    width: 135px;
+    min-width: 135px;
     padding: 0.65rem 0.5rem;
     display: flex;
     align-items: center;
@@ -1270,8 +1270,8 @@ table.data-table tr:hover td {
 
 /* Time Markers Column (Left) */
 .timeline-time-col {
-    width: 125px;
-    min-width: 125px;
+    width: 135px;
+    min-width: 135px;
     position: relative;
     border-right: 1px solid var(--border-color);
     padding: 0.4rem 0.6rem;
@@ -1478,11 +1478,74 @@ table.data-table tr:hover td {
 
 /* Persistent Stream Filtering Rules (applies automatically to all currently loaded & infinitely scrolled tiles) */
 #timeline-stream.filter-hide-sunrise .timeline-event-line.sunrise,
+#timeline-stream.filter-hide-sunrise .time-col-celestial-badge.sunrise,
 #timeline-stream.filter-hide-sunset .timeline-event-line.sunset,
+#timeline-stream.filter-hide-sunset .time-col-celestial-badge.sunset,
 #timeline-stream.filter-hide-boss .timeline-event-line.boss,
 #timeline-stream.filter-hide-raid .timeline-event-line.raid,
 #timeline-stream.filter-hide-altar .timeline-event-line.altar {
     display: none !important;
+}
+
+/* In-Column Celestial Overlay & Badges (Right side of Time Column) */
+.timeline-time-celestial-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 15;
+}
+
+.time-col-celestial-badge {
+    position: absolute;
+    right: 0.35rem;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.12rem 0.42rem;
+    border-radius: var(--radius-full);
+    font-size: 0.65rem;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: default;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+}
+
+.time-col-celestial-badge:hover {
+    transform: translateY(-50%) scale(1.1);
+    z-index: 25;
+}
+
+.time-col-celestial-badge.sunrise {
+    background: rgba(38, 30, 4, 0.95);
+    border: 1px solid rgba(250, 204, 21, 0.9);
+    color: #fef9c3;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 0 8px rgba(250, 204, 21, 0.4);
+}
+
+.time-col-celestial-badge.sunset {
+    background: rgba(28, 12, 42, 0.95);
+    border: 1px solid rgba(192, 132, 252, 0.9);
+    color: #f3e8ff;
+    padding: 0.12rem 0.32rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 0 8px rgba(168, 85, 247, 0.4);
+}
+
+.time-col-celestial-badge .c-badge-icon {
+    font-size: 0.72rem;
+    line-height: 1;
+}
+
+.time-col-celestial-badge .c-badge-day {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 .timeline-event-line {
