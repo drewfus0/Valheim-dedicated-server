@@ -105,7 +105,7 @@
             </div>
             <div class="timeline-sticky-players-grid">
                 {% for player in players %}
-                    <div class="timeline-player-col-header" style="border-top-color: {{ player.color }};">
+                    <div class="timeline-player-col-header" data-player="{{ player.name }}" style="--p-color: {{ player.color }}; border-top-color: {{ player.color }};">
                         <div class="player-col-avatar">{{ player.avatar }}</div>
                         <div class="player-col-info">
                             <span class="player-col-name" style="color: {{ player.color }};">{{ player.name }}</span>
@@ -231,6 +231,37 @@
         }
 
         applyCurrentFilters();
+
+        // Interactive hover linkage between player headers and timeline lanes
+        document.addEventListener('mouseover', function(e) {
+            const header = e.target.closest('.timeline-player-col-header');
+            if (header && header.dataset.player) {
+                const p = header.dataset.player;
+                document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.add('lane-highlighted'));
+                return;
+            }
+            const bar = e.target.closest('.timeline-presence-bar');
+            if (bar && bar.dataset.player) {
+                const p = bar.dataset.player;
+                const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
+                if (h) h.classList.add('header-highlighted');
+            }
+        });
+
+        document.addEventListener('mouseout', function(e) {
+            const header = e.target.closest('.timeline-player-col-header');
+            if (header && header.dataset.player) {
+                const p = header.dataset.player;
+                document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.remove('lane-highlighted'));
+                return;
+            }
+            const bar = e.target.closest('.timeline-presence-bar');
+            if (bar && bar.dataset.player) {
+                const p = bar.dataset.player;
+                const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
+                if (h) h.classList.remove('header-highlighted');
+            }
+        });
     })();
     </script>
 </div>

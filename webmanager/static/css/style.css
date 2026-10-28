@@ -731,23 +731,26 @@ table.data-table tr:hover td {
     font-size: 0.8125rem;
     font-weight: 500;
     transition: all var(--transition-normal);
+    border: 1px solid var(--player-border, var(--border-color));
 }
 
 .player-roster-tag.online {
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+    background: var(--player-bg, rgba(16, 185, 129, 0.12));
+    border-color: var(--player-theme, rgba(16, 185, 129, 0.4));
+    box-shadow: 0 0 12px var(--player-glow, rgba(16, 185, 129, 0.2));
 }
 
 .player-roster-tag.offline {
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid var(--border-color);
-    opacity: 0.75;
+    background: rgba(15, 23, 42, 0.7);
+    border-color: var(--player-border, var(--border-color));
+    opacity: 0.85;
 }
 
-.player-roster-tag.offline:hover {
+.player-roster-tag:hover {
     opacity: 1;
-    border-color: var(--border-highlight);
+    border-color: var(--player-theme, var(--nordic-cyan)) !important;
+    box-shadow: 0 0 14px var(--player-glow, rgba(56, 189, 248, 0.4)) !important;
+    transform: translateY(-1px);
 }
 
 .player-roster-tag.player-hidden {
@@ -758,7 +761,35 @@ table.data-table tr:hover td {
 
 .player-roster-tag.player-hidden:hover {
     opacity: 0.95;
-    border-color: rgba(239, 68, 68, 0.7);
+    border-color: rgba(239, 68, 68, 0.7) !important;
+}
+
+/* Viking Theme Color Picker UI */
+.player-color-picker-wrap {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.player-color-picker-wrap:hover {
+    border-color: var(--border-highlight);
+    background: rgba(30, 41, 59, 0.85);
+    transform: scale(1.02);
+}
+
+.player-color-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
 }
 
 .player-filter-btn {
@@ -1257,13 +1288,21 @@ table.data-table tr:hover td {
 
 .timeline-player-col-header {
     padding: 0.6rem 0.75rem;
-    border-top: 3px solid #38bdf8;
+    border-top: 3px solid var(--p-color, #38bdf8);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
     gap: 0.55rem;
     background: rgba(255, 255, 255, 0.02);
     min-width: 0;
+    cursor: pointer;
+    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.timeline-player-col-header:hover,
+.timeline-player-col-header.header-highlighted {
+    background: color-mix(in srgb, var(--p-color, #38bdf8) 14%, rgba(255, 255, 255, 0.03));
+    box-shadow: inset 0 3px 0 0 var(--p-color, #38bdf8), 0 0 16px color-mix(in srgb, var(--p-color, #38bdf8) 35%, transparent);
 }
 
 .timeline-player-col-header:last-child {
@@ -1532,6 +1571,17 @@ table.data-table tr:hover td {
 .timeline-player-lane {
     position: relative;
     height: 100%;
+    transition: background var(--transition-fast);
+}
+
+.timeline-player-lane:hover,
+.timeline-player-lane.lane-highlighted {
+    background: color-mix(in srgb, var(--p-color, #38bdf8) 7%, transparent) !important;
+}
+
+.timeline-player-lane.lane-highlighted .timeline-presence-bar {
+    filter: brightness(1.2);
+    box-shadow: 0 0 14px var(--p-color, rgba(56, 189, 248, 0.5)) !important;
 }
 
 /* Presence Bars */
@@ -1546,7 +1596,7 @@ table.data-table tr:hover td {
     padding: 0 0.4rem;
     cursor: pointer;
     z-index: 10;
-    transition: transform var(--transition-fast), filter var(--transition-fast), box-shadow var(--transition-fast);
+    transition: transform var(--transition-fast), filter var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
     overflow: hidden;
 }
 
@@ -1554,6 +1604,8 @@ table.data-table tr:hover td {
     transform: scaleX(1.05);
     filter: brightness(1.25);
     z-index: 25;
+    border-color: var(--p-color, #38bdf8) !important;
+    box-shadow: 0 0 18px var(--p-color, rgba(56, 189, 248, 0.7)), 0 0 5px var(--p-color, #38bdf8) !important;
 }
 
 .presence-bar-fill {

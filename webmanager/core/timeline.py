@@ -85,10 +85,8 @@ FALLBACK_PALETTE: List[Dict[str, str]] = [
 
 
 def get_player_style(name: str, index: int = 0) -> Dict[str, str]:
-    """Retrieve player visual styling tokens."""
-    if name in PLAYER_PALETTE:
-        return PLAYER_PALETTE[name]
-    return FALLBACK_PALETTE[index % len(FALLBACK_PALETTE)]
+    """Retrieve player visual styling tokens from unified player tracker."""
+    return PLAYER_TRACKER.get_player_style(name, index)
 
 
 class TimelineEngine:

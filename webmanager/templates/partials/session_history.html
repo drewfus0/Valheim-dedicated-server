@@ -54,11 +54,16 @@
                 <tbody>
                     {% for event in status.player_sessions %}
                     <tr style="transition: background 0.15s ease;">
-                        <td style="padding: 0.6rem 0.85rem; font-weight: 600; color: var(--text-primary);">
-                            <span style="margin-right: 0.35rem;">🛡️</span> {{ event.player_name }}
-                            {% if event.steam_id %}
-                                <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.1rem;">Steam: {{ event.steam_id }}</div>
-                            {% endif %}
+                        <td style="padding: 0.6rem 0.85rem; font-weight: 600; border-left: 3px solid {{ event.player_color or '#38bdf8' }};">
+                            <div style="display: flex; align-items: center; gap: 0.45rem;">
+                                <span style="font-size: 1.05rem; line-height: 1;">{{ event.player_avatar or '🛡️' }}</span>
+                                <div>
+                                    <span style="color: {{ event.player_color or '#38bdf8' }}; font-weight: 700;">{{ event.player_name }}</span>
+                                    {% if event.steam_id %}
+                                        <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.1rem;">Steam: {{ event.steam_id }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
                         <td style="padding: 0.6rem 0.85rem;">
                             {% if event.event == 'login' %}

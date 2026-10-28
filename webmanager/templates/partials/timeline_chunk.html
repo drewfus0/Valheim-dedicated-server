@@ -98,19 +98,20 @@
         <!-- Player Columns -->
         <div class="timeline-lanes-container">
             {% for lane in chunk.lanes %}
-                <div class="timeline-player-lane" data-player="{{ lane.player.name }}">
+                <div class="timeline-player-lane" data-player="{{ lane.player.name }}" style="--p-color: {{ lane.player.color }}; --p-bg: {{ lane.player.bg }}; --p-border: {{ lane.player.border }}; --p-glow: {{ lane.player.glow }};">
                     <!-- Presence Bars -->
                     {% for sess in lane.sessions %}
                         <div class="timeline-presence-bar {% if sess.is_active_now %}active-now{% endif %}"
-                             style="top: {{ sess.top_pct }}%; height: {{ sess.height_pct }}%; background: {{ lane.player.bg }}; border: 1px solid {{ lane.player.border }}; box-shadow: {{ lane.player.glow }};"
+                             data-player="{{ lane.player.name }}"
+                             style="top: {{ sess.top_pct }}%; height: {{ sess.height_pct }}%; background: var(--p-bg); border: 1px solid var(--p-border); box-shadow: var(--p-glow);"
                              title="{{ lane.player.name }}: {{ sess.start_time }} - {{ sess.end_time }} ({{ sess.duration_str }})">
-                            <div class="presence-bar-fill" style="background: {{ lane.player.color }};"></div>
+                            <div class="presence-bar-fill" style="background: var(--p-color);"></div>
                             <div class="presence-bar-label">
                                 <span class="p-time">{{ sess.start_time }}-{{ sess.end_time }}</span>
                                 <span class="p-dur">{{ sess.duration_str }}</span>
                             </div>
                             {% if sess.is_active_now %}
-                                <span class="presence-pulse-dot" style="background: {{ lane.player.color }};"></span>
+                                <span class="presence-pulse-dot" style="background: var(--p-color);"></span>
                             {% endif %}
                         </div>
                     {% endfor %}
@@ -121,7 +122,7 @@
                              style="top: {{ death.top_pct }}%;"
                              title="💀 {{ death.player_name }} died at {{ death.time_str }} ({{ death.timestamp_full }})">
                             <span class="death-skull">💀</span>
-                            <span class="death-tooltip">{{ death.player_name }} · {{ death.time_str }}</span>
+                            <span class="death-tooltip" style="border-left: 2px solid var(--p-color);">{{ death.player_name }} · {{ death.time_str }}</span>
                         </div>
                     {% endfor %}
                 </div>

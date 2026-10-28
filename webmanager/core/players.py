@@ -47,6 +47,56 @@ def format_duration(seconds: Optional[int]) -> str:
     return f"{days}d {hrs:02d}h"
 
 
+# Curated palette of unique Viking colors and avatars
+DEFAULT_PLAYER_PALETTES: List[Dict[str, str]] = [
+    {"name": "Sky Cyan", "color": "#38bdf8", "avatar": "🛡️"},
+    {"name": "Emerald Mint", "color": "#34d399", "avatar": "⚔️"},
+    {"name": "Amber Gold", "color": "#fbbf24", "avatar": "🏹"},
+    {"name": "Amethyst Purple", "color": "#c084fc", "avatar": "⚡"},
+    {"name": "Rose Ruby", "color": "#fb7185", "avatar": "🪓"},
+    {"name": "Flaming Orange", "color": "#f97316", "avatar": "🔥"},
+    {"name": "Hot Pink", "color": "#f472b6", "avatar": "🗡️"},
+    {"name": "Lime Green", "color": "#a3e635", "avatar": "🌿"},
+    {"name": "Teal Wave", "color": "#2dd4bf", "avatar": "🌊"},
+    {"name": "Cobalt Blue", "color": "#60a5fa", "avatar": "🧭"},
+    {"name": "Violet Rune", "color": "#a855f7", "avatar": "🔮"},
+    {"name": "Crimson Blood", "color": "#ef4444", "avatar": "🩸"},
+]
+
+NAMED_PLAYER_DEFAULTS: Dict[str, Dict[str, str]] = {
+    "Drewfus": {"color": "#38bdf8", "avatar": "🛡️"},
+    "Pentone": {"color": "#34d399", "avatar": "⚔️"},
+    "Shrub Nubbins": {"color": "#fbbf24", "avatar": "🏹"},
+    "BiG BeRtHa": {"color": "#c084fc", "avatar": "⚡"},
+    "Redmane": {"color": "#fb7185", "avatar": "🪓"},
+}
+
+
+def hex_to_rgb(hex_str: str) -> Tuple[int, int, int]:
+    """Convert hex color string to RGB integer tuple."""
+    h = hex_str.strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    try:
+        val = int(h, 16)
+        return ((val >> 16) & 255, (val >> 8) & 255, val & 255)
+    except Exception:
+        return (56, 189, 248)
+
+
+def build_player_style_tokens(color: str, avatar: str = "🛡️") -> Dict[str, str]:
+    """Build standardized CSS styling tokens for a given color and avatar."""
+    r, g, b = hex_to_rgb(color)
+    return {
+        "color": color,
+        "avatar": avatar or "🛡️",
+        "bg": f"rgba({r}, {g}, {b}, 0.22)",
+        "border": f"rgba({r}, {g}, {b}, 0.6)",
+        "glow": f"0 0 12px rgba({r}, {g}, {b}, 0.55)",
+        "rgb": f"{r}, {g}, {b}",
+    }
+
+
 class PlayerTracker:
     """Thread-safe persistent player tracker and log event parser with Steam ID correlation."""
 
@@ -92,6 +142,17 @@ class PlayerTracker:
                         if s_id:
                             self.player_to_steam_id[p_name] = s_id
                             self.steam_id_to_player[s_id] = p_name
+
+                    # Ensure all known players have a unique color and avatar
+                    need_save = False
+                    for idx, (p_name, p_data) in enumerate(self.known_players.items()):
+                        if not p_data.get("color"):
+                            st = self.get_player_style(p_name, idx)
+                            p_data["color"] = st["color"]
+                            p_data["avatar"] = st["avatar"]
+                            need_save = True
+                    if need_save and self.auto_load:
+                        self._save_to_disk()
             except Exception as e:
                 print(f"[PlayerTracker] Error loading {PLAYER_HISTORY_FILE}: {e}")
 
@@ -324,10 +385,13 @@ class PlayerTracker:
             self.deleted_players.remove(player_name)
         s_id = self.player_to_steam_id.get(player_name)
         if player_name not in self.known_players:
+            init_style = self.get_player_style(player_name)
             self.known_players[player_name] = {
                 "name": player_name,
                 "steam_id": s_id,
                 "is_hidden": False,
+                "color": init_style["color"],
+                "avatar": init_style["avatar"],
                 "first_seen": ts_str,
                 "last_seen": ts_str,
                 "is_online": True,
@@ -370,10 +434,13 @@ class PlayerTracker:
         now_dt = parse_timestamp(ts_str)
         s_id = steam_id or self.player_to_steam_id.get(player_name)
         if player_name not in self.known_players:
+            init_style = self.get_player_style(player_name)
             self.known_players[player_name] = {
                 "name": player_name,
                 "steam_id": s_id,
                 "is_hidden": False,
+                "color": init_style["color"],
+                "avatar": init_style["avatar"],
                 "first_seen": ts_str,
                 "last_seen": ts_str,
                 "is_online": True,
@@ -494,7 +561,7 @@ class PlayerTracker:
             now = datetime.datetime.now()
             all_players_list: List[Dict[str, Any]] = []
 
-            for name, data in self.known_players.items():
+            for idx, (name, data) in enumerate(self.known_players.items()):
                 is_online = data.get("is_online", False) and server_running
                 is_hidden = bool(data.get("is_hidden", False))
 
@@ -508,6 +575,7 @@ class PlayerTracker:
                         session_time_str = format_duration(diff)
 
                 steam_id = data.get("steam_id") or self.player_to_steam_id.get(name)
+                style = self.get_player_style(name, idx)
 
                 all_players_list.append(
                     {
@@ -515,6 +583,12 @@ class PlayerTracker:
                         "steam_id": steam_id,
                         "is_online": is_online,
                         "is_hidden": is_hidden,
+                        "color": style["color"],
+                        "avatar": style["avatar"],
+                        "bg": style["bg"],
+                        "border": style["border"],
+                        "glow": style["glow"],
+                        "rgb": style["rgb"],
                         "first_seen": data.get("first_seen", "--"),
                         "last_seen": data.get("last_seen", "--"),
                         "session_time": session_time_str,
@@ -539,11 +613,18 @@ class PlayerTracker:
                 p_name = evt.get("player_name", "")
                 s_id = evt.get("steam_id") or self.player_to_steam_id.get(p_name)
                 is_p_hidden = self.known_players.get(p_name, {}).get("is_hidden", False)
+                p_style = self.get_player_style(p_name)
 
                 recent_events.append(
                     {
                         "id": evt.get("id"),
                         "player_name": p_name,
+                        "player_color": p_style["color"],
+                        "player_avatar": p_style["avatar"],
+                        "player_bg": p_style["bg"],
+                        "player_border": p_style["border"],
+                        "player_glow": p_style["glow"],
+                        "player_rgb": p_style["rgb"],
                         "steam_id": s_id,
                         "is_hidden": is_p_hidden,
                         "event": e_type,
@@ -571,6 +652,52 @@ class PlayerTracker:
                 "recent_events": recent_events,
                 "total_deaths": total_deaths,
             }
+
+    def get_player_style(self, player_name: str, index: int = 0) -> Dict[str, str]:
+        """Retrieve player visual styling tokens (color, avatar, bg, border, glow, rgb)."""
+        with self.lock:
+            key = self._find_player_key(player_name) or player_name
+            p_data = self.known_players.get(key, {})
+
+            color = p_data.get("color")
+            avatar = p_data.get("avatar")
+
+            if not color:
+                if key in NAMED_PLAYER_DEFAULTS:
+                    color = NAMED_PLAYER_DEFAULTS[key]["color"]
+                    if not avatar:
+                        avatar = NAMED_PLAYER_DEFAULTS[key]["avatar"]
+                else:
+                    idx = index if index > 0 else (abs(hash(key.lower())) % len(DEFAULT_PLAYER_PALETTES))
+                    palette = DEFAULT_PLAYER_PALETTES[idx % len(DEFAULT_PLAYER_PALETTES)]
+                    color = palette["color"]
+                    if not avatar:
+                        avatar = palette["avatar"]
+
+            return build_player_style_tokens(color, avatar or "🛡️")
+
+    def set_player_color(self, player_name: str, color: str, avatar: Optional[str] = None) -> bool:
+        """Set a custom unique color and optional avatar for a player."""
+        with self.lock:
+            key = self._find_player_key(player_name)
+            if not key:
+                return False
+            cleaned_color = color.strip()
+            if not cleaned_color.startswith("#"):
+                cleaned_color = f"#{cleaned_color}"
+            hex_part = cleaned_color.lstrip("#")
+            if len(hex_part) not in (3, 6):
+                return False
+            try:
+                int(hex_part, 16)
+            except ValueError:
+                return False
+
+            self.known_players[key]["color"] = cleaned_color
+            if avatar:
+                self.known_players[key]["avatar"] = avatar
+            self._save_to_disk()
+            return True
 
     def _find_player_key(self, player_name: str) -> Optional[str]:
         """Case-insensitive player key lookup."""

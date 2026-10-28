@@ -646,6 +646,42 @@ async def player_unhide(request: Request, player_name: str):
     )
 
 
+@app.post("/api/players/set-color/{player_name:path}", response_class=HTMLResponse)
+async def player_set_color(request: Request, player_name: str):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+
+    user = get_current_user_from_request(request)
+    if not user or user.get("role") != "admin":
+        return HTMLResponse(content="Unauthorized: Admin access required", status_code=403)
+
+    target_name = unquote(player_name).strip()
+    form = await request.form()
+    color = str(form.get("color", "")).strip()
+
+    if not color:
+        headers = make_toast_headers("Valid color is required.", "danger")
+    else:
+        success = PLAYER_TRACKER.set_player_color(target_name, color)
+        if success:
+            headers = make_toast_headers(
+                f"Updated unique color theme for Viking '{target_name}'.",
+                "success",
+                playersUpdated=True,
+            )
+        else:
+            headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
+
+    status = SERVER_MANAGER.get_status_data()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/players_tab.html",
+        context={"status": status, "user": user},
+        headers=headers,
+    )
+
+
 @app.post("/api/players/delete/{player_name:path}", response_class=HTMLResponse)
 @app.delete("/api/players/delete/{player_name:path}", response_class=HTMLResponse)
 async def player_delete(request: Request, player_name: str):

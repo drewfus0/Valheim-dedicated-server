@@ -102,22 +102,28 @@
                         {% if not player.is_hidden or (user and user.role == 'admin') %}
                         <tr style="transition: background 0.15s ease; {% if player.is_hidden %}opacity: 0.85; background: rgba(239, 68, 68, 0.04);{% endif %}"
                             data-player-hidden="{{ 'true' if player.is_hidden else 'false' }}">
-                            <td style="padding: 0.65rem 1rem; font-weight: 600; color: var(--text-primary);">
-                                <span style="margin-right: 0.4rem;">{% if player.is_online %}🛡️{% else %}👤{% endif %}</span>
-                                {{ player.name }}
-                                {% if player.is_hidden %}
-                                    <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px dashed rgba(239, 68, 68, 0.4); font-size: 0.68rem; padding: 0.08rem 0.35rem; margin-left: 0.35rem; vertical-align: middle;">
-                                        👁️‍🗨️ Hidden
-                                    </span>
-                                {% endif %}
-                                {% if player.steam_id %}
-                                    <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.15rem;">Steam: {{ player.steam_id }}</div>
-                                {% endif %}
+                            <td style="padding: 0.65rem 1rem; font-weight: 600; border-left: 3px solid {{ player.color }};">
+                                <div style="display: flex; align-items: center; gap: 0.55rem;">
+                                    <span style="font-size: 1.2rem; line-height: 1;" title="{{ player.name }}'s Viking Sigil">{{ player.avatar }}</span>
+                                    <div style="display: flex; flex-direction: column;">
+                                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                            <strong style="color: {{ player.color }}; font-size: 0.9rem;">{{ player.name }}</strong>
+                                            {% if player.is_hidden %}
+                                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px dashed rgba(239, 68, 68, 0.4); font-size: 0.68rem; padding: 0.08rem 0.35rem; vertical-align: middle;">
+                                                    👁️‍🗨️ Hidden
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        {% if player.steam_id %}
+                                            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: normal; margin-top: 0.15rem;">Steam: {{ player.steam_id }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </td>
                             <td style="padding: 0.65rem 1rem;">
                                 {% if player.is_online %}
-                                    <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.75rem; padding: 0.15rem 0.55rem; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                        <span class="viking-pulse online"></span> Online{% if player.session_time %} ({{ player.session_time }}){% endif %}
+                                    <span class="badge" style="background: {{ player.bg }}; color: {{ player.color }}; border: 1px solid {{ player.border }}; font-size: 0.75rem; padding: 0.15rem 0.55rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                        <span class="viking-pulse online" style="background-color: {{ player.color }}; box-shadow: 0 0 8px {{ player.color }};"></span> Online{% if player.session_time %} ({{ player.session_time }}){% endif %}
                                     </span>
                                 {% else %}
                                     <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.75rem; padding: 0.15rem 0.55rem;">
@@ -149,6 +155,21 @@
                             {% if user and user.role == 'admin' %}
                             <td style="padding: 0.65rem 1rem; text-align: right;">
                                 <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                                    <!-- Interactive Viking Theme Color Picker -->
+                                    <form style="margin: 0; display: inline-flex; align-items: center;"
+                                          hx-post="/api/players/set-color/{{ player.name | urlencode }}"
+                                          hx-target="#tab-players"
+                                          hx-swap="outerHTML">
+                                        <label class="player-color-picker-wrap" title="Change {{ player.name }}'s unique theme color">
+                                            <input type="color"
+                                                   name="color"
+                                                   value="{{ player.color }}"
+                                                   onchange="this.form.requestSubmit()"
+                                                   style="opacity: 0; width: 0; height: 0; position: absolute; pointer-events: none;">
+                                            <span class="player-color-dot" style="background-color: {{ player.color }}; box-shadow: 0 0 8px {{ player.glow }};"></span>
+                                            <span style="font-family: var(--font-mono); font-size: 0.72rem; color: {{ player.color }}; font-weight: 600;">{{ player.color }}</span>
+                                        </label>
+                                    </form>
                                     {% if player.is_hidden %}
                                     <button type="button"
                                             class="btn btn-secondary btn-sm"
