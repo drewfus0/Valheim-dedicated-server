@@ -140,3 +140,11 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - **Check Logs Stream**: `curl -N http://127.0.0.1:8080/api/stream/logs`
 - **Tail Log**: `tail -n 50 valheim_server.log`
 - **Check Processes**: `ps aux | grep -E "valheim|uvicorn"`
+
+---
+
+## Development & Git Commit Workflow Rules
+
+- **Commit on Task Completion**: On completing any task or user request, create a git commit (or multiple focused, atomic commits if appropriate for clarity and logical flow) to the local git repository.
+- **Commit Formatting**: Use clear, conventional commit messages (e.g. `feat: ...`, `fix: ...`, `style: ...`, `docs: ...`).
+- **Clean Working Tree**: Ensure no temporary or scratch files are left uncommitted or untracked before wrapping up tasks.
