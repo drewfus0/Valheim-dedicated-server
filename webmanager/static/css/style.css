@@ -1415,13 +1415,13 @@ table.data-table tr:hover td {
     left: 0;
     right: 0;
     pointer-events: none;
-    background: linear-gradient(to top,
-            rgba(200, 0, 0, 1) 0%,
-            rgba(250, 204, 21, 1) 25%,
-            rgba(250, 204, 21, 1) 75%,
-            rgba(200, 0, 0, 1) 100%);
-    opacity: .5;
-    /*background: rgba(250, 204, 21, 0.25);*/
+    /*background: linear-gradient(to top,
+                rgba(200, 0, 0, 1) 0%,
+                rgba(250, 204, 21, 1) 25%,
+                rgba(250, 204, 21, 1) 75%,
+                rgba(200, 0, 0, 1) 100%);*/
+
+    background: rgb(250, 204, 21, 0.14);
     transition: opacity 0.3s ease;
 }
 
