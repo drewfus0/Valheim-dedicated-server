@@ -34,7 +34,7 @@ if __name__ == "__main__":
         app_dir=str(WEB_DIR),
         reload=True,
         reload_dirs=[str(WEB_DIR)],
-        reload_includes=["*.py", "*.html", "*.css", "*.js"],
+        reload_includes=["*.py"],
         reload_excludes=[".venv/*", "*__pycache__*", "*.log"],
         proxy_headers=True,
         forwarded_allow_ips="*",
