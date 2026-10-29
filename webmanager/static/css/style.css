@@ -3217,3 +3217,501 @@ table.data-table tr:hover td {
 .celestial-cycle-bar:hover {
     border-color: rgba(255, 255, 255, 0.12);
 }
+
+/* ==========================================================================
+   World Map Tab & Leaflet Viking Theme Overrides
+   ========================================================================== */
+
+.map-toolbar-card {
+    padding: 1rem 1.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.map-toolbar-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.map-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.map-brand-icon {
+    font-size: 1.85rem;
+    filter: drop-shadow(0 2px 8px rgba(6, 182, 212, 0.4));
+}
+
+.map-coord-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(6, 182, 212, 0.35);
+    border-radius: var(--radius-full);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--nordic-cyan);
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+    transition: all 0.2s ease;
+}
+
+.map-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.map-filter-subbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-wrap: wrap;
+}
+
+.map-search-box {
+    position: relative;
+    flex: 1 1 240px;
+    min-width: 200px;
+}
+
+.map-search-box .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.5;
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.map-search-box input {
+    padding-left: 2.2rem;
+    height: 34px;
+    font-size: 0.8125rem;
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+}
+
+.map-filters-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.map-select {
+    height: 34px;
+    padding: 0 0.65rem;
+    font-size: 0.8125rem;
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.map-layer-toggles {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-left: auto;
+    font-size: 0.8125rem;
+}
+
+.layer-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-secondary);
+    transition: color 0.15s ease;
+}
+
+.layer-toggle-label:hover {
+    color: var(--text-primary);
+}
+
+.layer-toggle-label input[type="checkbox"] {
+    accent-color: var(--nordic-cyan);
+    cursor: pointer;
+}
+
+/* Map Viewport & Drawer Layout */
+.map-viewport-wrapper {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 250px);
+    min-height: 600px;
+    background: #06090e;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg), 0 0 30px rgba(0, 0, 0, 0.6);
+}
+
+.world-map-canvas {
+    width: 100%;
+    height: 100%;
+    background: #040609 !important;
+}
+
+/* Leaflet Overrides */
+.leaflet-container {
+    background: #040609 !important;
+    font-family: var(--font-sans) !important;
+}
+
+.leaflet-control-zoom {
+    border: 1px solid var(--border-color) !important;
+    box-shadow: var(--shadow-md) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden;
+    margin: 1rem !important;
+}
+
+.leaflet-control-zoom a {
+    background: rgba(17, 24, 39, 0.9) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+    backdrop-filter: blur(8px);
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+    font-size: 16px !important;
+    transition: all 0.15s ease !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: var(--bg-surface-elevated) !important;
+    color: var(--nordic-cyan) !important;
+}
+
+/* Custom Marker Pins */
+.valheim-spawn-icon-wrapper,
+.valheim-portal-icon-wrapper {
+    background: transparent;
+    border: none;
+}
+
+.spawn-marker-pin {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.spawn-pulse {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, rgba(16, 185, 129, 0) 75%);
+    animation: pulse-ring 2.5s infinite;
+}
+
+.spawn-badge {
+    width: 32px;
+    height: 32px;
+    background: rgba(16, 185, 129, 0.25);
+    border: 2px solid #10b981;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.7);
+    transition: transform 0.2s ease;
+}
+
+.spawn-marker-pin:hover .spawn-badge {
+    transform: scale(1.15);
+    border-color: #34d399;
+}
+
+@keyframes pulse-ring {
+    0% { transform: scale(0.85); opacity: 0.8; }
+    50% { transform: scale(1.35); opacity: 0.2; }
+    100% { transform: scale(0.85); opacity: 0.8; }
+}
+
+/* Portal Marker Pin */
+.portal-marker-pin {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.portal-halo {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--portal-color, #38bdf8) 0%, transparent 70%);
+    opacity: 0.35;
+    transition: all 0.2s ease;
+}
+
+.portal-gem {
+    width: 24px;
+    height: 24px;
+    background: rgba(17, 24, 39, 0.9);
+    border: 1.8px solid var(--portal-color, #38bdf8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: var(--portal-color, #38bdf8);
+    box-shadow: 0 0 10px var(--portal-color, #38bdf8);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    z-index: 2;
+}
+
+.portal-player-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid #111827;
+    font-size: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+}
+
+.portal-marker-pin.is-solo .portal-gem {
+    border-style: dashed;
+    border-color: #fbbf24;
+    color: #fbbf24;
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+
+.portal-marker-pin:hover .portal-gem {
+    transform: scale(1.22);
+    box-shadow: 0 0 18px var(--portal-color, #38bdf8);
+}
+
+.portal-pin-bounce {
+    animation: pin-bounce 0.6s ease 3;
+}
+
+@keyframes pin-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* Custom Tooltips & Popups */
+.viking-portal-tooltip,
+.viking-line-tooltip {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-md) !important;
+    padding: 0.35rem 0.6rem !important;
+    backdrop-filter: blur(8px);
+}
+
+.leaflet-tooltip-top:before {
+    border-top-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+.leaflet-popup-content-wrapper {
+    background: rgba(17, 24, 39, 0.96) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-xl), 0 0 25px rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(12px) !important;
+    color: var(--text-primary) !important;
+    padding: 0 !important;
+}
+
+.leaflet-popup-content {
+    margin: 0 !important;
+    line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+    background: rgba(17, 24, 39, 0.96) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.viking-map-popup {
+    padding: 1rem 1.15rem;
+    min-width: 250px;
+}
+
+.viking-map-popup .popup-header {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.viking-map-popup .popup-header h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.viking-map-popup .popup-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.viking-map-popup .popup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    font-size: 0.8125rem;
+}
+
+.viking-map-popup .popup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.viking-map-popup .popup-destinations {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.popup-dest-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--nordic-cyan);
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+}
+
+.popup-dest-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.35rem;
+}
+
+/* Collapsible Portal Directory Drawer */
+.map-portal-drawer {
+    position: absolute;
+    top: 0;
+    right: -340px;
+    width: 340px;
+    height: 100%;
+    background: rgba(17, 24, 39, 0.94);
+    backdrop-filter: blur(12px);
+    border-left: 1px solid var(--border-color);
+    z-index: 1000;
+    transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+}
+
+.map-portal-drawer.open {
+    right: 0;
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.drawer-portal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.drawer-portal-item:hover {
+    background: var(--bg-surface-elevated);
+    border-color: rgba(6, 182, 212, 0.4);
+    transform: translateX(-2px);
+}
+
+.drawer-portal-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.portal-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.portal-status-dot.is-linked {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+}
+
+.portal-status-dot.is-solo {
+    background: #f59e0b;
+    box-shadow: 0 0 6px #f59e0b;
+}
+
+.drawer-portal-tag {
+    font-size: 0.82rem;
+    color: var(--text-primary);
+}
+
+.drawer-portal-meta {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.drawer-portal-btn {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+}

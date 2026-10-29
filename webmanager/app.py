@@ -40,6 +40,7 @@ from core.backups import (
 )
 from core.config import load_config
 from core.logs import log_stream_generator
+from core.map import get_world_map_data
 from core.paths import SERVER_HISTORY_LOG
 from core.players import PLAYER_TRACKER
 from core.playit import start_playit_monitor
@@ -303,6 +304,13 @@ async def partial_tab(request: Request, tab_name: str):
             request=request,
             name="partials/dashboard_tab.html",
             context={"status": status, "config": status["config"], "user": user},
+        )
+    elif tab in ("map", "world-map"):
+        map_data = get_world_map_data()
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/map_tab.html",
+            context={"map_data": map_data, "user": user},
         )
     elif tab in ("saga", "world-saga", "world"):
         status = SERVER_MANAGER.get_status_data()
@@ -1433,3 +1441,21 @@ async def api_server_history_log(request: Request):
     with open(SERVER_HISTORY_LOG, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
     return Response(content=content, media_type="text/plain")
+
+
+@app.get("/api/map/data")
+async def get_map_telemetry(request: Request):
+    user = get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return get_world_map_data()
+
+
+@app.post("/api/map/refresh")
+async def refresh_map_telemetry(request: Request):
+    user = get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    data = get_world_map_data(force_refresh=True)
+    return {"success": True, "stats": data["stats"]}
+

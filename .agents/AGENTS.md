@@ -29,6 +29,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── server.py        # Valheim process supervisor (SIGINT shutdown, PID attachment)
 │   │   ├── server_history.py # Server run session & world save event tracking
 │   │   ├── world_stats.py   # World telemetry, in-game clock, celestial sunset/sunrise & boss sagas
+│   │   ├── map.py           # World map coordinate calibration & active chunk portal extractor
 │   │   ├── logs.py          # Reverse-seeking log tailer & SSE stream generator
 │   │   └── backups.py       # Backup lifecycle (create, list, download, restore, delete)
 │   ├── templates/           # Jinja2 HTML Templates & HTMX Partials
@@ -36,6 +37,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── index.html       # Assembled dashboard tabs
 │   │   ├── login.html       # Viking dark authentication screen
 │   │   └── partials/        # Reactive HTMX components
+│   │       ├── map_tab.html
 │   │       ├── status_card.html
 │   │       ├── header_status.html
 │   │       ├── server_history.html
@@ -128,6 +130,9 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - `DELETE /api/backups/delete/{filename}`: Deletes a backup archive.
 - `GET /api/backups/download/{filename}`: Direct download of backup zip archive.
 - `GET /api/stream/logs`: Server-Sent Events (SSE) live stream of `valheim_server.log`.
+- `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with real-time coordinate HUD, filterable POIs, and portal directory.
+- `GET /api/map/data`: Returns full world map dataset, spawn altar coordinates, and active portal networks with builder identities and paired routes.
+- `POST /api/map/refresh`: Re-scans the active world chunk file (`00_01__*.chunk`) to invalidate cache and refresh portals.
 - `GET /api/status`, `GET /api/config`, `GET /api/backups`, `GET /api/logs`: JSON REST endpoints for backwards compatibility.
 
 ---

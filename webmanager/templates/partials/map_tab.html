@@ -1,0 +1,128 @@
+<div class="tab-panel active" id="tab-map">
+    <!-- Top Telemetry & Controls Toolbar -->
+    <div class="card map-toolbar-card" style="margin-bottom: 1rem;">
+        <div class="map-toolbar-row">
+            <div class="map-toolbar-left">
+                <div class="map-title-wrap">
+                    <span class="map-brand-icon">🗺️</span>
+                    <div>
+                        <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                            Midgard World Map
+                            <span class="badge badge-info" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;">
+                                {{ map_data.world_name }}
+                            </span>
+                        </h2>
+                        <div class="map-meta-sub" style="font-size: 0.78rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.75rem; margin-top: 0.2rem;">
+                            <span>Seed: <strong style="color: var(--nordic-gold); font-family: var(--font-mono);">{{ map_data.seed }}</strong></span>
+                            <span>&bull;</span>
+                            <span>⚡ Portals: <strong style="color: var(--nordic-cyan);" id="map-total-count">{{ map_data.stats.total_portals }}</strong> (<span style="color: #34d399;">{{ map_data.stats.linked_portals }} linked</span>, <span style="color: #fbbf24;">{{ map_data.stats.solo_portals }} solo</span>)</span>
+                            <span>&bull;</span>
+                            <span>🏛️ Spawn: <strong style="color: var(--text-primary);">[90.8, 36.0]</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- In-Game Real-Time Coordinate HUD -->
+            <div class="map-coord-pill" id="map-coord-hud" title="Move your mouse over Midgard to inspect in-game coordinates">
+                <span>🧭 Move mouse over map for coordinates</span>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="map-toolbar-actions">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="flyToSpawn()" title="Center camera on Sacrificial Stones">
+                    🏛️ Spawn
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="drawer-toggle-btn" onclick="togglePortalDrawer()" title="View full list of all portals">
+                    📜 Portal Directory
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="map-refresh-btn" onclick="refreshMapData()" title="Re-scan world save chunk for new portals">
+                    🔄 Refresh
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleMapFullscreen()" title="Toggle Fullscreen Map">
+                    ⛶ Fullscreen
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter & Search Sub-Bar -->
+        <div class="map-filter-subbar">
+            <div class="map-search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" 
+                       id="map-portal-search" 
+                       class="form-control" 
+                       placeholder="Search portal tags or builders (e.g. Misty, River, Drewfus)..." 
+                       oninput="applyMapFilters()">
+            </div>
+
+            <div class="map-filters-group">
+                <select id="map-player-filter" class="form-control map-select" onchange="applyMapFilters()">
+                    <option value="all">🛡️ All Builders</option>
+                </select>
+
+                <select id="map-status-filter" class="form-control map-select" onchange="applyMapFilters()">
+                    <option value="all">⚡ All Statuses</option>
+                    <option value="linked">⚡ Linked Networks Only</option>
+                    <option value="solo">◇ Solo / Unmatched Only</option>
+                </select>
+            </div>
+
+            <!-- Layer Toggles -->
+            <div class="map-layer-toggles">
+                <label class="layer-toggle-label">
+                    <input type="checkbox" id="toggle-layer-portals" checked onchange="toggleMapLayer('portals')">
+                    <span>⚡ Portals</span>
+                </label>
+                <label class="layer-toggle-label">
+                    <input type="checkbox" id="toggle-layer-lines" checked onchange="toggleMapLayer('lines')">
+                    <span>〰️ Routes</span>
+                </label>
+                <label class="layer-toggle-label">
+                    <input type="checkbox" id="toggle-layer-spawn" checked onchange="toggleMapLayer('spawn')">
+                    <span>🏛️ Spawn</span>
+                </label>
+                <span class="badge" id="map-filtered-count" style="font-size: 0.75rem; background: var(--bg-surface-elevated); color: var(--text-secondary); border: 1px solid var(--border-color);">
+                    {{ map_data.stats.total_portals }} / {{ map_data.stats.total_portals }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Viewport Wrapper with Collapsible Portal Drawer -->
+    <div class="map-viewport-wrapper" id="map-viewport-wrapper">
+        <!-- Interactive Leaflet Canvas Container -->
+        <div id="world-map-canvas" class="world-map-canvas"></div>
+
+        <!-- Collapsible Portal Directory Drawer -->
+        <div class="map-portal-drawer" id="map-portal-drawer">
+            <div class="drawer-header">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="color: var(--nordic-cyan); font-size: 1.1rem;">📜</span>
+                    <strong style="font-size: 0.95rem;">Portal Directory</strong>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePortalDrawer()">✕</button>
+            </div>
+            <div class="drawer-body" id="map-drawer-portal-list">
+                <!-- Dynamically populated by map.js -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize map immediately upon tab render
+    (function() {
+        const rawData = {{ map_data | tojson }};
+        if (typeof window.initWorldMap === 'function') {
+            window.initWorldMap('world-map-canvas', rawData);
+        } else {
+            // Wait for script if needed
+            window.addEventListener('load', function() {
+                if (typeof window.initWorldMap === 'function') {
+                    window.initWorldMap('world-map-canvas', rawData);
+                }
+            });
+        }
+    })();
+</script>

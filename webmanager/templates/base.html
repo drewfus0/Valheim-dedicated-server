@@ -13,9 +13,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/leaflet.css">
     <script src="/static/js/htmx.min.js"></script>
     <script src="/static/js/sse.js"></script>
     <script src="/static/js/timers.js"></script>
+    <script src="/static/js/leaflet.js"></script>
+    <script src="/static/js/map.js"></script>
 </head>
 <body hx-ext="sse">
     <div class="app-container">
@@ -71,6 +74,9 @@
             <button class="tab-btn active" data-tab="tab-dashboard" onclick="switchTab('tab-dashboard', this)">
                 📊 Dashboard
             </button>
+            <button class="tab-btn" data-tab="tab-map" onclick="switchTab('tab-map', this)">
+                🗺️ World Map
+            </button>
             <button class="tab-btn" data-tab="tab-saga" onclick="switchTab('tab-saga', this)">
                 🌍 World Saga
             </button>
@@ -105,6 +111,9 @@
             <div class="mobile-tab-dropdown" id="mobile-tab-dropdown">
                 <button type="button" class="mobile-tab-item active" data-tab="tab-dashboard" onclick="selectMobileTab('tab-dashboard')">
                     📊 Dashboard
+                </button>
+                <button type="button" class="mobile-tab-item" data-tab="tab-map" onclick="selectMobileTab('tab-map')">
+                    🗺️ World Map
                 </button>
                 <button type="button" class="mobile-tab-item" data-tab="tab-saga" onclick="selectMobileTab('tab-saga')">
                     🌍 World Saga
@@ -196,6 +205,7 @@
     <script>
         const TAB_SLUGS = {
             'tab-dashboard': 'dashboard',
+            'tab-map': 'map',
             'tab-saga': 'saga',
             'tab-timeline': 'timeline',
             'tab-players': 'players',
@@ -207,6 +217,7 @@
 
         const TAB_LABELS = {
             'tab-dashboard': '📊 Dashboard',
+            'tab-map': '🗺️ World Map',
             'tab-saga': '🌍 World Saga',
             'tab-timeline': '⏳ Timeline',
             'tab-players': '🛡️ Players',
@@ -218,6 +229,8 @@
 
         const SLUG_TO_TAB = {
             'dashboard': 'tab-dashboard',
+            'map': 'tab-map',
+            'world-map': 'tab-map',
             'saga': 'tab-saga',
             'world-saga': 'tab-saga',
             'world': 'tab-saga',
