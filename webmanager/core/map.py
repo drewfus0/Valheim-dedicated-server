@@ -97,70 +97,129 @@ def extract_portals_from_world(world_name: Optional[str] = None) -> List[Dict[st
         except Exception:
             pass
 
+    portal_wood_hash = struct.pack("<i", -661882940)  # GetStableHashCode("portal_wood")
+    portal_stone_hash = struct.pack("<i", 1854482458)  # GetStableHashCode("portal_stone")
     tag_hash = struct.pack("<i", 696029674)  # GetStableHashCode("tag")
+
+    # Locate all portal prefab instances in chunk
+    prefabs = []
     pos = 0
-    prev_end = 0
+    while True:
+        pw = data.find(portal_wood_hash, pos)
+        ps = data.find(portal_stone_hash, pos)
+        if pw == -1 and ps == -1:
+            break
+        if pw != -1 and (ps == -1 or pw < ps):
+            prefabs.append((pw, "portal_wood"))
+            pos = pw + 4
+        else:
+            prefabs.append((ps, "portal_stone"))
+            pos = ps + 4
+
     raw_portals = []
     idx = 0
 
-    while True:
-        pos = data.find(tag_hash, pos)
-        if pos == -1:
-            break
-        if pos + 5 > len(data):
-            break
+    if prefabs:
+        for p_idx, (p_off, p_type) in enumerate(prefabs):
+            if p_off < 12:
+                continue
 
-        slen = data[pos + 4]
-        if slen > 100:
-            pos += 4
-            continue
+            # In Valheim chunk format, the ZDO position Vector3 (x, y, z) directly precedes prefab hash
+            x, y, z = struct.unpack_from("<fff", data, p_off - 12)
+            if not (-GAME_WORLD_RADIUS <= x <= GAME_WORLD_RADIUS and -GAME_WORLD_RADIUS <= z <= GAME_WORLD_RADIUS):
+                continue
 
-        raw_tag = data[pos + 5 : pos + 5 + slen].decode("utf-8", errors="replace").strip()
-        display_tag = raw_tag if raw_tag else "(Unlabeled)"
+            next_p_off = prefabs[p_idx + 1][0] if p_idx + 1 < len(prefabs) else len(data)
+            search_end = min(p_off + 350, next_p_off)
+            zdo_window = data[p_off:search_end]
 
-        # Builder detection: check window for Steam ID
-        window = data[max(0, pos - 120) : min(len(data), pos + 120)]
-        author_m = re.search(rb"Steam_(\d+)", window)
-        author_raw = author_m.group(0).decode("ascii") if author_m else "Unknown"
-        clean_steam_id = author_raw.replace("Steam_", "")
+            # Extract portal tag
+            tag_pos = data.find(tag_hash, p_off, search_end)
+            raw_tag = ""
+            if tag_pos != -1 and tag_pos + 5 <= len(data):
+                slen = data[tag_pos + 4]
+                if slen <= 100 and tag_pos + 5 + slen <= len(data):
+                    raw_tag = data[tag_pos + 5 : tag_pos + 5 + slen].decode("utf-8", errors="replace").strip()
+            display_tag = raw_tag if raw_tag else "(Unlabeled)"
 
-        author_name = steam_id_map.get(clean_steam_id) or log_names.get(author_raw, author_raw)
-        player_style = PLAYER_TRACKER.get_player_style(author_name)
+            # Builder detection: check ZDO window for Steam ID
+            author_m = re.search(rb"Steam_(\d+)", zdo_window)
+            author_raw = author_m.group(0).decode("ascii") if author_m else "Unknown"
+            clean_steam_id = author_raw.replace("Steam_", "")
 
-        # Coordinate unpacking: find valid (x, y, z) vector preceding portal tag
-        candidate = None
-        for off in range(prev_end, pos - 11):
-            try:
-                x, y, z = struct.unpack_from("<fff", data, off)
-                if -GAME_WORLD_RADIUS <= x <= GAME_WORLD_RADIUS and -100 <= y <= 2000 and -GAME_WORLD_RADIUS <= z <= GAME_WORLD_RADIUS:
-                    if abs(x) > 1 and abs(z) > 1:
-                        candidate = (round(x, 1), round(y, 1), round(z, 1))
-            except Exception:
-                pass
+            author_name = steam_id_map.get(clean_steam_id) or log_names.get(author_raw, author_raw)
+            player_style = PLAYER_TRACKER.get_player_style(author_name)
 
-        if not candidate:
+            cand_x = round(x, 1)
+            cand_y = round(y, 1)
+            cand_z = round(z, 1)
+            px, py = game_to_map_pixel(cand_x, cand_z)
+
+            idx += 1
+            raw_portals.append({
+                "id": f"portal_{idx}",
+                "tag": display_tag,
+                "raw_tag": raw_tag,
+                "author": author_name,
+                "author_id": author_raw,
+                "author_color": player_style["color"],
+                "author_avatar": player_style["avatar"],
+                "x": cand_x,
+                "y": cand_y,
+                "z": cand_z,
+                "px": px,
+                "py": py,
+            })
+    else:
+        # Fallback for non-standard chunk formats
+        prev_end = 0
+        pos = 0
+        while True:
+            pos = data.find(tag_hash, pos)
+            if pos == -1 or pos + 5 > len(data):
+                break
+            slen = data[pos + 4]
+            if slen > 100:
+                pos += 4
+                continue
+            raw_tag = data[pos + 5 : pos + 5 + slen].decode("utf-8", errors="replace").strip()
+            display_tag = raw_tag if raw_tag else "(Unlabeled)"
+
+            window = data[max(0, pos - 120) : min(len(data), pos + 120)]
+            author_m = re.search(rb"Steam_(\d+)", window)
+            author_raw = author_m.group(0).decode("ascii") if author_m else "Unknown"
+            clean_steam_id = author_raw.replace("Steam_", "")
+            author_name = steam_id_map.get(clean_steam_id) or log_names.get(author_raw, author_raw)
+            player_style = PLAYER_TRACKER.get_player_style(author_name)
+
             candidate = (0.0, 0.0, 0.0)
+            for off in range(max(prev_end, pos - 150), pos - 11):
+                try:
+                    cx, cy, cz = struct.unpack_from("<fff", data, off)
+                    if -GAME_WORLD_RADIUS <= cx <= GAME_WORLD_RADIUS and -100 <= cy <= 2000 and -GAME_WORLD_RADIUS <= cz <= GAME_WORLD_RADIUS:
+                        if abs(cx) > 1 and abs(cz) > 1:
+                            candidate = (round(cx, 1), round(cy, 1), round(cz, 1))
+                except Exception:
+                    pass
 
-        px, py = game_to_map_pixel(candidate[0], candidate[2])
-
-        idx += 1
-        raw_portals.append({
-            "id": f"portal_{idx}",
-            "tag": display_tag,
-            "raw_tag": raw_tag,
-            "author": author_name,
-            "author_id": author_raw,
-            "author_color": player_style["color"],
-            "author_avatar": player_style["avatar"],
-            "x": candidate[0],
-            "y": candidate[1],
-            "z": candidate[2],
-            "px": px,
-            "py": py,
-        })
-
-        prev_end = pos + 5 + slen
-        pos += 4
+            px, py = game_to_map_pixel(candidate[0], candidate[2])
+            idx += 1
+            raw_portals.append({
+                "id": f"portal_{idx}",
+                "tag": display_tag,
+                "raw_tag": raw_tag,
+                "author": author_name,
+                "author_id": author_raw,
+                "author_color": player_style["color"],
+                "author_avatar": player_style["avatar"],
+                "x": candidate[0],
+                "y": candidate[1],
+                "z": candidate[2],
+                "px": px,
+                "py": py,
+            })
+            prev_end = pos + 5 + slen
+            pos += 4
 
     # Group portals by tag to identify paired links and connection routes
     by_tag: Dict[str, List[Dict[str, Any]]] = {}
