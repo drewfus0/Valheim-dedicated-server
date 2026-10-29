@@ -9,9 +9,12 @@
     let portalsLayer = null;
     let linesLayer = null;
     let allPortalsData = [];
+    let currentFilteredPortals = [];
     let portalMarkersMap = {};
     let portalLines = [];
     let currentMapData = null;
+    let currentlySelectedPortal = null;
+    let currentlyHoveredPortal = null;
 
     const MAP_WIDTH = 6144;
     const MAP_HEIGHT = 6144;
@@ -50,6 +53,7 @@
 
         currentMapData = initialData;
         allPortalsData = initialData.portals || [];
+        currentFilteredPortals = allPortalsData;
 
         // 1. Initialize Leaflet Map with Flat Simple CRS
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
@@ -95,6 +99,13 @@
             }
         });
 
+        // Deselect portal when clicking empty map canvas
+        mapInstance.on('click', function (e) {
+            if (currentlySelectedPortal && (!e.originalEvent._portalClicked)) {
+                deselectPortal();
+            }
+        });
+
         // 7. Ensure size calculation is correct after HTMX load
         setTimeout(() => {
             if (mapInstance) mapInstance.invalidateSize();
@@ -103,6 +114,7 @@
         // Populate drawer and player filter dropdown
         populatePlayerFilter(allPortalsData);
         renderPortalDrawerList(allPortalsData);
+        updateFullscreenButtonState();
     };
 
     function renderSpawn(spawn) {
@@ -160,8 +172,9 @@
         linesLayer.clearLayers();
         portalMarkersMap = {};
         portalLines = [];
+        currentFilteredPortals = portalsList;
 
-        // 1. Draw Connection Lines between paired portals first (underneath markers)
+        // 1. Connection lines: hidden by default, visible and yellow on hover or selection
         const drawnPairs = new Set();
         portalsList.forEach(p => {
             if (p.linked && p.paired_with && p.paired_with.length > 0) {
@@ -171,26 +184,63 @@
                         drawnPairs.add(pairKey);
                         const start = gameToLeaflet(p.x, p.z);
                         const end = gameToLeaflet(peer.x, peer.z);
+
+                        const isCurrentlyActive = currentlySelectedPortal && 
+                            (currentlySelectedPortal === p.id || currentlySelectedPortal === peer.id);
+
                         const polyline = L.polyline([start, end], {
-                            color: p.author_color || '#38bdf8',
-                            weight: 2.2,
-                            opacity: 0.65,
-                            dashArray: '6, 8',
-                            className: 'portal-network-route'
+                            color: '#facc15',
+                            weight: isCurrentlyActive ? 4.0 : 6.0,
+                            opacity: isCurrentlyActive ? 1.0 : 0.0, // Hidden by default, vanishes when not hovered/selected
+                            dashArray: isCurrentlyActive ? null : '8, 8',
+                            className: 'portal-network-route' + (isCurrentlyActive ? ' portal-network-route-yellow' : '')
                         }).addTo(linesLayer);
 
-                        polyline.bindTooltip(`⚡ Connected Tag: "${p.tag}" (${p.author} ↔ ${peer.author})`, {
+                        polyline.bindTooltip(`⚡ Connected Tag: "${escapeHtml(p.tag)}" (${escapeHtml(p.author)} ↔ ${escapeHtml(peer.author)}) — Click to view route`, {
                             sticky: true,
                             className: 'viking-line-tooltip'
                         });
 
-                        portalLines.push({
+                        const lineRecord = {
                             polyline,
                             pairKey,
-                            p1: p.id,
-                            p2: peer.id,
+                            p1: p,
+                            p2: peer,
+                            start,
+                            end,
                             tag: p.tag
+                        };
+
+                        // Hover on line: highlight line and both endpoints in yellow
+                        polyline.on('mouseover', function () {
+                            setLineState(lineRecord, true);
+                            highlightPinYellow(p.id, true);
+                            highlightPinYellow(peer.id, true);
                         });
+
+                        polyline.on('mouseout', function () {
+                            if (!isLineSelected(lineRecord)) {
+                                setLineState(lineRecord, false);
+                                if (currentlySelectedPortal !== p.id) highlightPinYellow(p.id, false);
+                                if (currentlySelectedPortal !== peer.id) highlightPinYellow(peer.id, false);
+                            }
+                        });
+
+                        // Click on line: select nearest endpoint and zoom to show both ends
+                        polyline.on('click', function (e) {
+                            L.DomEvent.stopPropagation(e);
+                            if (e.originalEvent) e.originalEvent._portalClicked = true;
+
+                            const sLL = L.latLng(start[0], start[1]);
+                            const eLL = L.latLng(end[0], end[1]);
+                            const d1 = e.latlng.distanceTo(sLL);
+                            const d2 = e.latlng.distanceTo(eLL);
+
+                            const nearest = d1 <= d2 ? p : peer;
+                            selectPortal(nearest.id, true);
+                        });
+
+                        portalLines.push(lineRecord);
                     }
                 });
             }
@@ -201,14 +251,15 @@
             const latlng = gameToLeaflet(p.x, p.z);
             const isLinked = p.linked;
             const pColor = p.author_color || '#38bdf8';
+            const isSelected = currentlySelectedPortal === p.id;
 
             const portalIcon = L.divIcon({
                 className: 'valheim-portal-icon-wrapper',
                 html: `
-                    <div class="portal-marker-pin ${isLinked ? 'is-linked' : 'is-solo'}" 
+                    <div class="portal-marker-pin ${isLinked ? 'is-linked' : 'is-solo'} ${isSelected ? 'portal-highlight-yellow' : ''}" 
                          id="pin-${p.id}" 
                          style="--portal-color: ${pColor};"
-                         title="Portal: ${escapeHtml(p.tag)} (${p.author})">
+                         title="Portal: ${escapeHtml(p.tag)} (${escapeHtml(p.author)})">
                         <div class="portal-halo"></div>
                         <div class="portal-gem">${isLinked ? '⚡' : '◇'}</div>
                         <span class="portal-player-badge" style="background: ${pColor};" title="Built by ${escapeHtml(p.author)}">${p.author_avatar || '🛡️'}</span>
@@ -236,7 +287,7 @@
                 className: 'viking-portal-tooltip'
             });
 
-            // Click Popup with complete Viking metadata & Destination Fly buttons
+            // Click Popup with complete Viking metadata, View Both Ends button, & Destination Fly buttons
             let pairedHtml = '';
             if (isLinked && p.paired_with && p.paired_with.length > 0) {
                 pairedHtml = `
@@ -248,9 +299,14 @@
                                     <strong style="color: ${peer.author_color || 'var(--text-primary)'};">${escapeHtml(peer.author)}</strong>'s Node
                                     <div style="font-size:0.72rem; color:var(--text-muted);">[${peer.x}, ${peer.z}] (${Math.round(distance(p.x, p.z, peer.x, peer.z))}m away)</div>
                                 </div>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="flyToPortal('${peer.id}')" title="Pan Camera to this portal">
-                                    ✈️ Fly To
-                                </button>
+                                <div style="display:flex; gap:0.3rem;">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
+                                        🔭 Both Ends
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="flyToPortal('${peer.id}')" title="Pan Camera to this portal">
+                                        ✈️ Fly To
+                                    </button>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
@@ -285,31 +341,199 @@
                             <strong>${p.y}m</strong>
                         </div>
                         ${pairedHtml}
+                        ${isLinked ? `
+                            <div style="margin-top:0.65rem; padding-top:0.5rem; border-top:1px dashed rgba(255,255,255,0.1); display:flex; gap:0.4rem;">
+                                <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
+                                    🔭 View Both Ends
+                                </button>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `);
 
-            // Highlight connected routes on hover
+            // Hover: highlight portal and connecting line in yellow. On mouseout: line vanishes!
             marker.on('mouseover', function () {
-                highlightPortalRoutes(p.id, true);
+                currentlyHoveredPortal = p.id;
+                highlightPinYellow(p.id, true);
+
+                if (isLinked && p.paired_with) {
+                    p.paired_with.forEach(peer => highlightPinYellow(peer.id, true));
+                    portalLines.forEach(l => {
+                        if (l.p1.id === p.id || l.p2.id === p.id) {
+                            setLineState(l, true);
+                        }
+                    });
+                }
             });
+
             marker.on('mouseout', function () {
-                highlightPortalRoutes(p.id, false);
+                currentlyHoveredPortal = null;
+                if (currentlySelectedPortal !== p.id) {
+                    highlightPinYellow(p.id, false);
+                    if (isLinked && p.paired_with) {
+                        p.paired_with.forEach(peer => {
+                            if (currentlySelectedPortal !== peer.id) {
+                                highlightPinYellow(peer.id, false);
+                            }
+                        });
+                        portalLines.forEach(l => {
+                            if (!isLineSelected(l)) {
+                                setLineState(l, false);
+                            }
+                        });
+                    }
+                }
+            });
+
+            // Click: select portal
+            marker.on('click', function (e) {
+                if (e.originalEvent) e.originalEvent._portalClicked = true;
+                selectPortal(p.id, false);
+            });
+
+            marker.on('popupclose', function () {
+                if (currentlySelectedPortal === p.id) {
+                    deselectPortal();
+                }
             });
         });
     }
 
-    function highlightPortalRoutes(portalId, highlight) {
-        portalLines.forEach(l => {
-            if (l.p1 === portalId || l.p2 === portalId) {
-                l.polyline.setStyle({
-                    weight: highlight ? 4.5 : 2.2,
-                    opacity: highlight ? 1.0 : 0.65,
-                    color: highlight ? 'var(--nordic-gold)' : undefined
+    function setLineState(l, isHighlighted) {
+        if (!l || !l.polyline) return;
+        if (isHighlighted) {
+            l.polyline.setStyle({
+                color: '#facc15',
+                weight: 4.0,
+                opacity: 1.0,
+                dashArray: null
+            });
+            l.polyline.bringToFront();
+        } else {
+            l.polyline.setStyle({
+                color: '#facc15',
+                weight: 6.0,
+                opacity: 0.0, // Vanished / hidden
+                dashArray: '8, 8'
+            });
+        }
+    }
+
+    function isLineSelected(l) {
+        if (!currentlySelectedPortal) return false;
+        return l.p1.id === currentlySelectedPortal || l.p2.id === currentlySelectedPortal;
+    }
+
+    function highlightPinYellow(portalId, highlight) {
+        const pin = document.getElementById(`pin-${portalId}`);
+        if (pin) {
+            if (highlight) pin.classList.add('portal-highlight-yellow');
+            else pin.classList.remove('portal-highlight-yellow');
+        }
+    }
+
+    function selectPortal(portalId, zoomToBounds = false) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p) return;
+
+        currentlySelectedPortal = portalId;
+
+        // Reset pin highlights, then highlight selected and connected peers
+        document.querySelectorAll('.portal-marker-pin').forEach(pin => {
+            pin.classList.remove('portal-highlight-yellow');
+        });
+        highlightPinYellow(portalId, true);
+
+        if (p.linked && p.paired_with) {
+            p.paired_with.forEach(peer => highlightPinYellow(peer.id, true));
+            portalLines.forEach(l => {
+                if (l.p1.id === portalId || l.p2.id === portalId) {
+                    setLineState(l, true);
+                } else {
+                    setLineState(l, false);
+                }
+            });
+
+            if (zoomToBounds && mapInstance) {
+                const points = [
+                    gameToLeaflet(p.x, p.z),
+                    ...p.paired_with.map(peer => gameToLeaflet(peer.x, peer.z))
+                ];
+                mapInstance.fitBounds(L.latLngBounds(points), {
+                    padding: [100, 100],
+                    maxZoom: 1.5,
+                    animate: true
                 });
             }
-        });
+        } else {
+            portalLines.forEach(l => setLineState(l, false));
+        }
+
+        const marker = portalMarkersMap[portalId];
+        if (marker) {
+            marker.openPopup();
+            pulseMarkerPin(portalId);
+        }
     }
+
+    function deselectPortal() {
+        currentlySelectedPortal = null;
+        document.querySelectorAll('.portal-marker-pin').forEach(pin => {
+            pin.classList.remove('portal-highlight-yellow');
+        });
+        portalLines.forEach(l => setLineState(l, false));
+    }
+
+    // Zoom out to show both ends of a portal route
+    window.zoomToShowPortalRoute = function (portalId, peerId = null) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        let points = [];
+        if (peerId) {
+            const peer = allPortalsData.find(item => item.id === peerId);
+            if (peer) {
+                points = [gameToLeaflet(p.x, p.z), gameToLeaflet(peer.x, peer.z)];
+            }
+        } else if (p.paired_with && p.paired_with.length > 0) {
+            points = [
+                gameToLeaflet(p.x, p.z),
+                ...p.paired_with.map(peer => gameToLeaflet(peer.x, peer.z))
+            ];
+        }
+
+        if (points.length >= 2) {
+            selectPortal(portalId, false);
+            mapInstance.fitBounds(L.latLngBounds(points), {
+                padding: [100, 100],
+                maxZoom: 1.5,
+                animate: true
+            });
+        } else {
+            flyToPortal(portalId);
+        }
+    };
+
+    // Zoom out to show all portals matching current search/filters
+    window.fitMatchingPortals = function () {
+        if (!mapInstance || !currentFilteredPortals || currentFilteredPortals.length === 0) {
+            if (window.showToast) window.showToast('No matching portals to fit in view', 'info');
+            return;
+        }
+
+        if (currentFilteredPortals.length === 1) {
+            flyToPortal(currentFilteredPortals[0].id);
+            return;
+        }
+
+        const points = currentFilteredPortals.map(p => gameToLeaflet(p.x, p.z));
+        mapInstance.fitBounds(L.latLngBounds(points), {
+            padding: [80, 80],
+            maxZoom: 1.5,
+            animate: true
+        });
+    };
 
     window.flyToPortal = function (portalId) {
         const p = allPortalsData.find(item => item.id === portalId);
@@ -322,11 +546,7 @@
         });
 
         setTimeout(() => {
-            const marker = portalMarkersMap[portalId];
-            if (marker) {
-                marker.openPopup();
-                pulseMarkerPin(portalId);
-            }
+            selectPortal(portalId, false);
         }, 1300);
     };
 
@@ -348,6 +568,11 @@
     window.applyMapFilters = function () {
         const searchInput = document.getElementById('map-portal-search');
         const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+        const clearBtn = document.getElementById('map-search-clear');
+        if (clearBtn) {
+            clearBtn.style.display = query.length > 0 ? 'flex' : 'none';
+        }
 
         const playerSelect = document.getElementById('map-player-filter');
         const selectedPlayer = playerSelect ? playerSelect.value : 'all';
@@ -371,11 +596,22 @@
         renderPortals(filtered);
         renderPortalDrawerList(filtered);
 
-        // Update count badge
+        // Update fit button label & count badge
+        const fitBtn = document.getElementById('map-fit-btn');
+        if (fitBtn) {
+            fitBtn.innerText = filtered.length === allPortalsData.length ? '🎯 Fit All' : `🎯 Fit (${filtered.length})`;
+        }
+
         const countBadge = document.getElementById('map-filtered-count');
         if (countBadge) {
             countBadge.textContent = `${filtered.length} / ${allPortalsData.length}`;
         }
+    };
+
+    window.clearMapSearch = function () {
+        const searchInput = document.getElementById('map-portal-search');
+        if (searchInput) searchInput.value = '';
+        applyMapFilters();
     };
 
     window.toggleMapLayer = function (layerName) {
@@ -394,13 +630,6 @@
             } else {
                 if (mapInstance.hasLayer(portalsLayer)) mapInstance.removeLayer(portalsLayer);
             }
-        } else if (layerName === 'lines') {
-            const checkbox = document.getElementById('toggle-layer-lines');
-            if (checkbox && checkbox.checked) {
-                if (!mapInstance.hasLayer(linesLayer)) linesLayer.addTo(mapInstance);
-            } else {
-                if (mapInstance.hasLayer(linesLayer)) mapInstance.removeLayer(linesLayer);
-            }
         }
     };
 
@@ -410,7 +639,7 @@
         if (!drawer) return;
         const isOpen = drawer.classList.toggle('open');
         if (btn) {
-            btn.innerHTML = isOpen ? '✕ Close Directory' : '📜 Portal Directory';
+            btn.innerHTML = isOpen ? '✕ Directory' : '📜 Directory';
         }
         setTimeout(() => {
             if (mapInstance) mapInstance.invalidateSize();
@@ -420,15 +649,35 @@
     window.toggleMapFullscreen = function () {
         const container = document.getElementById('map-viewport-wrapper');
         if (!container) return;
-        if (!document.fullscreenElement) {
-            container.requestFullscreen().catch(() => {});
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (container.requestFullscreen) {
+                container.requestFullscreen().catch(() => {});
+            } else if (container.webkitRequestFullscreen) {
+                container.webkitRequestFullscreen();
+            }
         } else {
-            document.exitFullscreen().catch(() => {});
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
         }
-        setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
-        }, 200);
     };
+
+    function updateFullscreenButtonState() {
+        const btn = document.getElementById('map-fullscreen-btn');
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (btn) {
+            btn.innerHTML = isFs ? '🗗 Exit Fullscreen' : '⛶ Fullscreen';
+            btn.title = isFs ? 'Exit Fullscreen Map' : 'Toggle Fullscreen Map';
+        }
+        if (mapInstance) {
+            setTimeout(() => mapInstance.invalidateSize(), 150);
+        }
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenButtonState);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButtonState);
 
     window.refreshMapData = async function () {
         const btn = document.getElementById('map-refresh-btn');
@@ -499,9 +748,16 @@
                         </div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" title="Center map on this portal">
-                    🎯
-                </button>
+                <div style="display:flex; gap:0.25rem;">
+                    ${p.linked ? `
+                        <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends">
+                            🔭
+                        </button>
+                    ` : ''}
+                    <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" title="Center map on this portal">
+                        🎯
+                    </button>
+                </div>
             </div>
         `).join('');
     }
