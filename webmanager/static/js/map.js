@@ -17,9 +17,9 @@
     const MAP_HEIGHT = 6144;
     const CENTER_X = 3072;
     const CENTER_Y = 3072;
-    const DISK_RADIUS_PX = 3064;
+    const DISK_RADIUS_PX = 2629.6;
     const GAME_RADIUS = 10500;
-    const SCALE = DISK_RADIUS_PX / GAME_RADIUS; // ~0.2918 px/m
+    const SCALE = DISK_RADIUS_PX / GAME_RADIUS; // ~0.25044 px/m
 
     function gameToLeaflet(x, z) {
         const px = CENTER_X + x * SCALE;

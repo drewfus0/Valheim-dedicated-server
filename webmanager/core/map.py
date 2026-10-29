@@ -14,9 +14,9 @@ MAP_IMAGE_WIDTH = 6144
 MAP_IMAGE_HEIGHT = 6144
 MAP_CENTER_X = 3072.0
 MAP_CENTER_Y = 3072.0
-MAP_DISK_RADIUS_PX = 3064.0
+MAP_DISK_RADIUS_PX = 2629.6
 GAME_WORLD_RADIUS = 10500.0  # Valheim disk edge radius in meters
-MAP_SCALE = MAP_DISK_RADIUS_PX / GAME_WORLD_RADIUS  # ~0.2918 pixels per game meter
+MAP_SCALE = MAP_DISK_RADIUS_PX / GAME_WORLD_RADIUS  # ~0.25044 pixels per game meter
 
 # Spawn location for seed 6d8gTfltRB (Sacrificial Stones altar in zone 2,0)
 DEFAULT_SPAWN = {
