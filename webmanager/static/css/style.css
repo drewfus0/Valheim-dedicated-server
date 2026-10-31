@@ -3900,3 +3900,103 @@ table.data-table tr:hover td {
     stroke-opacity: 1 !important;
     filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.9));
 }
+
+/* Deep-Zoom Portal Hub Labels, Floor Badges & Stacked Hub Controls */
+.portal-floor-badge {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1.2px solid rgba(250, 204, 21, 0.75);
+    color: #facc15;
+    font-size: 0.56rem;
+    font-weight: 800;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 4;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.portal-inline-label {
+    display: none;
+    position: absolute;
+    top: calc(100% + 1px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #f8fafc;
+    white-space: nowrap;
+    max-width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
+    z-index: 5;
+    pointer-events: auto;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.world-map-canvas.map-zoom-labels .portal-inline-label {
+    display: block;
+}
+
+.portal-marker-pin:hover .portal-inline-label,
+.portal-marker-pin.portal-highlight-yellow .portal-inline-label {
+    border-color: #facc15;
+    color: #fef08a;
+    background: rgba(36, 28, 5, 0.96);
+    max-width: 150px;
+    z-index: 30;
+}
+
+.portal-anchor-tether {
+    pointer-events: none;
+}
+
+.popup-stacked-siblings {
+    margin-top: 0.55rem;
+    padding-top: 0.55rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.stacked-siblings-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.stacked-sibling-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(250, 204, 21, 0.35);
+    color: var(--text-primary);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.stacked-sibling-chip:hover {
+    background: rgba(250, 204, 21, 0.18);
+    border-color: #facc15;
+    color: #fef08a;
+}
+
+.world-map-canvas.map-hub-zoomed .popup-hub-zoom-row {
+    display: none !important;
+}

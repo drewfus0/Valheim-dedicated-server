@@ -56,7 +56,7 @@
                 <input type="text" 
                        id="map-portal-search" 
                        class="map-search-input" 
-                       placeholder="Search portals or builders..." 
+                       placeholder="Search portals, builders, or coords (x:1370 y:73)..." 
                        oninput="applyMapFilters()"
                        onkeydown="if(event.key==='Enter') fitMatchingPortals()">
                 <button type="button" 
@@ -85,6 +85,9 @@
                     <option value="solo">◇ Solo Only</option>
                 </select>
 
+                <button type="button" class="btn btn-secondary btn-sm map-control-btn" onclick="fitWholeMap()" title="Zoom all the way out to view the entire world map">
+                    🌍 Whole Map
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm map-control-btn" onclick="flyToSpawn()" title="Center camera on Sacrificial Stones">
                     🏛️ Spawn
                 </button>
@@ -125,18 +128,29 @@
 </div>
 
 <script>
-    // Initialize map immediately upon tab render
+    // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        if (typeof window.initWorldMap === 'function') {
-            window.initWorldMap('world-map-canvas', rawData);
+        const REQUIRED_VER = '2.1';
+
+        function bootMap() {
+            if (typeof window.initWorldMap === 'function') {
+                window.initWorldMap('world-map-canvas', rawData);
+            }
+        }
+
+        if (window.WORLD_MAP_VERSION === REQUIRED_VER && typeof window.initWorldMap === 'function') {
+            bootMap();
         } else {
-            // Wait for script if needed
-            window.addEventListener('load', function() {
-                if (typeof window.initWorldMap === 'function') {
-                    window.initWorldMap('world-map-canvas', rawData);
-                }
-            });
+            // Ensure latest stylesheet and map controller are loaded even without full page reload
+            const cssLink = document.querySelector('link[href*="/static/css/style.css"]');
+            if (cssLink && !cssLink.href.includes('v=' + REQUIRED_VER)) {
+                cssLink.href = '/static/css/style.css?v=' + REQUIRED_VER;
+            }
+            const script = document.createElement('script');
+            script.src = '/static/js/map.js?v=' + REQUIRED_VER;
+            script.onload = bootMap;
+            document.head.appendChild(script);
         }
     })();
 </script>

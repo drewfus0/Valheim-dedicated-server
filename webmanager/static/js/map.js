@@ -1,20 +1,26 @@
 /**
  * Valheim Dedicated Server - Interactive World Map Controller
- * Integrates Leaflet with 1:1 Valheim game coordinates, portal networks, and spawn tracking.
+ * Integrates Leaflet with 1:1 Valheim game coordinates, portal networks,
+ * full-world zoom out, deep hub zoom-in, and automatic portal hub de-overlapping.
  */
 
 (function () {
+    window.WORLD_MAP_VERSION = '2.1';
+
     let mapInstance = null;
     let spawnLayer = null;
+    let tethersLayer = null;
     let portalsLayer = null;
     let linesLayer = null;
     let allPortalsData = [];
     let currentFilteredPortals = [];
     let portalMarkersMap = {};
+    let displayedLatLngMap = {};
     let portalLines = [];
     let currentMapData = null;
     let currentlySelectedPortal = null;
     let currentlyHoveredPortal = null;
+    let lastMouseLatLng = null;
 
     const MAP_WIDTH = 6144;
     const MAP_HEIGHT = 6144;
@@ -24,6 +30,11 @@
     const GAME_RADIUS = 10500;
     const SCALE = DISK_RADIUS_PX / GAME_RADIUS; // ~0.25044 px/m
 
+    const MIN_ZOOM_FALLBACK = -4.5;
+    const MAX_ZOOM = 8; // ~64 px/m (32x deeper than zoom 3) for dense portal hubs
+    const DEOVERLAP_MIN_ZOOM = 3.5;
+    const INLINE_LABEL_MIN_ZOOM = 5.25;
+
     function gameToLeaflet(x, z) {
         const px = CENTER_X + x * SCALE;
         const py = CENTER_Y - z * SCALE;
@@ -31,12 +42,41 @@
         return [MAP_HEIGHT - py, px];
     }
 
-    function leafletToGame(lat, lng) {
+    function leafletToGame(lat, lng, decimals = 0) {
         const px = lng;
         const py = MAP_HEIGHT - lat;
-        const x = Math.round((px - CENTER_X) / SCALE);
-        const z = Math.round((CENTER_Y - py) / SCALE);
-        return { x, z, px: Math.round(px), py: Math.round(py) };
+        const rawX = (px - CENTER_X) / SCALE;
+        const rawZ = (CENTER_Y - py) / SCALE;
+        const factor = decimals > 0 ? Math.pow(10, decimals) : 1;
+        const x = decimals > 0 ? Math.round(rawX * factor) / factor : Math.round(rawX);
+        const z = decimals > 0 ? Math.round(rawZ * factor) / factor : Math.round(rawZ);
+        return { x, z, rawX, rawZ, px: Math.round(px), py: Math.round(py) };
+    }
+
+    function syncDynamicMinZoom() {
+        if (!mapInstance) return;
+        const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        const fitZoom = mapInstance.getBoundsZoom(bounds, false, L.point(60, 110));
+        const computedMin = Math.min(-4.25, Math.floor((fitZoom - 0.5) * 4) / 4);
+        if (Number.isFinite(computedMin)) {
+            mapInstance.setMinZoom(computedMin);
+        }
+    }
+
+    function updateCoordHud(latlng) {
+        const hudEl = document.getElementById('map-coord-hud');
+        if (!hudEl || !mapInstance || !latlng) return;
+
+        const zLevel = mapInstance.getZoom();
+        const decimals = zLevel >= 4 ? 1 : 0;
+        const coords = leafletToGame(latlng.lat, latlng.lng, decimals);
+        const distFromCenter = Math.sqrt(coords.rawX * coords.rawX + coords.rawZ * coords.rawZ);
+
+        if (distFromCenter > GAME_RADIUS + 200) {
+            hudEl.innerHTML = `<span style="color: var(--status-stopped);">⚠️ Edge of Midgard (Void)</span> <span style="opacity:0.65;">[X: ${coords.x}, Z: ${coords.z}]</span>`;
+        } else {
+            hudEl.innerHTML = `<span>🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span> <span style="opacity:0.65; font-size:0.75rem;">(Dist: ${Math.round(distFromCenter)}m)</span>`;
+        }
     }
 
     window.initWorldMap = function (containerId, initialData) {
@@ -54,17 +94,20 @@
         currentMapData = initialData;
         allPortalsData = initialData.portals || [];
         currentFilteredPortals = allPortalsData;
+        currentlySelectedPortal = null;
+        currentlyHoveredPortal = null;
 
-        // 1. Initialize Leaflet Map with Flat Simple CRS
+        // 1. Initialize Leaflet Map with Flat Simple CRS & Wide Zoom Range
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
         mapInstance = L.map(containerId, {
             crs: L.CRS.Simple,
-            minZoom: -2,
-            maxZoom: 3,
+            minZoom: MIN_ZOOM_FALLBACK,
+            maxZoom: MAX_ZOOM,
             zoomSnap: 0.25,
             zoomDelta: 0.5,
+            wheelPxPerZoomLevel: 80,
             attributionControl: false,
-            maxBounds: [[-600, -600], [MAP_HEIGHT + 600, MAP_WIDTH + 600]],
+            maxBounds: [[-3000, -3000], [MAP_HEIGHT + 3000, MAP_WIDTH + 3000]],
             maxBoundsViscosity: 0.8
         });
 
@@ -72,43 +115,53 @@
         const imageUrl = initialData.image_url || '/static/img/world_map.webp';
         L.imageOverlay(imageUrl, bounds).addTo(mapInstance);
 
-        // 3. Setup Layers
+        // 3. Setup Layers (tethers underneath lines & pins)
+        tethersLayer = L.layerGroup().addTo(mapInstance);
         linesLayer = L.layerGroup().addTo(mapInstance);
         portalsLayer = L.layerGroup().addTo(mapInstance);
         spawnLayer = L.layerGroup().addTo(mapInstance);
 
-        // 4. Initial View: Center on Spawn
+        // 4. Calibrate dynamic minZoom so whole map always fits any viewport
+        syncDynamicMinZoom();
+
+        // 5. Initial View: Center on Spawn
         const spawnPos = gameToLeaflet(initialData.spawn.x, initialData.spawn.z);
         mapInstance.setView(spawnPos, -0.5);
 
-        // 5. Render POIs
+        // 6. Render POIs
         renderSpawn(initialData.spawn);
         renderPortals(allPortalsData);
 
-        // 6. Live Coordinates HUD on Mouse Move
+        // 7. Live Coordinates HUD on Mouse Move & Zoom Change
         mapInstance.on('mousemove', function (e) {
-            const coords = leafletToGame(e.latlng.lat, e.latlng.lng);
-            const distFromCenter = Math.sqrt(coords.x * coords.x + coords.z * coords.z);
-            const hudEl = document.getElementById('map-coord-hud');
-            if (hudEl) {
-                if (distFromCenter > GAME_RADIUS + 200) {
-                    hudEl.innerHTML = `<span style="color: var(--status-stopped);">⚠️ Edge of Midgard (Void)</span> <span style="opacity:0.65;">[X: ${coords.x}, Z: ${coords.z}]</span>`;
-                } else {
-                    hudEl.innerHTML = `<span>🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span> <span style="opacity:0.65; font-size:0.75rem;">(Dist: ${Math.round(distFromCenter)}m)</span>`;
-                }
+            lastMouseLatLng = e.latlng;
+            updateCoordHud(e.latlng);
+        });
+
+        mapInstance.on('zoomend', function () {
+            updatePortalLayoutForZoom();
+            if (lastMouseLatLng) {
+                updateCoordHud(lastMouseLatLng);
             }
+        });
+
+        mapInstance.on('resize', function () {
+            syncDynamicMinZoom();
         });
 
         // Deselect portal when clicking empty map canvas
         mapInstance.on('click', function (e) {
-            if (currentlySelectedPortal && (!e.originalEvent._portalClicked)) {
+            if (currentlySelectedPortal && (!e.originalEvent || !e.originalEvent._portalClicked)) {
                 deselectPortal();
             }
         });
 
-        // 7. Ensure size calculation is correct after HTMX load
+        // 8. Ensure size calculation & minZoom are accurate after HTMX load
         setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+                syncDynamicMinZoom();
+            }
         }, 150);
 
         // Populate drawer and player filter dropdown
@@ -166,13 +219,67 @@
         `);
     }
 
+    function computeStackAndHubMetadata(portalsList) {
+        const metaMap = {};
+        portalsList.forEach(p => {
+            const stackedPeers = [];
+            let hubPeerCount = 0;
+
+            portalsList.forEach(q => {
+                if (q.id === p.id) return;
+                const d = distance(p.x, p.z, q.x, q.z);
+                if (d <= 2.2) {
+                    stackedPeers.push(q);
+                }
+                if (d <= 28.0) {
+                    hubPeerCount++;
+                }
+            });
+
+            // Sort co-located stack from highest elevation (top floor) to lowest
+            stackedPeers.sort((a, b) => (b.y - a.y) || a.tag.localeCompare(b.tag));
+
+            let floorArrow = '';
+            let floorDesc = '';
+            if (stackedPeers.length > 0) {
+                const allYs = [p.y, ...stackedPeers.map(s => s.y)];
+                const maxY = Math.max(...allYs);
+                const minY = Math.min(...allYs);
+                if (maxY - minY >= 1.5) {
+                    if (p.y >= maxY - 0.3) {
+                        floorArrow = '↑';
+                        floorDesc = 'Upper Floor';
+                    } else if (p.y <= minY + 0.3) {
+                        floorArrow = '↓';
+                        floorDesc = 'Lower Floor';
+                    } else {
+                        floorArrow = '↕';
+                        floorDesc = 'Mid Floor';
+                    }
+                }
+            }
+
+            metaMap[p.id] = {
+                stackedPeers,
+                hubPeerCount,
+                floorArrow,
+                floorDesc
+            };
+        });
+        return metaMap;
+    }
+
     function renderPortals(portalsList) {
-        if (!portalsLayer || !linesLayer) return;
+        if (!portalsLayer || !linesLayer || !tethersLayer) return;
         portalsLayer.clearLayers();
         linesLayer.clearLayers();
+        tethersLayer.clearLayers();
         portalMarkersMap = {};
+        displayedLatLngMap = {};
         portalLines = [];
         currentFilteredPortals = portalsList;
+
+        const stackMeta = computeStackAndHubMetadata(portalsList);
 
         // 1. Connection lines: always visible, highlighted yellow on hover or selection
         const drawnPairs = new Set();
@@ -185,7 +292,7 @@
                         const start = gameToLeaflet(p.x, p.z);
                         const end = gameToLeaflet(peer.x, peer.z);
 
-                        const isCurrentlyActive = currentlySelectedPortal && 
+                        const isCurrentlyActive = currentlySelectedPortal &&
                             (currentlySelectedPortal === p.id || currentlySelectedPortal === peer.id);
 
                         const defaultColor = p.author_color || '#38bdf8';
@@ -234,10 +341,10 @@
                             L.DomEvent.stopPropagation(e);
                             if (e.originalEvent) e.originalEvent._portalClicked = true;
 
-                            const sLL = L.latLng(start[0], start[1]);
-                            const eLL = L.latLng(end[0], end[1]);
-                            const d1 = e.latlng.distanceTo(sLL);
-                            const d2 = e.latlng.distanceTo(eLL);
+                            const p1LL = L.latLng(displayedLatLngMap[p.id] || start);
+                            const p2LL = L.latLng(displayedLatLngMap[peer.id] || end);
+                            const d1 = e.latlng.distanceTo(p1LL);
+                            const d2 = e.latlng.distanceTo(p2LL);
 
                             const nearest = d1 <= d2 ? p : peer;
                             selectPortal(nearest.id, true);
@@ -252,9 +359,17 @@
         // 2. Render Portal Markers
         portalsList.forEach(p => {
             const latlng = gameToLeaflet(p.x, p.z);
+            displayedLatLngMap[p.id] = latlng;
+
             const isLinked = p.linked;
             const pColor = p.author_color || '#38bdf8';
             const isSelected = currentlySelectedPortal === p.id;
+            const meta = stackMeta[p.id] || { stackedPeers: [], hubPeerCount: 0, floorArrow: '', floorDesc: '' };
+
+            const floorBadgeHtml = meta.floorArrow
+                ? `<span class="portal-floor-badge" title="${meta.floorDesc} (${p.y}m)">${meta.floorArrow}</span>`
+                : '';
+            const labelPrefix = meta.floorArrow ? `${meta.floorArrow} ` : '';
 
             const portalIcon = L.divIcon({
                 className: 'valheim-portal-icon-wrapper',
@@ -262,27 +377,35 @@
                     <div class="portal-marker-pin ${isLinked ? 'is-linked' : 'is-solo'} ${isSelected ? 'portal-highlight-yellow' : ''}" 
                          id="pin-${p.id}" 
                          style="--portal-color: ${pColor};"
-                         title="Portal: ${escapeHtml(p.tag)} (${escapeHtml(p.author)})">
+                         title="Portal: ${escapeHtml(p.tag)} (${escapeHtml(p.author)})${meta.floorDesc ? ' • ' + meta.floorDesc + ' ' + p.y + 'm' : ''}">
                         <div class="portal-halo"></div>
                         <div class="portal-gem">${isLinked ? '⚡' : '◇'}</div>
+                        ${floorBadgeHtml}
                         <span class="portal-player-badge" style="background: ${pColor};" title="Built by ${escapeHtml(p.author)}">${p.author_avatar || '🛡️'}</span>
+                        <span class="portal-inline-label">${labelPrefix}${escapeHtml(p.tag)}</span>
                     </div>
                 `,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
 
-            const marker = L.marker(latlng, { icon: portalIcon }).addTo(portalsLayer);
+            const marker = L.marker(latlng, {
+                icon: portalIcon,
+                riseOnHover: true,
+                riseOffset: 300,
+                zIndexOffset: isSelected ? 1000 : 0
+            }).addTo(portalsLayer);
             portalMarkersMap[p.id] = marker;
 
             // Hover tooltip
+            const tooltipFloorText = meta.floorDesc ? ` &bull; <span style="color:#facc15;">${meta.floorArrow} ${p.y}m</span>` : '';
             marker.bindTooltip(`
                 <div style="font-weight:600; font-size:0.82rem; display:flex; align-items:center; gap:0.35rem;">
                     <span>${isLinked ? '⚡' : '◇'}</span>
                     <span style="color: var(--nordic-cyan);">"${escapeHtml(p.tag)}"</span>
                 </div>
                 <div style="font-size:0.75rem; color: var(--text-secondary);">
-                    <span>${escapeHtml(p.author)}</span> &bull; <span>[${p.x}, ${p.z}]</span>
+                    <span>${escapeHtml(p.author)}</span> &bull; <span>[${p.x}, ${p.z}]</span>${tooltipFloorText}
                 </div>
             `, {
                 direction: 'top',
@@ -290,7 +413,32 @@
                 className: 'viking-portal-tooltip'
             });
 
-            // Click Popup with complete Viking metadata, View Both Ends button, & Destination Fly buttons
+            // Stacked siblings section (for 2-story / multi-story hub bays sharing X/Z)
+            let stackedHtml = '';
+            if (meta.stackedPeers.length > 0) {
+                stackedHtml = `
+                    <div class="popup-stacked-siblings">
+                        <div class="popup-dest-title" style="color: #facc15; margin-bottom: 0.25rem;">
+                            🏢 Co-Located at This Spot (${meta.stackedPeers.length + 1} Stacked):
+                        </div>
+                        <div class="stacked-siblings-list">
+                            ${meta.stackedPeers.map(sib => {
+                                const sibMeta = stackMeta[sib.id] || {};
+                                const arrow = sibMeta.floorArrow || (sib.y > p.y ? '↑' : '↓');
+                                return `
+                                    <button type="button" class="stacked-sibling-chip" onclick="selectPortal('${sib.id}', false)" title="Switch selection to ${escapeHtml(sib.tag)} (Y: ${sib.y}m)">
+                                        <span>${sib.linked ? '⚡' : '◇'}</span>
+                                        <strong>"${escapeHtml(sib.tag)}"</strong>
+                                        <span style="opacity:0.75;">${arrow}${sib.y}m</span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Connected destinations
             let pairedHtml = '';
             if (isLinked && p.paired_with && p.paired_with.length > 0) {
                 pairedHtml = `
@@ -315,6 +463,23 @@
                     </div>
                 `;
             }
+
+            // Hub zoom & route action buttons
+            const showHubBtn = meta.hubPeerCount >= 1;
+            const actionsRowHtml = (isLinked || showHubBtn) ? `
+                <div style="margin-top:0.65rem; padding-top:0.5rem; border-top:1px dashed rgba(255,255,255,0.1); display:flex; gap:0.4rem; flex-wrap:wrap;">
+                    ${showHubBtn ? `
+                        <button type="button" class="btn btn-secondary btn-sm popup-hub-zoom-row" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomIntoPortalHub('${p.id}')" title="Zoom closely into this portal hub to separate overlapping pins & show tags">
+                            🔍 Zoom Hub
+                        </button>
+                    ` : ''}
+                    ${isLinked ? `
+                        <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
+                            🔭 View Both Ends
+                        </button>
+                    ` : ''}
+                </div>
+            ` : '';
 
             marker.bindPopup(`
                 <div class="viking-map-popup">
@@ -341,21 +506,16 @@
                         </div>
                         <div class="popup-row">
                             <span>Elevation (Y):</span>
-                            <strong>${p.y}m</strong>
+                            <strong>${p.y}m${meta.floorDesc ? ` <span style="color:#facc15; font-size:0.75rem;">(${meta.floorArrow} ${meta.floorDesc})</span>` : ''}</strong>
                         </div>
+                        ${stackedHtml}
                         ${pairedHtml}
-                        ${isLinked ? `
-                            <div style="margin-top:0.65rem; padding-top:0.5rem; border-top:1px dashed rgba(255,255,255,0.1); display:flex; gap:0.4rem;">
-                                <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
-                                    🔭 View Both Ends
-                                </button>
-                            </div>
-                        ` : ''}
+                        ${actionsRowHtml}
                     </div>
                 </div>
             `);
 
-            // Hover: highlight portal and connecting line in yellow. On mouseout: line vanishes!
+            // Hover: highlight portal and connecting line in yellow
             marker.on('mouseover', function () {
                 currentlyHoveredPortal = p.id;
                 highlightPinYellow(p.id, true);
@@ -401,6 +561,203 @@
                 }
             });
         });
+
+        // 3. Apply zoom-aware screen-space separation if currently zoomed into a hub
+        updatePortalLayoutForZoom();
+    }
+
+    /**
+     * Automatically separates overlapping & vertically-stacked portal pins in screen space
+     * when zoomed in (>= DEOVERLAP_MIN_ZOOM), drawing subtle ground-anchor tethers and
+     * toggling inline portal name labels at deep zoom (>= INLINE_LABEL_MIN_ZOOM).
+     */
+    function updatePortalLayoutForZoom() {
+        if (!mapInstance || !tethersLayer) return;
+
+        const zoom = mapInstance.getZoom();
+        const canvasEl = document.getElementById('world-map-canvas');
+        const showLabels = zoom >= INLINE_LABEL_MIN_ZOOM;
+
+        if (canvasEl) {
+            canvasEl.classList.toggle('map-zoom-labels', showLabels);
+            canvasEl.classList.toggle('map-hub-zoomed', zoom >= 5.75);
+        }
+
+        tethersLayer.clearLayers();
+
+        // At overview zoom levels, keep markers at exact world coordinates
+        if (zoom < DEOVERLAP_MIN_ZOOM || currentFilteredPortals.length <= 1) {
+            currentFilteredPortals.forEach(p => {
+                const exactLL = gameToLeaflet(p.x, p.z);
+                displayedLatLngMap[p.id] = exactLL;
+                const m = portalMarkersMap[p.id];
+                if (m) m.setLatLng(exactLL);
+            });
+            portalLines.forEach(l => {
+                l.polyline.setLatLngs([l.start, l.end]);
+            });
+            return;
+        }
+
+        const sepX = showLabels ? 68.0 : 34.0;
+        const sepY = showLabels ? 46.0 : 34.0;
+
+        // Project portals into CRS pixel space at current zoom
+        const nodes = currentFilteredPortals.map(p => {
+            const trueLL = gameToLeaflet(p.x, p.z);
+            const pt = mapInstance.project(trueLL, zoom);
+            return {
+                p,
+                trueLL,
+                ox: pt.x,
+                oy: pt.y,
+                x: pt.x,
+                y: pt.y
+            };
+        });
+
+        // Partition into spatial connected components so isolated portals do zero work
+        const n = nodes.length;
+        const visited = new Array(n).fill(false);
+        const reachX = sepX * 2.2;
+        const reachY = sepY * 2.2;
+
+        for (let i = 0; i < n; i++) {
+            if (visited[i]) continue;
+            visited[i] = true;
+            const queue = [i];
+            const comp = [];
+
+            while (queue.length > 0) {
+                const cur = queue.pop();
+                comp.push(nodes[cur]);
+                const cx = nodes[cur].ox;
+                const cy = nodes[cur].oy;
+                for (let j = 0; j < n; j++) {
+                    if (!visited[j]) {
+                        if (Math.abs(cx - nodes[j].ox) < reachX && Math.abs(cy - nodes[j].oy) < reachY) {
+                            visited[j] = true;
+                            queue.push(j);
+                        }
+                    }
+                }
+            }
+
+            if (comp.length === 1) {
+                const single = comp[0];
+                displayedLatLngMap[single.p.id] = single.trueLL;
+                const m = portalMarkersMap[single.p.id];
+                if (m) m.setLatLng(single.trueLL);
+                continue;
+            }
+
+            // Sort deterministically: highest elevation (Y) first so upper-floor pins stay above lower-floor pins
+            comp.sort((a, b) => (b.p.y - a.p.y) || a.p.tag.localeCompare(b.p.tag) || a.p.id.localeCompare(b.p.id));
+
+            // Seed co-located vertical stacks before relaxation
+            const seeded = new Array(comp.length).fill(false);
+            for (let a = 0; a < comp.length; a++) {
+                if (seeded[a]) continue;
+                const stack = [a];
+                seeded[a] = true;
+                for (let b = a + 1; b < comp.length; b++) {
+                    if (!seeded[b] && Math.hypot(comp[b].ox - comp[a].ox, comp[b].oy - comp[a].oy) < 4.0) {
+                        stack.push(b);
+                        seeded[b] = true;
+                    }
+                }
+                if (stack.length === 2) {
+                    comp[stack[0]].y -= sepY * 0.45;
+                    comp[stack[1]].y += sepY * 0.45;
+                } else if (stack.length > 2) {
+                    const mid = (stack.length - 1) / 2.0;
+                    stack.forEach((idx, k) => {
+                        comp[idx].y += (k - mid) * sepY * 0.65;
+                        comp[idx].x += (k % 2 === 0 ? 4.0 : -4.0);
+                    });
+                }
+            }
+
+            // Elliptical pairwise separation with gentle anchor spring
+            for (let iter = 0; iter < 45; iter++) {
+                for (let a = 0; a < comp.length; a++) {
+                    for (let b = a + 1; b < comp.length; b++) {
+                        const dx = comp[b].x - comp[a].x;
+                        const dy = comp[b].y - comp[a].y;
+                        const nx = dx / sepX;
+                        const ny = dy / sepY;
+                        const nd = Math.hypot(nx, ny);
+                        if (nd < 1.0) {
+                            let ux, uy, push;
+                            if (nd < 0.001) {
+                                ux = 0.0;
+                                uy = 1.0;
+                                push = 0.5;
+                            } else {
+                                ux = nx / nd;
+                                uy = ny / nd;
+                                push = (1.0 - nd) * 0.52;
+                            }
+                            comp[a].x -= ux * push * sepX;
+                            comp[a].y -= uy * push * sepY;
+                            comp[b].x += ux * push * sepX;
+                            comp[b].y += uy * push * sepY;
+                        }
+                    }
+                }
+                if (iter < 30) {
+                    for (let a = 0; a < comp.length; a++) {
+                        comp[a].x += (comp[a].ox - comp[a].x) * 0.06;
+                        comp[a].y += (comp[a].oy - comp[a].y) * 0.06;
+                    }
+                }
+            }
+
+            // Apply separated coordinates and draw subtle ground-anchor tethers
+            const drawnAnchorDots = [];
+            comp.forEach(node => {
+                const dispLatLngObj = mapInstance.unproject([node.x, node.y], zoom);
+                const dispArr = [dispLatLngObj.lat, dispLatLngObj.lng];
+                displayedLatLngMap[node.p.id] = dispArr;
+
+                const m = portalMarkersMap[node.p.id];
+                if (m) m.setLatLng(dispArr);
+
+                const dispPx = Math.hypot(node.x - node.ox, node.y - node.oy);
+                if (dispPx > 5.0) {
+                    const pColor = node.p.author_color || '#38bdf8';
+                    L.polyline([node.trueLL, dispArr], {
+                        color: pColor,
+                        weight: 1.5,
+                        opacity: 0.6,
+                        dashArray: '2, 3',
+                        interactive: false,
+                        className: 'portal-anchor-tether'
+                    }).addTo(tethersLayer);
+
+                    const alreadyMarked = drawnAnchorDots.some(pt => Math.hypot(pt.x - node.ox, pt.y - node.oy) < 2.5);
+                    if (!alreadyMarked) {
+                        drawnAnchorDots.push({ x: node.ox, y: node.oy });
+                        L.circleMarker(node.trueLL, {
+                            radius: 2.5,
+                            color: '#facc15',
+                            weight: 1,
+                            fillColor: '#0f172a',
+                            fillOpacity: 0.9,
+                            interactive: false,
+                            className: 'portal-anchor-tether'
+                        }).addTo(tethersLayer);
+                    }
+                }
+            });
+        }
+
+        // Update route polyline endpoints so routes connect seamlessly into displaced pins
+        portalLines.forEach(l => {
+            const s = displayedLatLngMap[l.p1.id] || l.start;
+            const e = displayedLatLngMap[l.p2.id] || l.end;
+            l.polyline.setLatLngs([s, e]);
+        });
     }
 
     function setLineState(l, isHighlighted) {
@@ -442,9 +799,14 @@
         }
     }
 
-    function selectPortal(portalId, zoomToBounds = false) {
+    window.selectPortal = function (portalId, zoomToBounds = false) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p) return;
+
+        // Reset previous z-index offset
+        if (currentlySelectedPortal && portalMarkersMap[currentlySelectedPortal]) {
+            portalMarkersMap[currentlySelectedPortal].setZIndexOffset(0);
+        }
 
         currentlySelectedPortal = portalId;
 
@@ -471,7 +833,7 @@
                 ];
                 mapInstance.fitBounds(L.latLngBounds(points), {
                     padding: [100, 100],
-                    maxZoom: 1.5,
+                    maxZoom: 6.5,
                     animate: true
                 });
             }
@@ -481,18 +843,73 @@
 
         const marker = portalMarkersMap[portalId];
         if (marker) {
+            marker.setZIndexOffset(1000);
             marker.openPopup();
             pulseMarkerPin(portalId);
         }
-    }
+    };
 
     function deselectPortal() {
+        if (currentlySelectedPortal && portalMarkersMap[currentlySelectedPortal]) {
+            portalMarkersMap[currentlySelectedPortal].setZIndexOffset(0);
+        }
         currentlySelectedPortal = null;
         document.querySelectorAll('.portal-marker-pin').forEach(pin => {
             pin.classList.remove('portal-highlight-yellow');
         });
         portalLines.forEach(l => setLineState(l, false));
     }
+
+    function getIdealPortalZoom(p) {
+        let minDist = Infinity;
+        currentFilteredPortals.forEach(other => {
+            if (other.id !== p.id) {
+                const d = distance(p.x, p.z, other.x, other.z);
+                if (d < minDist) minDist = d;
+            }
+        });
+        if (minDist <= 2.5) return 6.5;   // Vertically stacked / ultra-dense hub
+        if (minDist <= 12.0) return 5.75; // Portal hub ring
+        if (minDist <= 40.0) return 4.25; // Multi-portal base compound
+        return 2.25;                      // Isolated outpost
+    }
+
+    window.zoomIntoPortalHub = function (portalId) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        const targetZoom = Math.max(6.25, mapInstance.getZoom() + 1.5);
+        const clampedZoom = Math.min(MAX_ZOOM, targetZoom);
+        const target = gameToLeaflet(p.x, p.z);
+
+        let handled = false;
+        const onArrived = () => {
+            if (handled) return;
+            handled = true;
+            updatePortalLayoutForZoom();
+            window.selectPortal(portalId, false);
+        };
+
+        mapInstance.once('moveend', onArrived);
+        setTimeout(onArrived, 1100);
+
+        mapInstance.flyTo(target, clampedZoom, {
+            duration: 0.85,
+            easeLinearity: 0.25
+        });
+    };
+
+    // Zoom all the way out to view the entire circular Midgard map
+    window.fitWholeMap = function () {
+        if (!mapInstance) return;
+        syncDynamicMinZoom();
+        const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        mapInstance.flyToBounds(bounds, {
+            paddingTopLeft: [32, 72],
+            paddingBottomRight: [32, 52],
+            duration: 1.0
+        });
+    };
 
     // Zoom out to show both ends of a portal route
     window.zoomToShowPortalRoute = function (portalId, peerId = null) {
@@ -513,18 +930,18 @@
         }
 
         if (points.length >= 2) {
-            selectPortal(portalId, false);
+            window.selectPortal(portalId, false);
             mapInstance.fitBounds(L.latLngBounds(points), {
                 padding: [100, 100],
-                maxZoom: 1.5,
+                maxZoom: 6.5,
                 animate: true
             });
         } else {
-            flyToPortal(portalId);
+            window.flyToPortal(portalId);
         }
     };
 
-    // Zoom out to show all portals matching current search/filters
+    // Zoom to show all portals matching current search/filters
     window.fitMatchingPortals = function () {
         if (!mapInstance || !currentFilteredPortals || currentFilteredPortals.length === 0) {
             if (window.showToast) window.showToast('No matching portals to fit in view', 'info');
@@ -532,14 +949,14 @@
         }
 
         if (currentFilteredPortals.length === 1) {
-            flyToPortal(currentFilteredPortals[0].id);
+            window.flyToPortal(currentFilteredPortals[0].id);
             return;
         }
 
         const points = currentFilteredPortals.map(p => gameToLeaflet(p.x, p.z));
         mapInstance.fitBounds(L.latLngBounds(points), {
             padding: [80, 80],
-            maxZoom: 1.5,
+            maxZoom: 6.5,
             animate: true
         });
     };
@@ -548,15 +965,28 @@
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
+        const idealZoom = Math.min(MAX_ZOOM, Math.max(getIdealPortalZoom(p), mapInstance.getZoom()));
         const target = gameToLeaflet(p.x, p.z);
-        mapInstance.flyTo(target, 1.25, {
-            duration: 1.2,
+
+        let opened = false;
+        const finishSelect = () => {
+            if (opened) return;
+            opened = true;
+            updatePortalLayoutForZoom();
+            const finalPos = displayedLatLngMap[portalId];
+            if (finalPos && mapInstance) {
+                mapInstance.panTo(finalPos, { animate: true, duration: 0.25 });
+            }
+            window.selectPortal(portalId, false);
+        };
+
+        mapInstance.once('moveend', finishSelect);
+        setTimeout(finishSelect, 1400);
+
+        mapInstance.flyTo(target, idealZoom, {
+            duration: 1.1,
             easeLinearity: 0.25
         });
-
-        setTimeout(() => {
-            selectPortal(portalId, false);
-        }, 1300);
     };
 
     window.flyToSpawn = function () {
@@ -573,7 +1003,20 @@
         }
     }
 
-    // Filter Portals by Player, Link Status, or Search String
+    function parseCoordinateQuery(query) {
+        // Supports "x:1370 y:73", "x=1370 z=73", "1370, 73", "1370 73"
+        const namedMatch = query.match(/x\s*[:=]?\s*(-?\d+(?:\.\d+)?)[\s,;]+(?:y|z)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+        if (namedMatch) {
+            return { x: parseFloat(namedMatch[1]), z: parseFloat(namedMatch[2]) };
+        }
+        const pairMatch = query.match(/^(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)$/);
+        if (pairMatch) {
+            return { x: parseFloat(pairMatch[1]), z: parseFloat(pairMatch[2]) };
+        }
+        return null;
+    }
+
+    // Filter Portals by Player, Link Status, Search String, or Coordinate Pair
     window.applyMapFilters = function () {
         const searchInput = document.getElementById('map-portal-search');
         const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
@@ -589,14 +1032,24 @@
         const statusSelect = document.getElementById('map-status-filter');
         const selectedStatus = statusSelect ? statusSelect.value : 'all';
 
+        const coordQuery = query ? parseCoordinateQuery(query) : null;
+
         const filtered = allPortalsData.filter(p => {
             if (selectedPlayer !== 'all' && p.author.toLowerCase() !== selectedPlayer.toLowerCase()) {
                 return false;
             }
             if (selectedStatus === 'linked' && !p.linked) return false;
             if (selectedStatus === 'solo' && p.linked) return false;
-            if (query && !p.tag.toLowerCase().includes(query) && !p.author.toLowerCase().includes(query)) {
-                return false;
+            if (query) {
+                if (coordQuery) {
+                    return distance(p.x, p.z, coordQuery.x, coordQuery.z) <= 60.0;
+                }
+                const coordStr = `${p.x}, ${p.z}`;
+                if (!p.tag.toLowerCase().includes(query) &&
+                    !p.author.toLowerCase().includes(query) &&
+                    !coordStr.includes(query)) {
+                    return false;
+                }
             }
             return true;
         });
@@ -620,7 +1073,7 @@
     window.clearMapSearch = function () {
         const searchInput = document.getElementById('map-portal-search');
         if (searchInput) searchInput.value = '';
-        applyMapFilters();
+        window.applyMapFilters();
     };
 
     window.toggleMapLayer = function (layerName) {
@@ -635,8 +1088,10 @@
         } else if (layerName === 'portals') {
             const checkbox = document.getElementById('toggle-layer-portals');
             if (checkbox && checkbox.checked) {
+                if (!mapInstance.hasLayer(tethersLayer)) tethersLayer.addTo(mapInstance);
                 if (!mapInstance.hasLayer(portalsLayer)) portalsLayer.addTo(mapInstance);
             } else {
+                if (mapInstance.hasLayer(tethersLayer)) mapInstance.removeLayer(tethersLayer);
                 if (mapInstance.hasLayer(portalsLayer)) mapInstance.removeLayer(portalsLayer);
             }
         } else if (layerName === 'lines') {
@@ -658,7 +1113,10 @@
             btn.innerHTML = isOpen ? '✕ Directory' : '📜 Directory';
         }
         setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+                syncDynamicMinZoom();
+            }
         }, 300);
     };
 
@@ -688,7 +1146,12 @@
             btn.title = isFs ? 'Exit Fullscreen Map' : 'Toggle Fullscreen Map';
         }
         if (mapInstance) {
-            setTimeout(() => mapInstance.invalidateSize(), 150);
+            setTimeout(() => {
+                if (mapInstance) {
+                    mapInstance.invalidateSize();
+                    syncDynamicMinZoom();
+                }
+            }, 150);
         }
     }
 
@@ -708,7 +1171,7 @@
             const data = await res.json();
             currentMapData = data;
             allPortalsData = data.portals || [];
-            applyMapFilters();
+            window.applyMapFilters();
             if (window.showToast) window.showToast('World map & portals updated from active chunk', 'success');
         } catch (e) {
             if (window.showToast) window.showToast('Error refreshing portals: ' + e.message, 'error');
