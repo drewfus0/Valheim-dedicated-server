@@ -174,7 +174,7 @@
         portalLines = [];
         currentFilteredPortals = portalsList;
 
-        // 1. Connection lines: hidden by default, visible and yellow on hover or selection
+        // 1. Connection lines: always visible, highlighted yellow on hover or selection
         const drawnPairs = new Set();
         portalsList.forEach(p => {
             if (p.linked && p.paired_with && p.paired_with.length > 0) {
@@ -188,11 +188,13 @@
                         const isCurrentlyActive = currentlySelectedPortal && 
                             (currentlySelectedPortal === p.id || currentlySelectedPortal === peer.id);
 
+                        const defaultColor = p.author_color || '#38bdf8';
+
                         const polyline = L.polyline([start, end], {
-                            color: '#facc15',
-                            weight: isCurrentlyActive ? 4.0 : 6.0,
-                            opacity: isCurrentlyActive ? 1.0 : 0.0, // Hidden by default, vanishes when not hovered/selected
-                            dashArray: isCurrentlyActive ? null : '8, 8',
+                            color: isCurrentlyActive ? '#facc15' : defaultColor,
+                            weight: isCurrentlyActive ? 4.0 : 2.5,
+                            opacity: isCurrentlyActive ? 1.0 : 0.75,
+                            dashArray: isCurrentlyActive ? null : '6, 8',
                             className: 'portal-network-route' + (isCurrentlyActive ? ' portal-network-route-yellow' : '')
                         }).addTo(linesLayer);
 
@@ -208,7 +210,8 @@
                             p2: peer,
                             start,
                             end,
-                            tag: p.tag
+                            tag: p.tag,
+                            defaultColor: defaultColor
                         };
 
                         // Hover on line: highlight line and both endpoints in yellow
@@ -409,14 +412,20 @@
                 opacity: 1.0,
                 dashArray: null
             });
+            if (l.polyline._path) {
+                l.polyline._path.classList.add('portal-network-route-yellow');
+            }
             l.polyline.bringToFront();
         } else {
             l.polyline.setStyle({
-                color: '#facc15',
-                weight: 6.0,
-                opacity: 0.0, // Vanished / hidden
-                dashArray: '8, 8'
+                color: l.defaultColor || '#38bdf8',
+                weight: 2.5,
+                opacity: 0.75,
+                dashArray: '6, 8'
             });
+            if (l.polyline._path) {
+                l.polyline._path.classList.remove('portal-network-route-yellow');
+            }
         }
     }
 
@@ -629,6 +638,13 @@
                 if (!mapInstance.hasLayer(portalsLayer)) portalsLayer.addTo(mapInstance);
             } else {
                 if (mapInstance.hasLayer(portalsLayer)) mapInstance.removeLayer(portalsLayer);
+            }
+        } else if (layerName === 'lines') {
+            const checkbox = document.getElementById('toggle-layer-lines');
+            if (checkbox && checkbox.checked) {
+                if (!mapInstance.hasLayer(linesLayer)) linesLayer.addTo(mapInstance);
+            } else {
+                if (mapInstance.hasLayer(linesLayer)) mapInstance.removeLayer(linesLayer);
             }
         }
     };

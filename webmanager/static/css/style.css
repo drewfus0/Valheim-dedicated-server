@@ -3889,10 +3889,11 @@ table.data-table tr:hover td {
 }
 
 .portal-network-route {
-    transition: opacity 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
+    transition: stroke 0.2s ease, stroke-width 0.2s ease, stroke-opacity 0.2s ease, filter 0.2s ease;
     cursor: pointer;
 }
 
+.portal-network-route:hover,
 .portal-network-route-yellow {
     stroke: #facc15 !important;
     stroke-width: 4px !important;
