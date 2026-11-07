@@ -81,6 +81,23 @@ class TestSSEZeroPollingTemplates(unittest.TestCase):
             self.assertIn('data-telemetry="tod-day-time"', resp_summary.text)
             self.assertIn('data-telemetry="tod-phase-bar"', resp_summary.text)
 
+    def test_sse_containers_do_not_leak_hx_target_to_children(self):
+        """Ensure SSE-triggered wrapper divs never set hx-target (which HTMX inherits onto child elements like .timeline-sentinel)."""
+        templates_dir = WEB_DIR / "templates"
+        tag_pattern = re.compile(r"<[a-zA-Z0-9]+\b[^>]*\bhx-trigger=\"sse:[^\"]*\"[^>]*>", re.S)
+        for html_file in sorted(templates_dir.rglob("*.html")):
+            content = html_file.read_text(encoding="utf-8")
+            for match in tag_pattern.finditer(content):
+                tag = match.group(0)
+                self.assertNotIn(
+                    "hx-target=",
+                    tag,
+                    f"SSE container sets inheritable hx-target in {html_file.relative_to(PROJECT_ROOT)}: {tag}",
+                )
+
+        chunk_html = (templates_dir / "partials" / "timeline_chunk.html").read_text(encoding="utf-8")
+        self.assertIn('hx-target="this"', chunk_html)
+
 
 class TestEventBusUnit(unittest.TestCase):
     """Unit tests for EventBus pub/sub, thread-safety, Last-Event-ID replay, and shutdown."""

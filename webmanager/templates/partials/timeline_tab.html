@@ -1,5 +1,5 @@
 {# Partial: Vertical Timeline Tab #}
-<div class="timeline-tab-wrapper" hx-get="/partials/tabs/timeline" hx-trigger="sse:timelineUpdated[window.scrollY < 250] delay:120ms" hx-target="#tab-content" hx-swap="innerHTML">
+<div id="tab-timeline" class="tab-panel active timeline-tab-wrapper" hx-get="/partials/tabs/timeline" hx-trigger="sse:timelineUpdated[window.scrollY < 250] delay:120ms" hx-swap="outerHTML">
     <!-- Header Banner & Celestial Status -->
     <div class="card timeline-header-card">
         <div class="card-header" style="flex-wrap: wrap; gap: 1rem; border-bottom: none; padding-bottom: 0.5rem;">
@@ -234,35 +234,38 @@
         applyCurrentFilters();
 
         // Interactive hover linkage between player headers and timeline lanes
-        document.addEventListener('mouseover', function(e) {
-            const header = e.target.closest('.timeline-player-col-header');
-            if (header && header.dataset.player) {
-                const p = header.dataset.player;
-                document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.add('lane-highlighted'));
-                return;
-            }
-            const bar = e.target.closest('.timeline-presence-bar');
-            if (bar && bar.dataset.player) {
-                const p = bar.dataset.player;
-                const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
-                if (h) h.classList.add('header-highlighted');
-            }
-        });
+        if (!window._valheimTimelineHoverBound) {
+            window._valheimTimelineHoverBound = true;
+            document.addEventListener('mouseover', function(e) {
+                const header = e.target.closest('.timeline-player-col-header');
+                if (header && header.dataset.player) {
+                    const p = header.dataset.player;
+                    document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.add('lane-highlighted'));
+                    return;
+                }
+                const bar = e.target.closest('.timeline-presence-bar');
+                if (bar && bar.dataset.player) {
+                    const p = bar.dataset.player;
+                    const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
+                    if (h) h.classList.add('header-highlighted');
+                }
+            });
 
-        document.addEventListener('mouseout', function(e) {
-            const header = e.target.closest('.timeline-player-col-header');
-            if (header && header.dataset.player) {
-                const p = header.dataset.player;
-                document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.remove('lane-highlighted'));
-                return;
-            }
-            const bar = e.target.closest('.timeline-presence-bar');
-            if (bar && bar.dataset.player) {
-                const p = bar.dataset.player;
-                const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
-                if (h) h.classList.remove('header-highlighted');
-            }
-        });
+            document.addEventListener('mouseout', function(e) {
+                const header = e.target.closest('.timeline-player-col-header');
+                if (header && header.dataset.player) {
+                    const p = header.dataset.player;
+                    document.querySelectorAll(`.timeline-player-lane[data-player="${CSS.escape(p)}"]`).forEach(el => el.classList.remove('lane-highlighted'));
+                    return;
+                }
+                const bar = e.target.closest('.timeline-presence-bar');
+                if (bar && bar.dataset.player) {
+                    const p = bar.dataset.player;
+                    const h = document.querySelector(`.timeline-player-col-header[data-player="${CSS.escape(p)}"]`);
+                    if (h) h.classList.remove('header-highlighted');
+                }
+            });
+        }
     })();
     </script>
 </div>

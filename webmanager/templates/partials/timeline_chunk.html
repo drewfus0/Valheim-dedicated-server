@@ -159,6 +159,7 @@
     <div class="timeline-sentinel"
          hx-get="/partials/timeline/chunk?before_ts={{ chunk.next_before_ts }}"
          hx-trigger="revealed"
+         hx-target="this"
          hx-swap="outerHTML">
         <div class="timeline-loading-indicator">
             <span class="spinner-dot"></span>
