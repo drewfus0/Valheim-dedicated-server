@@ -30,6 +30,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── server_history.py # Server run session & world save event tracking
 │   │   ├── world_stats.py   # World telemetry, in-game clock, celestial sunset/sunrise & boss sagas
 │   │   ├── map.py           # World map coordinate calibration & active chunk portal extractor
+│   │   ├── events.py        # Multi-client SSE EventBus pub/sub broker & Last-Event-ID replay buffer
 │   │   ├── logs.py          # Reverse-seeking log tailer & SSE stream generator
 │   │   └── backups.py       # Backup lifecycle (create, list, download, restore, delete)
 │   ├── templates/           # Jinja2 HTML Templates & HTMX Partials
@@ -50,7 +51,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │       └── timers_dropdown.html
 │   └── static/              # Local static assets
 │       ├── css/style.css    # Viking dark dashboard theme & animations
-│       └── js/              # Vendored & client libraries (htmx.min.js, sse.js, timers.js)
+│       └── js/              # Vendored & client libraries (htmx.min.js, sse.js, telemetry.js, timers.js)
 └── .agents/
     └── AGENTS.md            # AI Agent Project Specification (This File)
 ```
@@ -69,7 +70,10 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - **Attached PID Management**: Correctly targets both spawned subprocesses and attached pre-existing PIDs (`self.existing_pid`) found via `pgrep -f valheim_server.x86_64`.
   - **Safe Log Rotation**: Archives existing `valheim_server.log` to `logs/valheim_server_<timestamp>.log` on startup before launching a new process.
   - **Non-blocking Log Tailing**: Reverse-seeks from EOF to retrieve only the last `N` lines rather than full-file reads.
-  - **Real-Time Streaming**: Exposes Server-Sent Events (SSE) at `/api/stream/logs` streaming live terminal logs directly into HTMX without polling.
+  - **Real-Time Streaming (Zero Polling)**:
+    - Exposes two separate Server-Sent Events (SSE) streams with zero `every Xs` HTMX polling intervals anywhere in the UI:
+      1. `GET /api/stream/events` (`core/events.py` `EVENT_BUS` connected on `<body hx-ext="sse" sse-connect="/api/stream/events">`): broadcasts named state-change events (`statusChanged`, `playersUpdated`, `sessionHistoryUpdated`, `serverHistoryUpdated`, `worldSagaUpdated`, `raidAlertUpdated`, `configUpdated`, `refreshBackups`, `accountsUpdated`, `mapUpdated`, `timelineUpdated`) with `Last-Event-ID` replay ring buffer across all open browser tabs, plus lightweight `telemetry` JSON frames while `Running` consumed by `static/js/telemetry.js` for live CPU/RAM/CPU-clocks and 1s client-side clock interpolation.
+      2. `GET /api/stream/logs` (`core/logs.py` connected on `partials/terminal.html`): streams live terminal logs directly into HTMX when the Live Console tab is open.
   - **Crash-Loop Throttling**: Tracks crash timestamps in `self.crash_history`. If 3 crashes occur within a 60-second window, `auto_restart` is paused to avoid rapid crash loops.
   - **Auto-Start on Boot**: If `auto_start_on_boot` is enabled and no running server is attached, `check_auto_start_on_boot()` automatically launches the Valheim dedicated server on application startup and logs the run trigger as `"Auto-Start on Boot"`.
   - **Memory Metrics**: Queries process RSS via `ps -p <PID> -o %cpu,rss` and formats RAM as `MB` (if <1024MB) or `GB` (if >=1024MB).
@@ -129,6 +133,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - `POST /api/backups/restore/{filename}`: Safely restores backup components with clean server shutdown beforehand, pre-restore safety snapshot, manifest-driven active world purge (removing stale/orphaned chunks while leaving other worlds untouched), and optional post-restore restart.
 - `DELETE /api/backups/delete/{filename}`: Deletes a backup archive.
 - `GET /api/backups/download/{filename}`: Direct download of backup zip archive.
+- `GET /api/stream/events`: Server-Sent Events (SSE) live state-change & telemetry event bus stream (`Last-Event-ID` replay supported).
 - `GET /api/stream/logs`: Server-Sent Events (SSE) live stream of `valheim_server.log`.
 - `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with real-time coordinate HUD, filterable POIs, and portal directory.
 - `GET /api/map/data`: Returns full world map dataset, spawn altar coordinates, and active portal networks with builder identities and paired routes.
