@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, AsyncGenerator, List, Optional, Tuple
 
+from core.events import EVENT_BUS
 from core.paths import GAME_LOG
 
 
@@ -67,7 +68,7 @@ async def log_stream_generator(
     if GAME_LOG.exists():
         last_pos = GAME_LOG.stat().st_size
 
-    while True:
+    while not EVENT_BUS.is_shutting_down():
         if request:
             try:
                 if await request.is_disconnected():
@@ -76,6 +77,8 @@ async def log_stream_generator(
                 break
 
         await asyncio.sleep(0.5)
+        if EVENT_BUS.is_shutting_down():
+            break
         if not GAME_LOG.exists():
             continue
 

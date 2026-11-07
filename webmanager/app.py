@@ -39,6 +39,7 @@ from core.backups import (
     restore_backup,
 )
 from core.config import load_config
+from core.events import EVENT_BUS
 from core.logs import log_stream_generator
 from core.map import get_world_map_data
 from core.paths import SERVER_HISTORY_LOG
@@ -59,12 +60,14 @@ BASE_DIR = Path(__file__).parent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[FastAPI] Valheim Server Manager starting up...")
+    EVENT_BUS.reset_shutdown()
     load_users()  # Ensure default admin account is provisioned
     start_playit_monitor()
     configure_system_power_and_performance()  # Confirm & configure performance profile, no-sleep, and boot service
     SERVER_MANAGER.check_auto_start_on_boot()  # Auto-start Valheim server on boot if configured
     yield
     print("[FastAPI] Valheim Server Manager shutting down...")
+    EVENT_BUS.signal_shutdown()
 
 
 app = FastAPI(title="Valheim Server Manager", lifespan=lifespan)
@@ -94,14 +97,12 @@ async def webmanifest():
 
 
 def make_toast_headers(message: str, toast_type: str = "info", **extra_triggers) -> dict:
-    """Helper to generate HTMX HX-Trigger response headers for toasts."""
+    """Generate HTMX HX-Trigger toast header for the caller and broadcast state events via SSE."""
+    sse_events = [k for k, v in extra_triggers.items() if v]
+    if sse_events:
+        EVENT_BUS.publish_many(sse_events)
     trigger_data = {
         "showToast": {"value": message, "type": toast_type},
-        "statusChanged": True,
-        "configUpdated": True,
-        "serverHistoryUpdated": True,
-        "sessionHistoryUpdated": True,
-        **extra_triggers,
     }
     return {"HX-Trigger": json.dumps(trigger_data)}
 
@@ -165,6 +166,7 @@ async def auth_login(
             user_agent=ua,
             failure_reason="Invalid credentials",
         )
+        EVENT_BUS.publish("accountsUpdated")
         error_html = (
             '<div id="login-error-box" class="login-error" style="display: block;">'
             "Invalid username or password. Please check your credentials."
@@ -179,6 +181,7 @@ async def auth_login(
         user_agent=ua,
         role=user["role"],
     )
+    EVENT_BUS.publish("accountsUpdated")
     token = create_session(user)
     response = Response(headers={"HX-Redirect": "/"})
     response.set_cookie(
@@ -208,6 +211,7 @@ async def auth_register(
             user_agent=ua,
             role=new_user["role"],
         )
+        EVENT_BUS.publish("accountsUpdated")
         token = create_session(new_user)
         response = Response(headers={"HX-Redirect": "/"})
         response.set_cookie(
@@ -226,6 +230,7 @@ async def auth_register(
             user_agent=ua,
             failure_reason=str(e),
         )
+        EVENT_BUS.publish("accountsUpdated")
         error_html = (
             f'<div id="login-error-box" class="login-error" style="display: block;">'
             f"{e}"
@@ -396,18 +401,6 @@ async def partial_timeline_chunk(request: Request, before_ts: Optional[str] = No
     )
 
 
-_last_status_state = {
-    "status": None,
-    "players_count": None,
-    "sessions_count": None,
-    "runs_count": None,
-    "saves_count": None,
-    "boss_battle": None,
-    "slain_count": None,
-    "active_raid": None,
-}
-
-
 @app.get("/partials/status", response_class=HTMLResponse)
 async def partial_status(request: Request):
     redirect = require_auth(request)
@@ -417,50 +410,10 @@ async def partial_status(request: Request):
     user = get_current_user_from_request(request)
     status = SERVER_MANAGER.get_status_data()
 
-    curr_status = status.get("status")
-    curr_players = status.get("players_count")
-    curr_sessions = len(status.get("player_sessions", []))
-    curr_runs = (status.get("server_history") or {}).get("total_runs", 0)
-    curr_saves = (status.get("server_history") or {}).get("total_saves", 0)
-    world_stats = status.get("world_stats") or {}
-    curr_boss_battle = world_stats.get("is_boss_battle_active")
-    curr_slain = world_stats.get("slain_bosses_count")
-    curr_active_raid = (world_stats.get("active_raid") or {}).get("title")
-
-    triggers = {}
-    if _last_status_state["status"] is not None:
-        if curr_status != _last_status_state["status"] or curr_players != _last_status_state["players_count"]:
-            triggers["statusChanged"] = True
-        if curr_sessions != _last_status_state["sessions_count"]:
-            triggers["sessionHistoryUpdated"] = True
-            triggers["statusChanged"] = True
-        if curr_runs != _last_status_state.get("runs_count") or curr_saves != _last_status_state.get("saves_count"):
-            triggers["serverHistoryUpdated"] = True
-        if curr_boss_battle != _last_status_state.get("boss_battle") or curr_slain != _last_status_state.get("slain_count"):
-            triggers["worldSagaUpdated"] = True
-            triggers["raidAlertUpdated"] = True
-        if curr_active_raid != _last_status_state.get("active_raid"):
-            triggers["raidAlertUpdated"] = True
-            triggers["statusChanged"] = True
-
-    _last_status_state["status"] = curr_status
-    _last_status_state["players_count"] = curr_players
-    _last_status_state["sessions_count"] = curr_sessions
-    _last_status_state["runs_count"] = curr_runs
-    _last_status_state["saves_count"] = curr_saves
-    _last_status_state["boss_battle"] = curr_boss_battle
-    _last_status_state["slain_count"] = curr_slain
-    _last_status_state["active_raid"] = curr_active_raid
-
-    headers = {}
-    if triggers:
-        headers["HX-Trigger"] = json.dumps(triggers)
-
     return templates.TemplateResponse(
         request=request,
         name="partials/status_card.html",
         context={"status": status, "user": user},
-        headers=headers,
     )
 
 
@@ -503,7 +456,13 @@ async def record_boss_defeat_endpoint(request: Request, boss_id: str):
             if b["id"] == boss_id:
                 boss_name = b["name"]
                 break
-        headers = make_toast_headers(f"Recorded victory against {boss_name}! Defeat count updated.", "success")
+        headers = make_toast_headers(
+            f"Recorded victory against {boss_name}! Defeat count updated.",
+            "success",
+            worldSagaUpdated=True,
+            raidAlertUpdated=True,
+            timelineUpdated=True,
+        )
     else:
         headers = make_toast_headers(f"Could not record defeat for '{boss_id}'.", "error")
 
@@ -534,22 +493,10 @@ async def partial_world_summary(request: Request):
 @app.get("/partials/header-status", response_class=HTMLResponse)
 async def partial_header_status(request: Request):
     status = SERVER_MANAGER.get_status_data()
-    world_stats = status.get("world_stats") or {}
-    curr_active_raid = (world_stats.get("active_raid") or {}).get("title")
-    curr_boss_battle = world_stats.get("is_boss_battle_active")
-
-    headers = {}
-    if _last_status_state["status"] is not None:
-        if curr_active_raid != _last_status_state.get("active_raid") or curr_boss_battle != _last_status_state.get("boss_battle"):
-            headers["HX-Trigger"] = json.dumps({"raidAlertUpdated": True})
-            _last_status_state["active_raid"] = curr_active_raid
-            _last_status_state["boss_battle"] = curr_boss_battle
-
     return templates.TemplateResponse(
         request=request,
         name="partials/header_status.html",
         context={"status": status},
-        headers=headers,
     )
 
 
@@ -611,6 +558,7 @@ async def player_hide(request: Request, player_name: str):
             f"Viking '{target_name}' is now hidden from public roster.",
             "info",
             playersUpdated=True,
+            sessionHistoryUpdated=True,
         )
     else:
         headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
@@ -641,6 +589,7 @@ async def player_unhide(request: Request, player_name: str):
             f"Viking '{target_name}' is now visible on public roster.",
             "success",
             playersUpdated=True,
+            sessionHistoryUpdated=True,
         )
     else:
         headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
@@ -677,6 +626,7 @@ async def player_set_color(request: Request, player_name: str):
                 f"Updated unique color theme for Viking '{target_name}'.",
                 "success",
                 playersUpdated=True,
+                sessionHistoryUpdated=True,
             )
         else:
             headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
@@ -708,6 +658,7 @@ async def player_delete(request: Request, player_name: str):
             f"Viking '{target_name}' was permanently deleted from roster.",
             "warning",
             playersUpdated=True,
+            sessionHistoryUpdated=True,
         )
     else:
         headers = make_toast_headers(f"Player '{target_name}' was not found.", "warning")
@@ -738,7 +689,11 @@ async def partial_session_history(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="partials/session_history.html",
-        context={"status": status, "user": user},
+        context={
+            "status": status,
+            "user": user,
+            "embedded_in_players_tab": request.query_params.get("embedded") == "1",
+        },
     )
 
 
@@ -1099,6 +1054,11 @@ async def update_configuration(
     cfg = load_config()
     available_worlds = list_available_worlds()
     toast_type = "success" if ok else "error"
+    extra_events = (
+        {"configUpdated": True, "statusChanged": True, "worldSagaUpdated": True}
+        if ok
+        else {}
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -1110,7 +1070,7 @@ async def update_configuration(
             "success": ok,
             "user": user,
         },
-        headers=make_toast_headers(msg, toast_type),
+        headers=make_toast_headers(msg, toast_type, **extra_events),
     )
 
 
@@ -1218,7 +1178,15 @@ async def create_new_world_endpoint(
     success_msg = f"⚔️ New World '{clean_name}' created (Seed: '{clean_seed}'){backup_details}"
     cfg = load_config()
     available_worlds = list_available_worlds()
-    headers = make_toast_headers(success_msg, "success")
+    headers = make_toast_headers(
+        success_msg,
+        "success",
+        configUpdated=True,
+        statusChanged=True,
+        refreshBackups=True,
+        worldSagaUpdated=True,
+        serverHistoryUpdated=True,
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -1261,7 +1229,7 @@ async def backup_create(request: Request):
         request=request,
         name="partials/backup_table.html",
         context={"backups": backups, "user": user},
-        headers=make_toast_headers(msg, toast_type),
+        headers=make_toast_headers(msg, toast_type, refreshBackups=ok),
     )
 
 
@@ -1336,11 +1304,24 @@ async def backup_restore(
 
     backups = list_backups()
     toast_type = "success" if ok else "error"
+    restore_triggers = (
+        {
+            "refreshBackups": True,
+            "statusChanged": True,
+            "configUpdated": True,
+            "worldSagaUpdated": True,
+            "playersUpdated": True,
+            "sessionHistoryUpdated": True,
+            "serverHistoryUpdated": True,
+        }
+        if ok
+        else {}
+    )
     return templates.TemplateResponse(
         request=request,
         name="partials/backup_table.html",
         context={"backups": backups, "user": user},
-        headers=make_toast_headers(msg, toast_type),
+        headers=make_toast_headers(msg, toast_type, **restore_triggers),
     )
 
 
@@ -1364,7 +1345,7 @@ async def backup_delete(request: Request, filename: str):
         request=request,
         name="partials/backup_table.html",
         context={"backups": backups, "user": user},
-        headers=make_toast_headers(msg, toast_type),
+        headers=make_toast_headers(msg, toast_type, refreshBackups=ok),
     )
 
 
@@ -1392,8 +1373,30 @@ async def backup_download(request: Request, filename: str):
 
 
 # ==========================================
-# Real-Time SSE Log Streaming
+# Real-Time SSE Event & Log Streaming
 # ==========================================
+
+
+@app.get("/api/stream/events")
+async def stream_events(request: Request):
+    user = get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    last_event_id = request.headers.get("Last-Event-ID")
+    return StreamingResponse(
+        EVENT_BUS.event_stream_generator(
+            request=request,
+            initial_telemetry_fn=SERVER_MANAGER.get_telemetry_snapshot,
+            last_event_id=last_event_id,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/stream/logs")
@@ -1457,5 +1460,6 @@ async def refresh_map_telemetry(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
     data = get_world_map_data(force_refresh=True)
+    EVENT_BUS.publish_many(["worldSagaUpdated", "mapUpdated"])
     return {"success": True, "stats": data["stats"]}
 

@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.backups import get_world_seed
 from core.config import load_config, save_config
+from core.events import EVENT_BUS
 from core.logs import GAME_LOG
 from core.paths import GAME_LOG, LINUX64_DIR, LOGS_DIR, SERVER_BIN, SERVER_DIR
 from core.players import PLAYER_TRACKER
@@ -89,6 +90,9 @@ class ValheimServerManager:
         self.start_time: Optional[float] = None
         self.crash_history: List[float] = []
         self._monitor_task_running = True
+        self._prev_fingerprint: Optional[Dict[str, Any]] = None
+        self._last_telemetry_sig: Optional[Tuple[Any, ...]] = None
+        self._last_telemetry_push_ts: float = 0.0
 
         # Check for pre-existing process on initialization
         pid = find_existing_pid()
@@ -135,13 +139,8 @@ class ValheimServerManager:
         with self.lock:
             return self.state in ("Running", "Starting") or self.get_active_pid() is not None
 
-    def get_status_data(self) -> Dict[str, Any]:
-        with self.lock:
-            state = self.state
-            start_t = self.start_time
-            pid = self.process.pid if self.process and self.process.poll() is None else self.existing_pid
-            cfg = self.config.copy()
-
+    @staticmethod
+    def _sample_process_metrics(pid: Optional[int], state: str) -> Tuple[str, str]:
         cpu, mem = "0.0", "0 MB"
         if pid and state == "Running":
             try:
@@ -158,6 +157,100 @@ class ValheimServerManager:
                         mem = f"{int(rss_mb)} MB"
             except Exception:
                 pass
+        return cpu, mem
+
+    def get_telemetry_snapshot(
+        self,
+        cpu_freq: Optional[Dict[str, Any]] = None,
+        power_status: Optional[Dict[str, Any]] = None,
+        p_summary: Optional[Dict[str, Any]] = None,
+        w_summary: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Build a compact JSON telemetry & clock-anchor payload for SSE streaming."""
+        with self.lock:
+            state = self.state
+            start_t = self.start_time
+            pid = self.process.pid if self.process and self.process.poll() is None else self.existing_pid
+
+        server_running = (state == "Running")
+        cpu, mem = self._sample_process_metrics(pid, state)
+
+        if p_summary is None:
+            p_summary = PLAYER_TRACKER.get_summary(server_running=server_running)
+        players_count = p_summary.get("online_count", 0)
+
+        if cpu_freq is None:
+            cpu_freq = get_cpu_frequencies()
+        if power_status is None:
+            power_status = get_system_power_status()
+
+        now_ts = time.time()
+        if w_summary is not None:
+            tod = w_summary.get("time_of_day") or WORLD_STATS.get_time_of_day_data(
+                server_running=server_running,
+                players_count=players_count,
+            )
+            nights_slept = w_summary.get("nights_slept", WORLD_STATS.nights_slept)
+            active_raid = w_summary.get("active_raid")
+        else:
+            tod = WORLD_STATS.get_time_of_day_data(
+                server_running=server_running,
+                players_count=players_count,
+            )
+            nights_slept = WORLD_STATS.nights_slept
+            active_raid = None
+            if WORLD_STATS.active_raid and server_running:
+                try:
+                    from core.world_stats import parse_timestamp as _parse_ws_ts
+
+                    r_ts = _parse_ws_ts(WORLD_STATS.active_raid.get("timestamp", ""))
+                    if r_ts:
+                        diff = (datetime.datetime.now() - r_ts).total_seconds()
+                        if 0 <= diff <= 180:
+                            active_raid = {
+                                "seconds_remaining": max(0, int(180 - diff)),
+                            }
+                except Exception:
+                    pass
+
+        raid_end_ts: Optional[float] = None
+        if active_raid and active_raid.get("seconds_remaining") is not None:
+            raid_end_ts = round(now_ts + float(active_raid["seconds_remaining"]), 2)
+
+        return {
+            "status": state,
+            "pid": pid,
+            "server_running": server_running,
+            "start_time": round(start_t, 3) if start_t else None,
+            "server_now": round(now_ts, 3),
+            "cpu": cpu,
+            "mem": mem,
+            "players_count": players_count,
+            "cpu_freq": {
+                "min_mhz": cpu_freq.get("min_mhz", 0),
+                "max_mhz": cpu_freq.get("max_mhz", 0),
+                "cores_count": cpu_freq.get("cores_count", 0),
+                "all_under_600": bool(cpu_freq.get("all_under_600", False)),
+            },
+            "power_profile": (power_status or {}).get("profile", "unknown"),
+            "world_clock": {
+                "net_time": round(float(tod.get("net_time", 0.0)), 3),
+                "net_time_ref": round(now_ts, 3),
+                "is_frozen": bool(tod.get("is_frozen", True)),
+                "current_day": int(tod.get("current_day", 1)),
+                "nights_slept": int(nights_slept),
+            },
+            "raid_end_ts": raid_end_ts,
+        }
+
+    def get_status_data(self) -> Dict[str, Any]:
+        with self.lock:
+            state = self.state
+            start_t = self.start_time
+            pid = self.process.pid if self.process and self.process.poll() is None else self.existing_pid
+            cfg = self.config.copy()
+
+        cpu, mem = self._sample_process_metrics(pid, state)
 
         uptime_str = "--"
         if start_t and state == "Running":
@@ -248,6 +341,8 @@ class ValheimServerManager:
             self.process = None
             self.state = "Starting"
 
+        EVENT_BUS.publish("statusChanged")
+
         def _do_start():
             try:
                 self._rotate_logs()
@@ -266,6 +361,7 @@ class ValheimServerManager:
                     save_config({"modifiers": cleaned_mods})
                     with self.lock:
                         self.config = load_config()
+                    EVENT_BUS.publish("configUpdated")
 
                 print(f"[Manager] Launching Valheim dedicated server: {' '.join(cmd)}")
                 with open(GAME_LOG, "w", encoding="utf-8") as f:
@@ -290,10 +386,14 @@ class ValheimServerManager:
                     trigger=trigger,
                 )
                 print(f"[Manager] Valheim dedicated server successfully started (PID {proc.pid}).")
+                EVENT_BUS.publish_many(["statusChanged", "serverHistoryUpdated"])
+                if EVENT_BUS.has_subscribers():
+                    EVENT_BUS.publish("telemetry", self.get_telemetry_snapshot())
             except Exception as e:
                 with self.lock:
                     self.state = "Stopped"
                 print(f"[Manager] Failed to start server: {e}")
+                EVENT_BUS.publish("statusChanged")
 
         t = threading.Thread(target=_do_start, daemon=True)
         t.start()
@@ -312,6 +412,8 @@ class ValheimServerManager:
                 return False, "No active server process detected."
 
             self.state = "Stopping"
+
+        EVENT_BUS.publish("statusChanged")
 
         def _do_stop():
             try:
@@ -353,6 +455,15 @@ class ValheimServerManager:
                 PLAYER_TRACKER.on_server_stop()
                 SERVER_HISTORY.on_server_stop("Clean Shutdown (User Requested)")
                 print("[Manager] Server cleanly stopped.")
+                EVENT_BUS.publish_many([
+                    "statusChanged",
+                    "playersUpdated",
+                    "sessionHistoryUpdated",
+                    "serverHistoryUpdated",
+                    "raidAlertUpdated",
+                ])
+                if EVENT_BUS.has_subscribers():
+                    EVENT_BUS.publish("telemetry", self.get_telemetry_snapshot())
 
         t = threading.Thread(target=_do_stop, daemon=True)
         t.start()
@@ -383,52 +494,207 @@ class ValheimServerManager:
                 self.config = load_config()
         return ok, msg
 
+    @staticmethod
+    def _build_fingerprint(
+        state: str,
+        active_pid: Optional[int],
+        cpu_freq: Dict[str, Any],
+        power_status: Dict[str, Any],
+        p_summary: Dict[str, Any],
+        s_summary: Dict[str, Any],
+        w_summary: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        active_raid = w_summary.get("active_raid") or {}
+        return {
+            "status": (
+                state,
+                active_pid,
+                bool(cpu_freq.get("all_under_600", False)),
+                (power_status or {}).get("profile"),
+            ),
+            "players": (
+                p_summary.get("online_count", 0),
+                tuple(p_summary.get("online_players", [])),
+                p_summary.get("known_count", 0),
+                p_summary.get("hidden_count", 0),
+                p_summary.get("total_deaths", 0),
+            ),
+            "sessions": len(p_summary.get("recent_events", [])),
+            "server_history": (
+                s_summary.get("total_runs", 0),
+                s_summary.get("total_saves", 0),
+                s_summary.get("last_save_time"),
+            ),
+            "raid_alert": (
+                bool(w_summary.get("active_raid")),
+                active_raid.get("id"),
+                bool(w_summary.get("is_boss_battle_active", False)),
+                w_summary.get("active_bosses_count", 0),
+            ),
+            "world_saga": (
+                w_summary.get("current_day", 1),
+                w_summary.get("nights_slept", 0),
+                w_summary.get("total_raids", 0),
+                w_summary.get("slain_bosses_count", 0),
+                w_summary.get("total_boss_defeats_count", 0),
+                w_summary.get("discovered_bosses_count", 0),
+                bool(w_summary.get("is_boss_battle_active", False)),
+                w_summary.get("connected_portals", 0),
+                w_summary.get("portal_pairs", 0),
+                w_summary.get("portals_linked_pairs_count", 0),
+                w_summary.get("portals_unlinked_count", 0),
+                w_summary.get("dungeons_entered", 0),
+                w_summary.get("dungeon_rooms", 0),
+            ),
+        }
+
     def _monitor_loop(self):
         while self._monitor_task_running:
             time.sleep(3)
-            with self.lock:
-                state = self.state
-                proc = self.process
-                ex_pid = self.existing_pid
-                auto_restart = self.config.get("auto_restart", True)
+            try:
+                with self.lock:
+                    state = self.state
+                    proc = self.process
+                    ex_pid = self.existing_pid
+                    auto_restart = self.config.get("auto_restart", True)
 
-            if state == "Running":
-                PLAYER_TRACKER.process_new_logs()
-                WORLD_STATS.process_new_logs()
-                SERVER_HISTORY.process_new_logs()
-                if proc:
-                    ret = proc.poll()
-                    if ret is not None:
-                        now = time.time()
-                        self.crash_history.append(now)
-                        self.crash_history = [t for t in self.crash_history if now - t < 60]
-                        print(f"[Manager] Process exited unexpectedly with code {ret}")
+                crashed = False
+                if state == "Running":
+                    PLAYER_TRACKER.process_new_logs()
+                    WORLD_STATS.process_new_logs()
+                    SERVER_HISTORY.process_new_logs()
+                    if proc:
+                        ret = proc.poll()
+                        if ret is not None:
+                            crashed = True
+                            now = time.time()
+                            self.crash_history.append(now)
+                            self.crash_history = [t for t in self.crash_history if now - t < 60]
+                            print(f"[Manager] Process exited unexpectedly with code {ret}")
 
-                        with self.lock:
-                            self.process = None
-                            self.start_time = None
-                            self.state = "Stopped"
-                        PLAYER_TRACKER.on_server_stop()
-                        SERVER_HISTORY.on_server_stop(f"Process Exited Unexpectedly (code {ret})")
+                            with self.lock:
+                                self.process = None
+                                self.start_time = None
+                                self.state = "Stopped"
+                                state = "Stopped"
+                            PLAYER_TRACKER.on_server_stop()
+                            SERVER_HISTORY.on_server_stop(f"Process Exited Unexpectedly (code {ret})")
+                            EVENT_BUS.publish_many([
+                                "statusChanged",
+                                "playersUpdated",
+                                "sessionHistoryUpdated",
+                                "serverHistoryUpdated",
+                                "raidAlertUpdated",
+                            ])
+                            if EVENT_BUS.has_subscribers():
+                                EVENT_BUS.publish("telemetry", self.get_telemetry_snapshot())
 
-                        if auto_restart:
-                            if len(self.crash_history) >= 3:
-                                print("[Manager] Crash loop detected (3 crashes in 60s). Pausing auto-restart.")
-                            else:
-                                print("[Manager] Auto-restart enabled. Restarting in 5s...")
-                                time.sleep(5)
-                                self.start_server(trigger="Auto-Restart (Crash)")
-                elif ex_pid:
-                    try:
-                        os.kill(ex_pid, 0)
-                    except OSError:
-                        print(f"[Manager] Attached process {ex_pid} terminated.")
-                        with self.lock:
-                            self.existing_pid = None
-                            self.start_time = None
-                            self.state = "Stopped"
-                        PLAYER_TRACKER.on_server_stop()
-                        SERVER_HISTORY.on_server_stop("Attached Process Terminated")
+                            if auto_restart:
+                                if len(self.crash_history) >= 3:
+                                    print("[Manager] Crash loop detected (3 crashes in 60s). Pausing auto-restart.")
+                                else:
+                                    print("[Manager] Auto-restart enabled. Restarting in 5s...")
+                                    time.sleep(5)
+                                    self.start_server(trigger="Auto-Restart (Crash)")
+                    elif ex_pid:
+                        try:
+                            os.kill(ex_pid, 0)
+                        except OSError:
+                            crashed = True
+                            print(f"[Manager] Attached process {ex_pid} terminated.")
+                            with self.lock:
+                                self.existing_pid = None
+                                self.start_time = None
+                                self.state = "Stopped"
+                                state = "Stopped"
+                            PLAYER_TRACKER.on_server_stop()
+                            SERVER_HISTORY.on_server_stop("Attached Process Terminated")
+                            EVENT_BUS.publish_many([
+                                "statusChanged",
+                                "playersUpdated",
+                                "sessionHistoryUpdated",
+                                "serverHistoryUpdated",
+                                "raidAlertUpdated",
+                            ])
+                            if EVENT_BUS.has_subscribers():
+                                EVENT_BUS.publish("telemetry", self.get_telemetry_snapshot())
+
+                if crashed:
+                    continue
+
+                with self.lock:
+                    state = self.state
+                    active_pid = self.process.pid if self.process and self.process.poll() is None else self.existing_pid
+
+                server_running = (state == "Running")
+                cpu_freq = get_cpu_frequencies()
+                power_status = get_system_power_status()
+                p_summary = PLAYER_TRACKER.get_summary(server_running=server_running)
+                s_summary = SERVER_HISTORY.get_summary(server_running=server_running, pid=active_pid)
+                w_summary = WORLD_STATS.get_summary(
+                    server_running=server_running,
+                    players_count=p_summary.get("online_count", 0),
+                )
+
+                fp = self._build_fingerprint(
+                    state=state,
+                    active_pid=active_pid,
+                    cpu_freq=cpu_freq,
+                    power_status=power_status,
+                    p_summary=p_summary,
+                    s_summary=s_summary,
+                    w_summary=w_summary,
+                )
+
+                events_to_emit: List[str] = []
+                prev = self._prev_fingerprint
+                if prev is not None:
+                    if fp["status"] != prev["status"]:
+                        events_to_emit.append("statusChanged")
+                    if fp["players"] != prev["players"]:
+                        events_to_emit.extend(["playersUpdated", "statusChanged"])
+                    if fp["sessions"] != prev["sessions"]:
+                        events_to_emit.append("sessionHistoryUpdated")
+                    if fp["server_history"] != prev["server_history"]:
+                        events_to_emit.append("serverHistoryUpdated")
+                    if fp["raid_alert"] != prev["raid_alert"]:
+                        events_to_emit.append("raidAlertUpdated")
+                    if fp["world_saga"] != prev["world_saga"]:
+                        events_to_emit.append("worldSagaUpdated")
+
+                self._prev_fingerprint = fp
+
+                if events_to_emit:
+                    EVENT_BUS.publish_many(events_to_emit)
+
+                if EVENT_BUS.has_subscribers() and (server_running or events_to_emit):
+                    snap = self.get_telemetry_snapshot(
+                        cpu_freq=cpu_freq,
+                        power_status=power_status,
+                        p_summary=p_summary,
+                        w_summary=w_summary,
+                    )
+                    sig = (
+                        snap["status"],
+                        snap["cpu"],
+                        snap["mem"],
+                        snap["cpu_freq"]["min_mhz"],
+                        snap["cpu_freq"]["max_mhz"],
+                        snap["world_clock"]["is_frozen"],
+                        snap["world_clock"]["nights_slept"],
+                        snap["raid_end_ts"],
+                    )
+                    now_ts = time.time()
+                    if (
+                        bool(events_to_emit)
+                        or sig != self._last_telemetry_sig
+                        or (now_ts - self._last_telemetry_push_ts) >= 15.0
+                    ):
+                        self._last_telemetry_sig = sig
+                        self._last_telemetry_push_ts = now_ts
+                        EVENT_BUS.publish("telemetry", snap)
+            except Exception as e:
+                print(f"[Manager] Error in monitor loop: {e}")
 
 
 # Global singleton instance
