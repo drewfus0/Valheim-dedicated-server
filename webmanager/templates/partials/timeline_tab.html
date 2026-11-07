@@ -1,5 +1,5 @@
 {# Partial: Vertical Timeline Tab #}
-<div class="timeline-tab-wrapper">
+<div class="timeline-tab-wrapper" hx-get="/partials/tabs/timeline" hx-trigger="sse:timelineUpdated[window.scrollY < 250] delay:120ms" hx-target="#tab-content" hx-swap="innerHTML">
     <!-- Header Banner & Celestial Status -->
     <div class="card timeline-header-card">
         <div class="card-header" style="flex-wrap: wrap; gap: 1rem; border-bottom: none; padding-bottom: 0.5rem;">
@@ -26,16 +26,16 @@
         <!-- Midgard Celestial In-Game Indicators -->
         <div class="timeline-celestial-strip">
             <div class="celestial-strip-time">
-                <span class="celestial-strip-icon">{{ time_of_day.phase_icon }}</span>
+                <span class="celestial-strip-icon" data-telemetry="tod-icon">{{ time_of_day.phase_icon }}</span>
                 <div class="celestial-strip-details">
                     <div class="celestial-strip-clock">
-                        <strong style="color: #f8fafc;">Day {{ time_of_day.current_day }}</strong>
+                        <strong data-telemetry="tod-day" style="color: #f8fafc;">Day {{ time_of_day.current_day }}</strong>
                         <span class="celestial-sep">•</span>
-                        <span style="font-family: var(--font-mono); color: var(--nordic-cyan);">{{ time_of_day.time_12h }}</span>
-                        <span class="celestial-clock-24">({{ time_of_day.time_24h }})</span>
+                        <span data-telemetry="tod-12h" style="font-family: var(--font-mono); color: var(--nordic-cyan);">{{ time_of_day.time_12h }}</span>
+                        <span class="celestial-clock-24" data-telemetry="tod-24h-paren">({{ time_of_day.time_24h }})</span>
                     </div>
                     <div class="celestial-strip-sub">
-                        <span class="celestial-phase-badge {% if time_of_day.is_day %}day{% else %}night{% endif %}">{{ time_of_day.sub_phase }}</span>
+                        <span class="celestial-phase-badge {% if time_of_day.is_day %}day{% else %}night{% endif %}" data-telemetry="tod-subphase">{{ time_of_day.sub_phase }}</span>
                     </div>
                 </div>
             </div>
@@ -49,8 +49,9 @@
                 </div>
                 <div class="celestial-progress-track">
                     <div class="celestial-progress-bar {% if time_of_day.is_day %}day{% else %}night{% endif %}"
+                         data-telemetry="tod-phase-bar"
                          style="width: {{ time_of_day.phase_progress_pct }}%;"></div>
-                    <div class="celestial-orb-pin" style="left: {{ time_of_day.phase_progress_pct }}%;" title="Current In-Game Time: {{ time_of_day.time_12h }}">
+                    <div class="celestial-orb-pin" data-telemetry="tod-phase-pin" style="left: {{ time_of_day.phase_progress_pct }}%;" title="Current In-Game Time: {{ time_of_day.time_12h }}">
                         {{ time_of_day.phase_icon }}
                     </div>
                 </div>
@@ -59,10 +60,10 @@
             <div class="celestial-strip-next">
                 <div class="celestial-countdown-badge {% if time_of_day.next_event_name == 'Sunset' %}sunset{% else %}sunrise{% endif %}"
                      title="Next in-game celestial event transition">
-                    <span class="next-evt-icon">{{ time_of_day.next_event_icon }}</span>
-                    <span class="next-evt-label">{{ time_of_day.next_event_name }} in</span>
-                    <strong class="next-evt-time">{{ (time_of_day.seconds_to_event // 60)|string + 'm ' + (time_of_day.seconds_to_event % 60)|string + 's' if time_of_day.seconds_to_event >= 60 else (time_of_day.seconds_to_event|string) + 's' }}</strong>
-                    <span class="next-evt-clock">({{ time_of_day.next_event_time }})</span>
+                    <span class="next-evt-icon" data-telemetry="tod-next-icon">{{ time_of_day.next_event_icon }}</span>
+                    <span class="next-evt-label" data-telemetry="tod-next-label">{{ time_of_day.next_event_name }} in</span>
+                    <strong class="next-evt-time" data-telemetry="tod-next-countdown">{{ (time_of_day.seconds_to_event // 60)|string + 'm ' + (time_of_day.seconds_to_event % 60)|string + 's' if time_of_day.seconds_to_event >= 60 else (time_of_day.seconds_to_event|string) + 's' }}</strong>
+                    <span class="next-evt-clock" data-telemetry="tod-next-clock">({{ time_of_day.next_event_time }})</span>
                 </div>
             </div>
         </div>

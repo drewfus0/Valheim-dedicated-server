@@ -1,4 +1,4 @@
-<div id="tab-players" class="tab-panel active">
+<div id="tab-players" class="tab-panel active" hx-get="/partials/players-tab" hx-trigger="sse:playersUpdated delay:80ms, sse:sessionHistoryUpdated delay:80ms, sse:statusChanged delay:80ms" hx-swap="outerHTML">
 <div id="players-tab-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
     <!-- Top Summary Telemetry Bar -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
@@ -219,12 +219,17 @@
 
     <!-- Admin Session History Section -->
     {% if user and user.role == 'admin' %}
+    {% set embedded_in_players_tab = true %}
     {% include "partials/session_history.html" %}
     {% endif %}
 </div>
 <script>
 window.filterPlayerTable = function(filter, btn) {
+    if (!btn) {
+        btn = document.querySelector(`#players-tab-container .player-filter-btn[data-filter="${filter}"]`);
+    }
     if (!btn) return;
+    try { sessionStorage.setItem('valheim_players_filter', filter); } catch (e) {}
     const group = btn.closest('.btn-group');
     if (group) {
         group.querySelectorAll('.player-filter-btn').forEach(b => {
@@ -249,5 +254,19 @@ window.filterPlayerTable = function(filter, btn) {
         }
     });
 };
+(function restorePlayerFilter() {
+    try {
+        const saved = sessionStorage.getItem('valheim_players_filter');
+        if (saved && saved !== 'all') {
+            const buttons = document.querySelectorAll('#players-tab-container .player-filter-btn');
+            buttons.forEach(btn => {
+                const onclick = btn.getAttribute('onclick') || '';
+                if (onclick.indexOf("'" + saved + "'") !== -1) {
+                    window.filterPlayerTable(saved, btn);
+                }
+            });
+        }
+    } catch (e) {}
+})();
 </script>
 </div>

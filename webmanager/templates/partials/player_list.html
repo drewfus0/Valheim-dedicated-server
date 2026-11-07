@@ -1,5 +1,5 @@
 {% set pid = panel_id or 'players-panel' %}
-<div id="{{ pid }}" class="card" hx-get="/partials/players?panel_id={{ pid }}" hx-trigger="statusChanged from:body, playersUpdated from:body" hx-swap="outerHTML">
+<div id="{{ pid }}" class="card"{% if pid != 'players-tab-roster' %} hx-get="/partials/players?panel_id={{ pid }}" hx-trigger="sse:playersUpdated delay:80ms, sse:statusChanged delay:80ms" hx-swap="outerHTML"{% endif %}>
     <div class="card-header">
         <div class="card-title">
             <span>🛡️</span> Viking Roster & Activity

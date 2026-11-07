@@ -1158,9 +1158,9 @@
     document.addEventListener('fullscreenchange', updateFullscreenButtonState);
     document.addEventListener('webkitfullscreenchange', updateFullscreenButtonState);
 
-    window.refreshMapData = async function () {
+    window.refreshMapData = async function (silent = false) {
         const btn = document.getElementById('map-refresh-btn');
-        if (btn) {
+        if (btn && !silent) {
             btn.classList.add('loading');
             btn.disabled = true;
         }
@@ -1172,11 +1172,11 @@
             currentMapData = data;
             allPortalsData = data.portals || [];
             window.applyMapFilters();
-            if (window.showToast) window.showToast('World map & portals updated from active chunk', 'success');
+            if (!silent && window.showToast) window.showToast('World map & portals updated from active chunk', 'success');
         } catch (e) {
-            if (window.showToast) window.showToast('Error refreshing portals: ' + e.message, 'error');
+            if (!silent && window.showToast) window.showToast('Error refreshing portals: ' + e.message, 'error');
         } finally {
-            if (btn) {
+            if (btn && !silent) {
                 btn.classList.remove('loading');
                 btn.disabled = false;
             }

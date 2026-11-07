@@ -16,11 +16,12 @@
     <link rel="stylesheet" href="/static/css/leaflet.css">
     <script src="/static/js/htmx.min.js"></script>
     <script src="/static/js/sse.js"></script>
+    <script src="/static/js/telemetry.js?v=1.0"></script>
     <script src="/static/js/timers.js"></script>
     <script src="/static/js/leaflet.js"></script>
     <script src="/static/js/map.js?v=2.1"></script>
 </head>
-<body hx-ext="sse">
+<body hx-ext="sse" sse-connect="/api/stream/events">
     <div class="app-container">
         <header class="app-header">
             <div class="brand-section">
@@ -34,7 +35,7 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                <div id="header-status-badge" hx-get="/partials/header-status" hx-trigger="load, statusChanged from:body, every 3s" hx-swap="innerHTML">
+                <div id="header-status-badge" hx-get="/partials/header-status" hx-trigger="sse:statusChanged delay:80ms" hx-swap="innerHTML">
                     {% include "partials/header_status.html" %}
                 </div>
 

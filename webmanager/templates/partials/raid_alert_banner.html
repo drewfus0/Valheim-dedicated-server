@@ -1,4 +1,4 @@
-<div id="raid-alert-banner" hx-get="/partials/raid-alert" hx-trigger="statusChanged from:body, raidAlertUpdated from:body, every 3s" hx-swap="outerHTML"{% if not (status.world_stats and (status.world_stats.active_raid or status.world_stats.is_boss_battle_active)) %} style="display: none;"{% endif %}>
+<div id="raid-alert-banner" hx-get="/partials/raid-alert" hx-trigger="sse:raidAlertUpdated delay:80ms, sse:statusChanged delay:80ms" hx-swap="outerHTML"{% if not (status.world_stats and (status.world_stats.active_raid or status.world_stats.is_boss_battle_active)) %} style="display: none;"{% endif %}>
     {% if status.world_stats and status.world_stats.active_raid %}
     <div class="raid-alert-banner">
         <div class="raid-alert-main">
@@ -12,7 +12,7 @@
                     <span class="raid-alert-title">{{ status.world_stats.active_raid.title }}</span>
                     <span class="badge raid-biome-badge">📍 {{ status.world_stats.active_raid.biome }}</span>
                     {% if status.world_stats.active_raid.seconds_remaining is defined %}
-                    <span class="badge raid-timer-badge">⏳ ~{{ status.world_stats.active_raid.seconds_remaining }}s remaining</span>
+                    <span class="badge raid-timer-badge" data-telemetry="raid-remaining">⏳ ~{{ status.world_stats.active_raid.seconds_remaining }}s remaining</span>
                     {% endif %}
                 </div>
                 <div class="raid-alert-quote">
