@@ -27,7 +27,7 @@
             <span class="metric-value" data-telemetry="uptime">{{ status.uptime }}</span>
         </div>
         {% if status.cpu_freq and status.cpu_freq.max_mhz > 0 %}
-        <div class="metric-box metric-box-wide" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
+        <div class="metric-box" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
             <span class="metric-label">Host CPU Clocks</span>
             <span class="metric-value metric-value-compact" {% if status.cpu_freq.all_under_600 %}style="color: #ef4444; font-weight: 700;"{% else %}style="color: #38bdf8;"{% endif %}>
                 <span data-telemetry="cpu-clocks">{{ status.cpu_freq.min_mhz }} - {{ status.cpu_freq.max_mhz }}</span> <span style="font-size: 0.78rem; color: var(--text-secondary);">MHz</span>
@@ -35,7 +35,7 @@
         </div>
         {% endif %}
         {% if status.power_status %}
-        <div class="metric-box metric-box-wide" title="Profile: {{ status.power_status.profile }} | Sleep: {{ status.power_status.sleep_policy }} | Screen: {{ status.power_status.screen_behavior }}">
+        <div class="metric-box" title="Profile: {{ status.power_status.profile }} | Sleep: {{ status.power_status.sleep_policy }} | Screen: {{ status.power_status.screen_behavior }}">
             <span class="metric-label">Power Profile</span>
             <span class="metric-value metric-value-compact" data-telemetry="power-profile" style="color: #10b981; text-transform: capitalize;">
                 ⚡ {{ status.power_status.profile }}

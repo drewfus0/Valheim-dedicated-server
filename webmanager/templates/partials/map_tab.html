@@ -145,7 +145,7 @@
             // Ensure latest stylesheet and map controller are loaded even without full page reload
             const cssLink = document.querySelector('link[href*="/static/css/style.css"]');
             if (cssLink && !cssLink.href.includes('v=')) {
-                cssLink.href = '/static/css/style.css?v=2.2';
+                cssLink.href = '/static/css/style.css?v=2.3';
             }
             const script = document.createElement('script');
             script.src = '/static/js/map.js?v=' + REQUIRED_VER;
