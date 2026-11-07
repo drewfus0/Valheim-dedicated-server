@@ -12,8 +12,8 @@
         </div>
     </div>
 
-    <!-- Telemetry Metrics Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+    <!-- Server & Host Telemetry Metrics Grid -->
+    <div class="status-metrics-grid">
         <div class="metric-box">
             <span class="metric-label">Valheim CPU</span>
             <span class="metric-value" data-telemetry="cpu" style="color: var(--nordic-cyan);">{{ status.cpu }}%</span>
@@ -26,53 +26,18 @@
             <span class="metric-label">Server Uptime</span>
             <span class="metric-value" data-telemetry="uptime">{{ status.uptime }}</span>
         </div>
-        {% if status.world_stats and status.world_stats.time_of_day %}
-        <div class="metric-box in-game-time-box" data-telemetry="tod-box" title="Valheim In-Game Clock: {{ status.world_stats.time_of_day.time_12h }} ({{ status.world_stats.time_of_day.sub_phase }}) | {{ status.world_stats.time_of_day.next_event_text }}{% if status.world_stats.time_of_day.is_frozen %} (Clock paused - no players online){% endif %}">
-            <span class="metric-label" style="display: flex; align-items: center; justify-content: space-between;">
-                <span><span data-telemetry="tod-icon">{{ status.world_stats.time_of_day.phase_icon }}</span> In-Game Time</span>
-                <span data-telemetry="tod-phase" style="font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#a78bfa{% endif %};">
-                    {{ status.world_stats.time_of_day.phase }}
-                </span>
-            </span>
-            <span class="metric-value" data-telemetry-color="clock" style="color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#c084fc{% endif %}; font-feature-settings: 'tnum'; display: flex; align-items: baseline; gap: 0.4rem;">
-                <span data-telemetry="tod-24h" data-telemetry-color="clock" style="color: {% if status.world_stats.time_of_day.is_day %}#f59e0b{% else %}#c084fc{% endif %};">{{ status.world_stats.time_of_day.time_24h }}</span>
-                <span data-telemetry="tod-day-paren" style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">(Day {{ status.world_stats.current_day }})</span>
-            </span>
-            <span data-telemetry="tod-next-row" style="font-size: 0.72rem; color: {% if status.world_stats.time_of_day.is_day %}#fbbf24{% else %}#d8b4fe{% endif %}; margin-top: 0.2rem; display: flex; align-items: center; gap: 0.35rem;">
-                <span data-telemetry="tod-next-icon">{{ status.world_stats.time_of_day.next_event_icon }}</span>
-                <strong data-telemetry="tod-next-text">{{ status.world_stats.time_of_day.next_event_text }}</strong>
-                <span data-telemetry="tod-frozen" style="color: var(--text-muted); font-size: 0.65rem;{% if not status.world_stats.time_of_day.is_frozen %} display: none;{% endif %}">(paused)</span>
-            </span>
-        </div>
-        <div class="metric-box" title="Midgard In-Game World Calendar | {{ status.world_stats.nights_slept }} nights skipped by sleeping">
-            <span class="metric-label">World Calendar</span>
-            <span class="metric-value" data-telemetry="tod-day" style="color: #38bdf8;">
-                Day {{ status.world_stats.current_day }}
-            </span>
-            <span data-telemetry="tod-calendar-sub" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">
-                🌙 {{ status.world_stats.nights_slept }} Slept &bull; {{ status.world_stats.time_of_day.sub_phase }}
-            </span>
-        </div>
-        {% elif status.world_stats %}
-        <div class="metric-box" title="Midgard In-Game World Calendar">
-            <span class="metric-label">World Calendar</span>
-            <span class="metric-value" data-telemetry="tod-day" style="color: #38bdf8;">
-                Day {{ status.world_stats.current_day }}
-            </span>
-        </div>
-        {% endif %}
         {% if status.cpu_freq and status.cpu_freq.max_mhz > 0 %}
-        <div class="metric-box" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
+        <div class="metric-box metric-box-wide" title="Min: {{ status.cpu_freq.min_mhz }} MHz / Max: {{ status.cpu_freq.max_mhz }} MHz across {{ status.cpu_freq.cores_count }} cores">
             <span class="metric-label">Host CPU Clocks</span>
-            <span class="metric-value" {% if status.cpu_freq.all_under_600 %}style="font-size: 1.05rem; color: #ef4444; font-weight: 700;"{% else %}style="font-size: 1.05rem; color: #38bdf8;"{% endif %}>
-                <span data-telemetry="cpu-clocks">{{ status.cpu_freq.min_mhz }} - {{ status.cpu_freq.max_mhz }}</span> <span style="font-size: 0.75rem; color: var(--text-secondary);">MHz</span>
+            <span class="metric-value metric-value-compact" {% if status.cpu_freq.all_under_600 %}style="color: #ef4444; font-weight: 700;"{% else %}style="color: #38bdf8;"{% endif %}>
+                <span data-telemetry="cpu-clocks">{{ status.cpu_freq.min_mhz }} - {{ status.cpu_freq.max_mhz }}</span> <span style="font-size: 0.78rem; color: var(--text-secondary);">MHz</span>
             </span>
         </div>
         {% endif %}
         {% if status.power_status %}
-        <div class="metric-box" title="Profile: {{ status.power_status.profile }} | Sleep: {{ status.power_status.sleep_policy }} | Screen: {{ status.power_status.screen_behavior }}">
+        <div class="metric-box metric-box-wide" title="Profile: {{ status.power_status.profile }} | Sleep: {{ status.power_status.sleep_policy }} | Screen: {{ status.power_status.screen_behavior }}">
             <span class="metric-label">Power Profile</span>
-            <span class="metric-value" data-telemetry="power-profile" style="font-size: 1.02rem; color: #10b981; text-transform: capitalize;">
+            <span class="metric-value metric-value-compact" data-telemetry="power-profile" style="color: #10b981; text-transform: capitalize;">
                 ⚡ {{ status.power_status.profile }}
             </span>
         </div>

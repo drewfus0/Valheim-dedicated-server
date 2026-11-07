@@ -419,14 +419,36 @@ header.app-header {
 }
 
 /* Metric Display */
+#status-card {
+    container: status-card / inline-size;
+}
+
+.status-metrics-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-block-end: 1.25rem;
+}
+
+.status-metrics-grid > .metric-box {
+    flex: 1 1 150px;
+    min-inline-size: 0;
+    padding: 0.85rem 1rem;
+}
+
+.status-metrics-grid > .metric-box.metric-box-wide {
+    flex: 1 1 210px;
+}
+
 .metric-box {
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 1rem 1.25rem;
+    padding: 1rem 1.15rem;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-inline-size: 0;
 }
 
 .metric-label {
@@ -437,10 +459,15 @@ header.app-header {
 }
 
 .metric-value {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: var(--text-primary);
     font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-value.metric-value-compact {
+    font-size: 1.08rem;
 }
 
 /* Action Buttons */

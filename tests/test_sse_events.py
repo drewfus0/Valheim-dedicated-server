@@ -71,7 +71,7 @@ class TestSSEZeroPollingTemplates(unittest.TestCase):
             self.assertIn('data-telemetry="cpu"', resp_status.text)
             self.assertIn('data-telemetry="mem"', resp_status.text)
             self.assertIn('data-telemetry="uptime"', resp_status.text)
-            self.assertIn('data-telemetry="tod-24h"', resp_status.text)
+            self.assertNotIn('data-telemetry="tod-24h"', resp_status.text)
 
             resp_saga = client.get("/partials/world-saga")
             self.assertIn('data-telemetry="tod-day-time"', resp_saga.text)

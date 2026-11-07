@@ -109,14 +109,15 @@ class TestInGameTime(unittest.TestCase):
             self.assertEqual(data_active["net_time"], 100500.0)
             self.assertFalse(data_active["is_frozen"])
 
-    def test_partials_status_renders_in_game_time_and_countdown(self):
+    def test_partials_status_excludes_duplicate_world_time(self):
         with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
             resp = self.client.get("/partials/status")
             self.assertEqual(resp.status_code, 200)
-            self.assertIn("In-Game Time", resp.text)
-            self.assertIn("in-game-time-box", resp.text)
-            # Must mention either Sunset in or Sunrise in
-            self.assertTrue("Sunset in" in resp.text or "Sunrise in" in resp.text)
+            self.assertIn("Valheim CPU", resp.text)
+            self.assertIn("Valheim RAM", resp.text)
+            self.assertIn("Server Uptime", resp.text)
+            self.assertNotIn("World Calendar", resp.text)
+            self.assertNotIn("in-game-time-box", resp.text)
 
     def test_partials_world_summary_renders_in_game_clock_and_celestial_bar(self):
         with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
