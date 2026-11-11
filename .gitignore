@@ -59,6 +59,7 @@ login_history.json
 *.swp
 *~
 cookies.txt
+.journal_sync.lock
 
 # --- Legacy / Generated Output ---
 /index.html

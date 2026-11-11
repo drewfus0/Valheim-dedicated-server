@@ -97,15 +97,19 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - `-resetmodifiers`: wipes active world modifiers back to game defaults on start.
   - Valheim persists modifiers into the active `.db`/`.fwl` world save once initialized. `webmanager/core/server.py` builds the CLI vector via `build_valheim_command()`.
 
-### 3. Systemd Integration (`valheim.service`) & Power Management
-- Service location: `~/.config/systemd/user/valheim.service`
-- Command: `/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py`
-- `KillMode=process`: Systemd stop/restart commands exclusively signal the launcher/inhibitor, leaving running Valheim server processes detached and intact.
+### 3. Systemd Integration (`valheim.service` & `valheim-web.service`) & Power Management
+- **Headless Game Server Unit (`~/.config/systemd/user/valheim.service`)**:
+  - Dynamically generated and managed by `write_valheim_service_unit()` in `webmanager/core/server.py` whenever server settings or world modifiers change.
+  - Explicitly strips desktop/Wayland/X11 environment variables (`UnsetEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP ...`) so `valheim_server.x86_64` is completely isolated from `kwin_wayland` and `plasmashell` render loops.
+  - Lifecycle controlled via `systemctl --user [start|stop|restart|status] valheim.service` (`KillSignal=SIGINT`, `TimeoutStopSec=35` for graceful `ZNet` world saves).
+  - Live log streaming and tailing powered by `journalctl --user -u valheim.service` in `webmanager/core/logs.py`, with background `_journal_sync_loop` mirroring stdout to `valheim_server.log` for telemetry and history parsers.
+- **Headless Web Manager Unit (`~/.config/systemd/user/valheim-web.service`)**:
+  - Command: `/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py`
+  - `KillMode=process`: Systemd stop/restart commands on the web manager leave the running `valheim.service` game server untouched.
 - **Hot-Reload Development Architecture**:
   - `manager.py` executes Uvicorn with `reload=True` watching `webmanager/` (`reload_dirs=[str(WEB_DIR)]`, `reload_includes=["*.py"]`, excluding `.venv`, `__pycache__`, logs).
-  - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active Valheim dedicated server.
-  - `ValheimServerManager` spawns the game server binary with `start_new_session=True` so it runs in its own session ID and process group, immune to web worker restarts.
-  - On web worker startup/reload, `find_existing_pid()` detects the running process, attaches to it, and restores the true uptime using process `etimes`.
+  - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active `valheim.service` game server.
+  - On web worker startup/reload, `find_existing_pid()` queries `systemctl --user show valheim.service` (with `pgrep` fallback), attaches to the active `MainPID`, and restores true uptime using process `etimes`.
 - **Native Power & Display Policy**:
   - Automatically sets and confirms system power profile to `performance` (via D-Bus `net.hadess.PowerProfiles` / `tuned-adm`).
   - Holds low-level `handle-lid-switch` and `sleep` inhibitor lock via `systemd-inhibit` to prevent host laptop suspend when headless/at SDDM login screen before user login or on lid-close.

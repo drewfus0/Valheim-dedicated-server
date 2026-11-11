@@ -316,32 +316,70 @@ def ensure_sleep_inhibition() -> Dict[str, Any]:
 
 def ensure_systemd_boot_service() -> Dict[str, Any]:
     """
-    Ensure the systemd user service valheim.service is enabled to auto-start on host boot,
-    configured with systemd-inhibit, and verify user lingering is active so the user systemd instance boots without GUI login.
+    Ensure the headless systemd user service valheim.service and web manager valheim-web.service
+    are configured and enabled to auto-start on host boot, and verify user lingering is active.
     """
     service_enabled = False
     linger_enabled = False
     actions: List[str] = []
 
-    # 1. Check & ensure systemd user service unit configuration
-    service_path = Path.home() / ".config" / "systemd" / "user" / "valheim.service"
-    try:
-        if service_path.exists():
-            content = service_path.read_text(encoding="utf-8")
-            if "systemd-inhibit" not in content:
-                # Upgrade ExecStart to include systemd-inhibit
-                new_content = content.replace(
-                    "ExecStart=/usr/bin/python3 manager.py",
-                    "ExecStart=/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who=\"Valheim Dedicated Server\" --why=\"Dedicated game server hosting\" --mode=block /usr/bin/python3 manager.py",
-                )
-                if new_content != content:
-                    service_path.write_text(new_content, encoding="utf-8")
-                    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=3)
-                    actions.append("Updated valheim.service with systemd-inhibit wrapper")
-    except Exception as e:
-        print(f"[System] Warning checking valheim.service unit content: {e}")
+    systemd_dir = Path.home() / ".config" / "systemd" / "user"
+    service_path = systemd_dir / "valheim.service"
+    web_service_path = systemd_dir / "valheim-web.service"
 
-    # 2. Check & enable systemd user service
+    # 1. Check & ensure headless valheim.service and valheim-web.service unit configurations
+    try:
+        unset_graphical_env = (
+            "DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP "
+            "XDG_SESSION_DESKTOP XDG_SEAT XDG_SEAT_PATH XDG_SESSION_ID "
+            "XDG_SESSION_PATH XDG_VTNR KDE_FULL_SESSION KDE_SESSION_VERSION "
+            "KDE_SESSION_UID KDE_APPLICATIONS_AS_SCOPE QT_WAYLAND_RECONNECT "
+            "SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS"
+        )
+        systemd_dir.mkdir(parents=True, exist_ok=True)
+        need_reload = False
+
+        if (
+            not service_path.exists()
+            or "manager.py" in service_path.read_text(encoding="utf-8")
+            or "\\ " in service_path.read_text(encoding="utf-8")
+        ):
+            from core.config import load_config
+            from core.server import write_valheim_service_unit
+
+            write_valheim_service_unit(load_config(), unit_path=service_path, reload_daemon=False)
+            need_reload = True
+            actions.append("Configured headless valheim.service unit")
+
+        web_unit_content = (
+            "[Unit]\n"
+            "Description=Valheim Web Manager (Headless Context)\n"
+            "After=network.target network-online.target\n"
+            "Wants=network-online.target\n"
+            "\n"
+            "[Service]\n"
+            "KillMode=process\n"
+            "Type=simple\n"
+            f"WorkingDirectory={SERVER_DIR}\n"
+            f"UnsetEnvironment={unset_graphical_env}\n"
+            'ExecStart=/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py\n'
+            "Restart=on-failure\n"
+            "RestartSec=10\n"
+            "\n"
+            "[Install]\n"
+            "WantedBy=default.target\n"
+        )
+        if not web_service_path.exists() or web_service_path.read_text(encoding="utf-8") != web_unit_content:
+            web_service_path.write_text(web_unit_content, encoding="utf-8")
+            need_reload = True
+            actions.append("Configured headless valheim-web.service unit")
+
+        if need_reload:
+            subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=3)
+    except Exception as e:
+        print(f"[System] Warning checking systemd unit content: {e}")
+
+    # 2. Check & enable systemd user services
     try:
         chk = subprocess.run(
             ["systemctl", "--user", "is-enabled", "valheim.service"],
