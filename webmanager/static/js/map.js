@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.6';
+    window.WORLD_MAP_VERSION = '2.7';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -1137,14 +1137,10 @@
             mapInstance.once('moveend', onRouteFitted);
             setTimeout(onRouteFitted, 600);
 
-            // If the portal directory drawer is open on desktop, compensate right padding so no route end is hidden
-            const drawerEl = document.getElementById('map-portal-drawer');
-            const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
-            const drawerPadding = (isDrawerOpen && window.innerWidth >= 768) ? 330 : 0;
-
+            // Fit the route cleanly centered in the active map area
             mapInstance.fitBounds(L.latLngBounds(points), {
                 paddingTopLeft: [70, 70],
-                paddingBottomRight: [70 + drawerPadding, 60],
+                paddingBottomRight: [70, 60],
                 maxZoom: 9.0,
                 animate: true
             });
