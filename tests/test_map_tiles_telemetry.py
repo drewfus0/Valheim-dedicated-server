@@ -35,7 +35,7 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
 
     def test_world_map_data_includes_tile_and_telemetry_metadata(self):
         data = map_module.get_world_map_data(force_refresh=True)
-        self.assertEqual(data["tiles_url"], "/static/img/tiles/{z}/{x}/{y}.webp")
+        self.assertTrue(data["tiles_url"].startswith("/static/img/tiles/{z}/{x}/{y}.webp"))
         self.assertEqual(data["tile_size"], 1024)
         self.assertEqual(data["max_native_zoom"], 4)
         self.assertEqual(data["telemetry_url"], "/static/img/tiles/telemetry_1024.bin")

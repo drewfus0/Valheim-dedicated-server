@@ -131,7 +131,7 @@
     // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        const REQUIRED_VER = '2.3';
+        const REQUIRED_VER = '2.4';
 
         function bootMap() {
             if (typeof window.initWorldMap === 'function') {
