@@ -139,8 +139,8 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - `GET /api/backups/download/{filename}`: Direct download of backup zip archive.
 - `GET /api/stream/events`: Server-Sent Events (SSE) live state-change & telemetry event bus stream (`Last-Event-ID` replay supported).
 - `GET /api/stream/logs`: Server-Sent Events (SSE) live stream of `valheim_server.log`.
-- `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with real-time coordinate HUD, filterable POIs, and portal directory.
-- `GET /api/map/data`: Returns full world map dataset, spawn altar coordinates, and active portal networks with builder identities and paired routes.
+- `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with multi-zoom WebP tile pyramid (`16,384 × 16,384` px across zoom levels `0..4`), real-time bottom cursor telemetry panel (biome, elevation/depth, canopy/terrain feature, coordinates, and distance from center via `telemetry_1024.bin`), filterable POIs, and portal directory.
+- `GET /api/map/data`: Returns full world map dataset, tile/telemetry URLs, spawn altar coordinates, and active portal networks enriched with biome, builder identities, and paired routes.
 - `POST /api/map/refresh`: Re-scans the active world chunk file (`00_01__*.chunk`) to invalidate cache and refresh portals.
 - `GET /api/status`, `GET /api/config`, `GET /api/backups`, `GET /api/logs`: JSON REST endpoints for backwards compatibility.
 

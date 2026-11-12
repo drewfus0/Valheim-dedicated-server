@@ -103,9 +103,9 @@
         <!-- Interactive Leaflet Canvas Container -->
         <div id="world-map-canvas" class="world-map-canvas"></div>
 
-        <!-- In-Game Real-Time Coordinate HUD (Docked inside map viewport) -->
-        <div class="map-coord-pill" id="map-coord-hud" title="Move your mouse over Midgard to inspect in-game coordinates">
-            <span>🧭 Move mouse over map for coordinates</span>
+        <!-- In-Game Real-Time Telemetry & Coordinate Info Panel (Docked at bottom of map viewport) -->
+        <div class="map-coord-pill" id="map-coord-hud" title="Move your mouse over Midgard to inspect biome, elevation, canopy, and in-game coordinates">
+            <span>🧭 Move mouse over Midgard to inspect biome, elevation &amp; coordinates</span>
         </div>
 
         <!-- Collapsible Portal Directory Drawer -->
@@ -131,7 +131,7 @@
     // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        const REQUIRED_VER = '2.1';
+        const REQUIRED_VER = '2.2';
 
         function bootMap() {
             if (typeof window.initWorldMap === 'function') {
@@ -144,8 +144,8 @@
         } else {
             // Ensure latest stylesheet and map controller are loaded even without full page reload
             const cssLink = document.querySelector('link[href*="/static/css/style.css"]');
-            if (cssLink && !cssLink.href.includes('v=')) {
-                cssLink.href = '/static/css/style.css?v=2.3';
+            if (cssLink) {
+                cssLink.href = '/static/css/style.css?v=2.4';
             }
             const script = document.createElement('script');
             script.src = '/static/js/map.js?v=' + REQUIRED_VER;

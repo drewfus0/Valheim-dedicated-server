@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.1';
+    window.WORLD_MAP_VERSION = '2.2';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -21,19 +21,115 @@
     let currentlySelectedPortal = null;
     let currentlyHoveredPortal = null;
     let lastMouseLatLng = null;
+    let telemetryView = null;
+    let telemetryLoading = false;
 
     const MAP_WIDTH = 6144;
     const MAP_HEIGHT = 6144;
     const CENTER_X = 3072;
     const CENTER_Y = 3072;
-    const DISK_RADIUS_PX = 2629.6;
+    const WORLD_WIDTH = 24000;
+    const WORLD_HALF_WIDTH = 12000;
     const GAME_RADIUS = 10500;
-    const SCALE = DISK_RADIUS_PX / GAME_RADIUS; // ~0.25044 px/m
+    const SCALE = CENTER_X / WORLD_HALF_WIDTH; // Exact 0.256 CRS units per game meter
+    const DISK_RADIUS_PX = GAME_RADIUS * SCALE; // 2688.0
+    const TILE_SIZE = 1024;
 
-    const MIN_ZOOM_FALLBACK = -4.5;
-    const MAX_ZOOM = 8; // ~64 px/m (32x deeper than zoom 3) for dense portal hubs
-    const DEOVERLAP_MIN_ZOOM = 3.5;
-    const INLINE_LABEL_MIN_ZOOM = 5.25;
+    // With CRS_SCALE = 1024 / 6144, zoom 0 is 1024x1024 px and zoom 4 is 16384x16384 px (16x16 tiles)
+    const MIN_ZOOM_FALLBACK = -1.5;
+    const MAX_ZOOM = 10.5;
+    const DEOVERLAP_MIN_ZOOM = 6.0;
+    const INLINE_LABEL_MIN_ZOOM = 7.75;
+
+    const BIOME_META = {
+        0: { name: 'World Edge', icon: '🌌', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.16)' },
+        1: { name: 'Meadows', icon: '🌿', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.16)' },
+        2: { name: 'Swamp', icon: '☠️', color: '#a3e635', bg: 'rgba(163, 230, 53, 0.16)' },
+        3: { name: 'Mountain', icon: '🏔️', color: '#e2e8f0', bg: 'rgba(226, 232, 240, 0.18)' },
+        4: { name: 'Black Forest', icon: '🌲', color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.16)' },
+        5: { name: 'Plains', icon: '🌾', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.16)' },
+        6: { name: 'Ashlands', icon: '🔥', color: '#f87171', bg: 'rgba(248, 113, 113, 0.18)' },
+        7: { name: 'Deep North', icon: '❄️', color: '#93c5fd', bg: 'rgba(147, 197, 253, 0.18)' },
+        8: { name: 'Ocean', icon: '🌊', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.18)' },
+        9: { name: 'Mistlands', icon: '🌫️', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.18)' }
+    };
+
+    function loadTelemetryGrid(url) {
+        if (telemetryView || telemetryLoading) return;
+        telemetryLoading = true;
+        fetch(url || '/static/img/tiles/telemetry_1024.bin')
+            .then(res => {
+                if (!res.ok) throw new Error('Telemetry fetch failed');
+                return res.arrayBuffer();
+            })
+            .then(buf => {
+                if (buf && buf.byteLength >= 1024 * 1024 * 4) {
+                    telemetryView = new DataView(buf);
+                    if (lastMouseLatLng) {
+                        updateCoordHud(lastMouseLatLng);
+                    }
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                telemetryLoading = false;
+            });
+    }
+
+    function sampleTelemetry(rawX, rawZ) {
+        if (!telemetryView) return null;
+        const sx = Math.max(0, Math.min(1023, Math.floor(((rawX + WORLD_HALF_WIDTH) / WORLD_WIDTH) * 1024)));
+        const sy = Math.max(0, Math.min(1023, Math.floor(((WORLD_HALF_WIDTH - rawZ) / WORLD_WIDTH) * 1024)));
+        const off = (sy * 1024 + sx) * 4;
+        const biomeCode = telemetryView.getUint8(off);
+        const forestRaw = telemetryView.getUint8(off + 1);
+        const heightDm = telemetryView.getInt16(off + 2, true);
+        const height = heightDm / 10.0;
+        const forest = forestRaw / 100.0;
+        return { biomeCode, height, forest };
+    }
+
+    function describeTerrainFeature(biomeCode, height, forest) {
+        const alt = height - 30.0;
+        if (alt < 0) {
+            const depth = -alt;
+            if (biomeCode === 8) {
+                return depth >= 12.0 ? '🐍 Deep Ocean (Serpents)' : '🌊 Ocean Waters';
+            }
+            if (depth < 2.2) return '🏖️ Shallow Wade / Shore';
+            return '⛵ Coastal Waters';
+        }
+        if (biomeCode === 1) {
+            if (alt < 1.3) return '🏖️ Meadow Shoreline';
+            if (forest < 0.85) return '🌳 Dense Forest';
+            if (forest < 1.15) return '🌲 Wooded Meadow';
+            return '☀️ Open Clearing';
+        }
+        if (biomeCode === 4) {
+            return forest < 0.6 ? '🌲 Dense Pine Woods' : '🌲 Black Forest';
+        }
+        if (biomeCode === 2) {
+            return alt < 1.0 ? '💧 Marsh / Leech Bog' : '🌧️ Sunken Swamp';
+        }
+        if (biomeCode === 3) {
+            if (height >= 120.0) return '💎 High Peak (Silver/Obsidian)';
+            if (height >= 95.0) return '🐺 Alpine Snow (Obsidian)';
+            return '🪨 Lower Mountain Slope';
+        }
+        if (biomeCode === 5) {
+            return forest < 1.15 ? '🌳 Birch Grove' : '🌾 Open Plains';
+        }
+        if (biomeCode === 9) {
+            return alt > 35.0 ? '⛰️ Mistlands Spire' : '🌫️ Shrouded Valley';
+        }
+        if (biomeCode === 6) {
+            return alt > 12.0 ? '🌋 Volcanic Interior' : '🔥 Ashlands Coast';
+        }
+        if (biomeCode === 7) {
+            return '❄️ Frozen Tundra';
+        }
+        return '🗺️ Midgard';
+    }
 
     function gameToLeaflet(x, z) {
         const px = CENTER_X + x * SCALE;
@@ -57,7 +153,7 @@
         if (!mapInstance) return;
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
         const fitZoom = mapInstance.getBoundsZoom(bounds, false, L.point(60, 110));
-        const computedMin = Math.min(-4.25, Math.floor((fitZoom - 0.5) * 4) / 4);
+        const computedMin = Math.min(-1.25, Math.floor((fitZoom - 0.5) * 4) / 4);
         if (Number.isFinite(computedMin)) {
             mapInstance.setMinZoom(computedMin);
         }
@@ -68,15 +164,52 @@
         if (!hudEl || !mapInstance || !latlng) return;
 
         const zLevel = mapInstance.getZoom();
-        const decimals = zLevel >= 4 ? 1 : 0;
+        const decimals = zLevel >= 6.5 ? 1 : 0;
         const coords = leafletToGame(latlng.lat, latlng.lng, decimals);
         const distFromCenter = Math.sqrt(coords.rawX * coords.rawX + coords.rawZ * coords.rawZ);
 
-        if (distFromCenter > GAME_RADIUS + 200) {
-            hudEl.innerHTML = `<span style="color: var(--status-stopped);">⚠️ Edge of Midgard (Void)</span> <span style="opacity:0.65;">[X: ${coords.x}, Z: ${coords.z}]</span>`;
-        } else {
-            hudEl.innerHTML = `<span>🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span> <span style="opacity:0.65; font-size:0.75rem;">(Dist: ${Math.round(distFromCenter)}m)</span>`;
+        if (distFromCenter > GAME_RADIUS + 150) {
+            hudEl.innerHTML = `
+                <span class="telem-biome-badge" style="color: #fca5a5; background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35);">
+                    ⚠️ Edge of Midgard (Void)
+                </span>
+                <span class="telem-sep">•</span>
+                <span class="telem-seg">🧭 <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span>
+                <span class="telem-sep">•</span>
+                <span class="telem-seg" style="opacity:0.75;">📏 ${Math.round(distFromCenter)}m</span>
+            `;
+            return;
         }
+
+        const sample = sampleTelemetry(coords.rawX, coords.rawZ);
+        if (!sample) {
+            hudEl.innerHTML = `
+                <span class="telem-seg">🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span>
+                <span class="telem-sep">•</span>
+                <span class="telem-seg" style="opacity:0.75;">📏 ${Math.round(distFromCenter)}m</span>
+            `;
+            return;
+        }
+
+        const meta = BIOME_META[sample.biomeCode] || BIOME_META[0];
+        const alt = sample.height - 30.0;
+        const isWater = alt < 0;
+        const elevLabel = isWater
+            ? `🌊 Depth: <strong style="color:#38bdf8;">${alt.toFixed(1)}m</strong> <span style="opacity:0.65;">(Y: ${sample.height.toFixed(1)}m)</span>`
+            : `⛰️ Alt: <strong style="color:#facc15;">+${alt.toFixed(1)}m</strong> <span style="opacity:0.65;">(Y: ${sample.height.toFixed(1)}m)</span>`;
+        const featureText = describeTerrainFeature(sample.biomeCode, sample.height, sample.forest);
+
+        hudEl.innerHTML = `
+            <span class="telem-biome-badge" style="color: ${meta.color}; background: ${meta.bg}; border-color: ${meta.color}55;">
+                ${meta.icon} <strong>${meta.name}</strong>
+            </span>
+            <span class="telem-sep">•</span>
+            <span class="telem-seg">${elevLabel}</span>
+            <span class="telem-sep">•</span>
+            <span class="telem-seg telem-feature">${featureText}</span>
+            <span class="telem-sep">•</span>
+            <span class="telem-seg">🧭 <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong> <span style="opacity:0.65;">(${Math.round(distFromCenter)}m)</span></span>
+        `;
     }
 
     window.initWorldMap = function (containerId, initialData) {
@@ -97,10 +230,18 @@
         currentlySelectedPortal = null;
         currentlyHoveredPortal = null;
 
-        // 1. Initialize Leaflet Map with Flat Simple CRS & Wide Zoom Range
+        // Load binary telemetry grid for instant 60fps cursor height/biome lookups
+        loadTelemetryGrid(initialData.telemetry_url);
+
+        // 1. Initialize Leaflet Map with Tile-Calibrated Simple CRS
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        const crsScale = TILE_SIZE / MAP_WIDTH; // 1024 / 6144
+        const valheimCRS = L.extend({}, L.CRS.Simple, {
+            transformation: new L.Transformation(crsScale, 0, -crsScale, TILE_SIZE)
+        });
+
         mapInstance = L.map(containerId, {
-            crs: L.CRS.Simple,
+            crs: valheimCRS,
             minZoom: MIN_ZOOM_FALLBACK,
             maxZoom: MAX_ZOOM,
             zoomSnap: 0.25,
@@ -111,9 +252,19 @@
             maxBoundsViscosity: 0.8
         });
 
-        // 2. Base High-Res Map Image Overlay
-        const imageUrl = initialData.image_url || '/static/img/world_map.webp';
-        L.imageOverlay(imageUrl, bounds).addTo(mapInstance);
+        // 2. Multi-Zoom High-Res WebP Tile Pyramid (16384x16384 native at z=4)
+        const tilesUrl = initialData.tiles_url || '/static/img/tiles/{z}/{x}/{y}.webp';
+        L.tileLayer(tilesUrl, {
+            tileSize: TILE_SIZE,
+            minZoom: MIN_ZOOM_FALLBACK,
+            maxZoom: MAX_ZOOM,
+            minNativeZoom: 0,
+            maxNativeZoom: initialData.max_native_zoom || 4,
+            bounds: bounds,
+            noWrap: true,
+            keepBuffer: 2,
+            updateWhenIdle: false
+        }).addTo(mapInstance);
 
         // 3. Setup Layers (tethers underneath lines & pins)
         tethersLayer = L.layerGroup().addTo(mapInstance);
@@ -126,7 +277,7 @@
 
         // 5. Initial View: Center on Spawn
         const spawnPos = gameToLeaflet(initialData.spawn.x, initialData.spawn.z);
-        mapInstance.setView(spawnPos, -0.5);
+        mapInstance.setView(spawnPos, 2.0);
 
         // 6. Render POIs
         renderSpawn(initialData.spawn);
@@ -399,13 +550,14 @@
 
             // Hover tooltip
             const tooltipFloorText = meta.floorDesc ? ` &bull; <span style="color:#facc15;">${meta.floorArrow} ${p.y}m</span>` : '';
+            const tooltipBiomeText = p.biome ? ` &bull; <span>${p.biome_icon || '🌲'} ${escapeHtml(p.biome)}</span>` : '';
             marker.bindTooltip(`
                 <div style="font-weight:600; font-size:0.82rem; display:flex; align-items:center; gap:0.35rem;">
                     <span>${isLinked ? '⚡' : '◇'}</span>
                     <span style="color: var(--nordic-cyan);">"${escapeHtml(p.tag)}"</span>
                 </div>
                 <div style="font-size:0.75rem; color: var(--text-secondary);">
-                    <span>${escapeHtml(p.author)}</span> &bull; <span>[${p.x}, ${p.z}]</span>${tooltipFloorText}
+                    <span>${escapeHtml(p.author)}</span>${tooltipBiomeText} &bull; <span>[${p.x}, ${p.z}]</span>${tooltipFloorText}
                 </div>
             `, {
                 direction: 'top',
@@ -500,6 +652,12 @@
                                 ${isLinked ? `⚡ Linked (${p.pair_count} nodes)` : '◇ Solo (Unmatched)'}
                             </span>
                         </div>
+                        ${p.biome ? `
+                        <div class="popup-row">
+                            <span>Biome:</span>
+                            <strong>${p.biome_icon || '🌲'} ${escapeHtml(p.biome)}</strong>
+                        </div>
+                        ` : ''}
                         <div class="popup-row">
                             <span>Coordinates:</span>
                             <strong>X: ${p.x}, Z: ${p.z}</strong>
@@ -580,7 +738,7 @@
 
         if (canvasEl) {
             canvasEl.classList.toggle('map-zoom-labels', showLabels);
-            canvasEl.classList.toggle('map-hub-zoomed', zoom >= 5.75);
+            canvasEl.classList.toggle('map-hub-zoomed', zoom >= 8.25);
         }
 
         tethersLayer.clearLayers();
@@ -833,7 +991,7 @@
                 ];
                 mapInstance.fitBounds(L.latLngBounds(points), {
                     padding: [100, 100],
-                    maxZoom: 6.5,
+                    maxZoom: 9.0,
                     animate: true
                 });
             }
@@ -868,17 +1026,17 @@
                 if (d < minDist) minDist = d;
             }
         });
-        if (minDist <= 2.5) return 6.5;   // Vertically stacked / ultra-dense hub
-        if (minDist <= 12.0) return 5.75; // Portal hub ring
-        if (minDist <= 40.0) return 4.25; // Multi-portal base compound
-        return 2.25;                      // Isolated outpost
+        if (minDist <= 2.5) return 9.0;   // Vertically stacked / ultra-dense hub
+        if (minDist <= 12.0) return 8.25; // Portal hub ring
+        if (minDist <= 40.0) return 6.75; // Multi-portal base compound
+        return 4.75;                      // Isolated outpost
     }
 
     window.zoomIntoPortalHub = function (portalId) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
-        const targetZoom = Math.max(6.25, mapInstance.getZoom() + 1.5);
+        const targetZoom = Math.max(8.75, mapInstance.getZoom() + 1.5);
         const clampedZoom = Math.min(MAX_ZOOM, targetZoom);
         const target = gameToLeaflet(p.x, p.z);
 
@@ -933,7 +1091,7 @@
             window.selectPortal(portalId, false);
             mapInstance.fitBounds(L.latLngBounds(points), {
                 padding: [100, 100],
-                maxZoom: 6.5,
+                maxZoom: 9.0,
                 animate: true
             });
         } else {
@@ -956,7 +1114,7 @@
         const points = currentFilteredPortals.map(p => gameToLeaflet(p.x, p.z));
         mapInstance.fitBounds(L.latLngBounds(points), {
             padding: [80, 80],
-            maxZoom: 6.5,
+            maxZoom: 9.0,
             animate: true
         });
     };
@@ -992,7 +1150,7 @@
     window.flyToSpawn = function () {
         if (!currentMapData || !mapInstance) return;
         const target = gameToLeaflet(currentMapData.spawn.x, currentMapData.spawn.z);
-        mapInstance.flyTo(target, 0.75, { duration: 1.2 });
+        mapInstance.flyTo(target, 3.25, { duration: 1.2 });
     };
 
     function pulseMarkerPin(portalId) {

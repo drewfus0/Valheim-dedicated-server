@@ -6,17 +6,48 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.paths import CONFIG_FILE, GAME_LOG, LOGS_DIR, WORLD_SAVE_DIR
+from core.paths import CONFIG_FILE, GAME_LOG, LOGS_DIR, WEB_DIR, WORLD_SAVE_DIR
 from core.players import PLAYER_TRACKER
 
-# Map constants matching the 6144x6144 high-res Valheim world export for seed 6d8gTfltRB
+# Map constants matching the 16x16 (16384x16384 px, 24000m x 24000m) Valheim tile set for seed 6d8gTfltRB
 MAP_IMAGE_WIDTH = 6144
 MAP_IMAGE_HEIGHT = 6144
 MAP_CENTER_X = 3072.0
 MAP_CENTER_Y = 3072.0
-MAP_DISK_RADIUS_PX = 2629.6
-GAME_WORLD_RADIUS = 10500.0  # Valheim disk edge radius in meters
-MAP_SCALE = MAP_DISK_RADIUS_PX / GAME_WORLD_RADIUS  # ~0.25044 pixels per game meter
+GAME_WORLD_WIDTH = 24000.0
+GAME_WORLD_HALF_WIDTH = 12000.0
+GAME_WORLD_RADIUS = 10500.0  # Valheim playable disk edge radius in meters
+MAP_SCALE = MAP_CENTER_X / GAME_WORLD_HALF_WIDTH  # Exact 0.256 CRS units per game meter
+MAP_DISK_RADIUS_PX = round(GAME_WORLD_RADIUS * MAP_SCALE, 1)  # 2688.0
+
+TILES_DIR = WEB_DIR / "static" / "img" / "tiles"
+TELEMETRY_GRID_FILE = TILES_DIR / "telemetry_1024.bin"
+
+BIOME_NAMES = {
+    0: "World Edge",
+    1: "Meadows",
+    2: "Swamp",
+    3: "Mountain",
+    4: "Black Forest",
+    5: "Plains",
+    6: "Ashlands",
+    7: "Deep North",
+    8: "Ocean",
+    9: "Mistlands",
+}
+
+BIOME_ICONS = {
+    0: "🌌",
+    1: "🌿",
+    2: "☠️",
+    3: "🏔️",
+    4: "🌲",
+    5: "🌾",
+    6: "🌋",
+    7: "❄️",
+    8: "🌊",
+    9: "🌫️",
+}
 
 # Spawn location for seed 6d8gTfltRB (Sacrificial Stones altar in zone 2,0)
 DEFAULT_SPAWN = {
@@ -227,6 +258,9 @@ def extract_portals_from_world(world_name: Optional[str] = None) -> List[Dict[st
         by_tag.setdefault(p["tag"].lower(), []).append(p)
 
     for p in raw_portals:
+        terrain = sample_terrain_at(p["x"], p["z"])
+        p["biome"] = terrain["biome"]
+        p["biome_icon"] = terrain["biome_icon"]
         peers = by_tag[p["tag"].lower()]
         is_linked = len(peers) >= 2
         p["linked"] = is_linked
@@ -251,6 +285,47 @@ def extract_portals_from_world(world_name: Optional[str] = None) -> List[Dict[st
     # Sort portals: linked first, then alphabetically by tag
     raw_portals.sort(key=lambda p: (not p["linked"], p["tag"].lower(), p["id"]))
     return raw_portals
+
+
+_TELEM_BYTES: Optional[bytes] = None
+
+
+def sample_terrain_at(x: float, z: float) -> Dict[str, Any]:
+    """Query the 1024x1024 telemetry grid for biome, elevation (Y), and forest density at (x, z)."""
+    if (x * x + z * z) > (GAME_WORLD_RADIUS * GAME_WORLD_RADIUS):
+        return {
+            "biome": "World Edge",
+            "biome_icon": "🌌",
+            "biome_code": 0,
+            "height": 0.0,
+            "altitude_asl": -30.0,
+            "forest": 0.0,
+        }
+
+    global _TELEM_BYTES
+    if _TELEM_BYTES is None and TELEMETRY_GRID_FILE.exists():
+        try:
+            _TELEM_BYTES = TELEMETRY_GRID_FILE.read_bytes()
+        except Exception:
+            _TELEM_BYTES = None
+
+    if not _TELEM_BYTES or len(_TELEM_BYTES) < 1024 * 1024 * 4:
+        return {"biome": "Unknown", "biome_icon": "🌲", "biome_code": 0, "height": 30.0, "altitude_asl": 0.0, "forest": 1.0}
+
+    sx = max(0, min(1023, int(((x + GAME_WORLD_HALF_WIDTH) / GAME_WORLD_WIDTH) * 1024.0)))
+    sy = max(0, min(1023, int(((GAME_WORLD_HALF_WIDTH - z) / GAME_WORLD_WIDTH) * 1024.0)))
+    off = (sy * 1024 + sx) * 4
+    biome_code, forest_u8, height_dm = struct.unpack_from("<BBh", _TELEM_BYTES, off)
+    height = round(height_dm / 10.0, 1)
+    forest = round(forest_u8 / 100.0, 2)
+    return {
+        "biome": BIOME_NAMES.get(biome_code, "Unknown"),
+        "biome_icon": BIOME_ICONS.get(biome_code, "🌲"),
+        "biome_code": biome_code,
+        "height": height,
+        "altitude_asl": round(height - 30.0, 1),
+        "forest": forest,
+    }
 
 
 def get_world_map_data(world_name: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
@@ -290,12 +365,17 @@ def get_world_map_data(world_name: Optional[str] = None, force_refresh: bool = F
                 "max_x": GAME_WORLD_RADIUS,
                 "min_z": -GAME_WORLD_RADIUS,
                 "max_z": GAME_WORLD_RADIUS,
+                "world_width": GAME_WORLD_WIDTH,
                 "width_px": MAP_IMAGE_WIDTH,
                 "height_px": MAP_IMAGE_HEIGHT,
                 "center_x_px": MAP_CENTER_X,
                 "center_y_px": MAP_CENTER_Y,
                 "scale": MAP_SCALE,
             },
+            "tiles_url": "/static/img/tiles/{z}/{x}/{y}.webp",
+            "tile_size": 1024,
+            "max_native_zoom": 4,
+            "telemetry_url": "/static/img/tiles/telemetry_1024.bin",
             "image_url": "/static/img/world_map.webp",
             "portals": portals,
             "stats": {

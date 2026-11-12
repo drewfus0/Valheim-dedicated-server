@@ -3877,21 +3877,52 @@ table.data-table tr:hover td {
     border: none !important;
 }
 
-/* Docked In-Game Coordinate HUD */
+/* Docked Bottom Map Telemetry & Coordinate Info Panel */
 .map-viewport-wrapper .map-coord-pill {
     position: absolute;
-    bottom: 16px;
-    right: 16px;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1000;
     pointer-events: none;
-    background: rgba(15, 23, 42, 0.88);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border-color);
+    background: rgba(11, 17, 30, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: var(--radius-full);
-    padding: 0.35rem 0.75rem;
+    padding: 0.42rem 1rem;
     font-size: 0.78rem;
     color: var(--text-primary);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.75), 0 0 14px rgba(6, 182, 212, 0.16);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    white-space: nowrap;
+    max-width: calc(100% - 28px);
+    overflow-x: auto;
+}
+
+.telem-biome-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.14rem 0.6rem;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+    font-size: 0.76rem;
+    letter-spacing: 0.02em;
+}
+
+.telem-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+}
+
+.telem-sep {
+    color: rgba(148, 163, 184, 0.38);
+    font-size: 0.85rem;
+    user-select: none;
 }
 
 /* Leaflet Zoom control position offset below floating search bar */
