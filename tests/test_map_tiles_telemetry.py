@@ -56,6 +56,9 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         self.assertIn("updateDrawerVisibleHighlights", map_js)
         self.assertIn("function updateDrawerSelectedPanel(portalId)", map_js)
         self.assertIn("window.updateDrawerSelectedPanel = updateDrawerSelectedPanel", map_js)
+        # Portals no longer use floating map popups
+        render_portals_code = map_js.split("function renderPortals(")[1].split("function updatePortalLayoutForZoom")[0]
+        self.assertNotIn("marker.bindPopup", render_portals_code)
 
     def test_directory_selected_panel_in_templates_and_css(self):
         map_tab = (WEB_DIR / "templates" / "partials" / "map_tab.html").read_text(encoding="utf-8")
@@ -66,6 +69,7 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         self.assertIn(".drawer-selected-panel", style_css)
         self.assertIn(".selected-peer-card", style_css)
         self.assertIn(".drawer-portal-item.is-selected", style_css)
+        self.assertIn(".map-directory-btn.is-open", style_css)
 
 
 if __name__ == "__main__":

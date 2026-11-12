@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.9';
+    window.WORLD_MAP_VERSION = '3.0';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -581,114 +581,6 @@
                 className: 'viking-portal-tooltip'
             });
 
-            // Stacked siblings section (for 2-story / multi-story hub bays sharing X/Z)
-            let stackedHtml = '';
-            if (meta.stackedPeers.length > 0) {
-                stackedHtml = `
-                    <div class="popup-stacked-siblings">
-                        <div class="popup-dest-title" style="color: #facc15; margin-bottom: 0.25rem;">
-                            🏢 Co-Located at This Spot (${meta.stackedPeers.length + 1} Stacked):
-                        </div>
-                        <div class="stacked-siblings-list">
-                            ${meta.stackedPeers.map(sib => {
-                                const sibMeta = stackMeta[sib.id] || {};
-                                const arrow = sibMeta.floorArrow || (sib.y > p.y ? '↑' : '↓');
-                                return `
-                                    <button type="button" class="stacked-sibling-chip" onclick="event.stopPropagation(); selectPortal('${sib.id}', false)" title="Switch selection to ${escapeHtml(sib.tag)} (Y: ${sib.y}m)">
-                                        <span>${sib.linked ? '⚡' : '◇'}</span>
-                                        <strong>"${escapeHtml(sib.tag)}"</strong>
-                                        <span style="opacity:0.75;">${arrow}${sib.y}m</span>
-                                    </button>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Connected destinations
-            let pairedHtml = '';
-            if (isLinked && p.paired_with && p.paired_with.length > 0) {
-                pairedHtml = `
-                    <div class="popup-destinations">
-                        <div class="popup-dest-title">⚡ Connected Destinations:</div>
-                        ${p.paired_with.map(peer => `
-                            <div class="popup-dest-item">
-                                <div>
-                                    <strong style="color: ${peer.author_color || 'var(--text-primary)'};">${escapeHtml(peer.author)}</strong>'s Node
-                                    <div style="font-size:0.72rem; color:var(--text-muted);">[${peer.x}, ${peer.z}] (${Math.round(distance(p.x, p.z, peer.x, peer.z))}m away)</div>
-                                </div>
-                                <div style="display:flex; gap:0.3rem;">
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
-                                        🔭 Both Ends
-                                    </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); flyToPortal('${peer.id}')" title="Pan Camera to this portal">
-                                        ✈️ Fly To
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-
-            // Hub zoom & route action buttons
-            const showHubBtn = meta.hubPeerCount >= 1;
-            const actionsRowHtml = (isLinked || showHubBtn) ? `
-                <div style="margin-top:0.65rem; padding-top:0.5rem; border-top:1px dashed rgba(255,255,255,0.1); display:flex; gap:0.4rem; flex-wrap:wrap;">
-                    ${showHubBtn ? `
-                        <button type="button" class="btn btn-secondary btn-sm popup-hub-zoom-row" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="event.stopPropagation(); zoomIntoPortalHub('${p.id}')" title="Zoom closely into this portal hub to separate overlapping pins & show tags">
-                            🔍 Zoom Hub
-                        </button>
-                    ` : ''}
-                    ${isLinked ? `
-                        <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
-                            🔭 View Both Ends
-                        </button>
-                    ` : ''}
-                </div>
-            ` : '';
-
-            marker.bindPopup(`
-                <div class="viking-map-popup">
-                    <div class="popup-header">
-                        <span class="popup-icon" style="color: ${pColor}; font-size: 1.3rem;">⚡</span>
-                        <div>
-                            <h4>Portal "${escapeHtml(p.tag)}"</h4>
-                            <div class="popup-subtitle" style="display:flex; align-items:center; gap:0.4rem;">
-                                <span>${p.author_avatar || '🛡️'}</span>
-                                <span style="color: ${pColor}; font-weight:600;">${escapeHtml(p.author)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="popup-body">
-                        <div class="popup-row">
-                            <span>Status:</span>
-                            <span class="badge ${isLinked ? 'badge-running' : 'badge-starting'}">
-                                ${isLinked ? `⚡ Linked (${p.pair_count} nodes)` : '◇ Solo (Unmatched)'}
-                            </span>
-                        </div>
-                        ${p.biome ? `
-                        <div class="popup-row">
-                            <span>Biome:</span>
-                            <strong>${p.biome_icon || '🌲'} ${escapeHtml(p.biome)}</strong>
-                        </div>
-                        ` : ''}
-                        <div class="popup-row">
-                            <span>Coordinates:</span>
-                            <strong>X: ${p.x}, Z: ${p.z}</strong>
-                        </div>
-                        <div class="popup-row">
-                            <span>Elevation (Y):</span>
-                            <strong>${p.y}m${meta.floorDesc ? ` <span style="color:#facc15; font-size:0.75rem;">(${meta.floorArrow} ${meta.floorDesc})</span>` : ''}</strong>
-                        </div>
-                        ${stackedHtml}
-                        ${pairedHtml}
-                        ${actionsRowHtml}
-                    </div>
-                </div>
-            `);
-
             // Hover: highlight portal and connecting line in yellow
             marker.on('mouseover', function () {
                 currentlyHoveredPortal = p.id;
@@ -702,7 +594,7 @@
                 syncSelectionAndHoverHighlights();
             });
 
-            // Click: select portal
+            // Click: select portal and open directory drawer info panel
             marker.on('click', function (e) {
                 if (e.originalEvent) e.originalEvent._portalClicked = true;
                 suppressMapClickUntil = Date.now() + 350;
@@ -1191,13 +1083,16 @@
     }
     window.updateDrawerSelectedPanel = updateDrawerSelectedPanel;
 
-    window.selectPortal = function (portalId, zoomToBounds = false, openPopup = true) {
+    window.selectPortal = function (portalId, zoomToBounds = false) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p) return;
 
         suppressMapClickUntil = Date.now() + 350;
         currentlySelectedPortal = portalId;
         syncSelectionAndHoverHighlights();
+
+        // Ensure directory drawer is open to show this portal's info panel
+        window.openPortalDrawer(true);
         updateDrawerSelectedPanel(portalId);
 
         if (zoomToBounds && p.linked && p.paired_with && p.paired_with.length > 0 && mapInstance) {
@@ -1205,14 +1100,8 @@
             return;
         }
 
-        const marker = portalMarkersMap[portalId];
-        if (marker) {
-            if (openPopup) {
-                marker.openPopup();
-            }
-            pulseMarkerPin(portalId);
-        }
-        if (!openPopup && p.linked && p.paired_with) {
+        pulseMarkerPin(portalId);
+        if (p.linked && p.paired_with) {
             p.paired_with.forEach(peer => pulseMarkerPin(peer.id));
         }
     };
@@ -1258,7 +1147,7 @@
             if (handled || myToken !== cameraActionToken) return;
             handled = true;
             updatePortalLayoutForZoom();
-            window.selectPortal(portalId, false, true);
+            window.selectPortal(portalId, false);
         };
 
         mapInstance.once('moveend', onArrived);
@@ -1313,10 +1202,31 @@
             currentlyHoveredPortal = null;
             currentlyHoveredLine = null;
 
-            // Close any open popup so it neither obscures one end of the route nor pans the camera via _adjustPan
+            // Close any open popup and ensure directory drawer is open so the user sees the route info card
             mapInstance.closePopup();
-            syncSelectionAndHoverHighlights();
+            window.openPortalDrawer(true);
             updateDrawerSelectedPanel(portalId);
+            syncSelectionAndHoverHighlights();
+
+            const canvasEl = document.getElementById('world-map-canvas');
+            const wrapperEl = document.getElementById('map-viewport-wrapper');
+            const drawerEl = document.getElementById('map-portal-drawer');
+
+            // Force layout reflow and update Leaflet dimensions immediately
+            if (canvasEl) void canvasEl.offsetWidth;
+            if (mapInstance) mapInstance.invalidateSize({ pan: false });
+
+            // Determine safe right padding:
+            // If the drawer is open and canvas did not shrink (e.g. mobile or overlay), compensate right padding by 330px
+            const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
+            let rightPadding = 85;
+            if (isDrawerOpen) {
+                const canvasW = canvasEl ? canvasEl.offsetWidth : 0;
+                const wrapperW = wrapperEl ? wrapperEl.offsetWidth : 0;
+                if (canvasW >= wrapperW - 20) {
+                    rightPadding += 330;
+                }
+            }
 
             let settled = false;
             const onRouteFitted = () => {
@@ -1333,8 +1243,8 @@
 
             // Fit the route cleanly centered in the active map area
             mapInstance.fitBounds(L.latLngBounds(points), {
-                paddingTopLeft: [70, 70],
-                paddingBottomRight: [70, 60],
+                paddingTopLeft: [85, 85],
+                paddingBottomRight: [rightPadding, 75],
                 maxZoom: 9.0,
                 animate: true
             });
@@ -1384,7 +1294,7 @@
             if (finalPos && mapInstance) {
                 mapInstance.panTo(finalPos, { animate: true, duration: 0.25 });
             }
-            window.selectPortal(portalId, false, true);
+            window.selectPortal(portalId, false);
         };
 
         mapInstance.once('moveend', finishSelect);
@@ -1572,13 +1482,16 @@
         const btn = document.getElementById('drawer-toggle-btn');
         if (!drawer) return;
         const shouldOpen = Boolean(force);
-        if (drawer.classList.contains('open') === shouldOpen) return;
+
         drawer.classList.toggle('open', shouldOpen);
         if (wrapper) {
             wrapper.classList.toggle('drawer-active', shouldOpen);
         }
         if (btn) {
             btn.innerHTML = shouldOpen ? '✕ Directory' : '📜 Directory';
+            btn.classList.toggle('active', shouldOpen);
+            btn.classList.toggle('is-open', shouldOpen);
+            btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
         }
         if (mapInstance) {
             mapInstance.invalidateSize({ pan: false });
@@ -1588,7 +1501,12 @@
                 mapInstance.invalidateSize({ pan: false });
                 syncDynamicMinZoom();
             }
-        }, 300);
+        }, 150);
+        setTimeout(() => {
+            if (mapInstance) {
+                mapInstance.invalidateSize({ pan: false });
+            }
+        }, 320);
     };
 
     window.togglePortalDrawer = function () {

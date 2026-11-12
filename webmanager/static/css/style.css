@@ -4196,6 +4196,14 @@ table.data-table tr:hover td {
     color: var(--nordic-cyan) !important;
 }
 
+.map-directory-btn.is-open,
+.map-directory-btn.active {
+    background: rgba(30, 41, 59, 0.98) !important;
+    border-color: var(--nordic-cyan) !important;
+    color: var(--nordic-cyan) !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.35) !important;
+}
+
 /* Left-Side Vertical Tool Icon Stack (Directly beneath Leaflet Zoom) */
 .map-left-tools-stack {
     position: absolute;

@@ -138,7 +138,7 @@
     // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        const REQUIRED_VER = '2.9';
+        const REQUIRED_VER = '3.0';
 
         function bootMap() {
             if (typeof window.initWorldMap === 'function') {
@@ -152,7 +152,7 @@
             // Ensure latest stylesheet and map controller are loaded even without full page reload
             const cssLink = document.querySelector('link[href*="/static/css/style.css"]');
             if (cssLink) {
-                cssLink.href = '/static/css/style.css?v=2.6';
+                cssLink.href = '/static/css/style.css?v=2.7';
             }
             const script = document.createElement('script');
             script.src = '/static/js/map.js?v=' + REQUIRED_VER;
