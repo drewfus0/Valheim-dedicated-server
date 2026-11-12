@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '3.1';
+    window.WORLD_MAP_VERSION = '3.2';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -1001,7 +1001,7 @@
                             const diff = sib.y - p.y;
                             const arrow = diff > 0.3 ? '↑ +' : (diff < -0.3 ? '↓ ' : '≈ ');
                             return `
-                                <button type="button" class="stacked-sib-btn" onclick="event.stopPropagation(); selectPortal('${sib.id}', false, true)" title="Switch to this stacked portal">
+                                <button type="button" class="stacked-sib-btn" onclick="event.stopPropagation(); panToPortal('${sib.id}')" title="Switch to this stacked portal">
                                     <span><strong>"${escapeHtml(sib.tag)}"</strong> <span style="font-size:0.68rem; color:var(--text-muted);">&bull; ${escapeHtml(sib.author)}</span></span>
                                     <span style="color:#facc15; font-size:0.68rem;">${arrow}${Math.abs(diff).toFixed(1)}m</span>
                                 </button>
@@ -1058,7 +1058,7 @@
                     </div>
 
                     <div class="selected-actions-row">
-                        <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); flyToPortal('${p.id}')" title="Center camera on this portal">
+                        <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); panToPortal('${p.id}')" title="Pan to bring this portal into view">
                             🎯 Center
                         </button>
                         ${showHubBtn ? `
@@ -1382,6 +1382,29 @@
         }
     };
 
+    window.panToPortal = function (portalId) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        cameraActionToken++;
+        suppressMapClickUntil = Date.now() + 650;
+
+        const target = gameToLeaflet(p.x, p.z);
+
+        // Select the portal and show its card in the directory
+        window.selectPortal(portalId, false);
+        pulseMarkerPin(portalId);
+
+        // Smoothly pan to bring the portal into view (preserving current zoom if already zoomed in)
+        const currentZoom = mapInstance.getZoom();
+        const minUsefulZoom = 4.5;
+        if (currentZoom < minUsefulZoom) {
+            mapInstance.flyTo(target, minUsefulZoom, { duration: 0.75, easeLinearity: 0.25 });
+        } else {
+            mapInstance.panTo(target, { animate: true, duration: 0.5 });
+        }
+    };
+
     window.flyToSpawn = function () {
         if (!currentMapData || !mapInstance) return;
         const target = gameToLeaflet(currentMapData.spawn.x, currentMapData.spawn.z);
@@ -1683,7 +1706,7 @@
         }
 
         listEl.innerHTML = portals.map(p => `
-            <div class="drawer-portal-item" id="drawer-item-${p.id}" data-portal-id="${p.id}" onclick="flyToPortal('${p.id}')">
+            <div class="drawer-portal-item" id="drawer-item-${p.id}" data-portal-id="${p.id}" onclick="panToPortal('${p.id}')">
                 <div class="drawer-portal-left">
                     <span class="portal-status-dot ${p.linked ? 'is-linked' : 'is-solo'}" title="${p.linked ? 'Linked Network' : 'Solo'}"></span>
                     <div>
@@ -1704,7 +1727,7 @@
                             🔭
                         </button>
                     ` : ''}
-                    <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" title="Center map on this portal">
+                    <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" onclick="event.stopPropagation(); panToPortal('${p.id}')" title="Pan to bring this portal into view">
                         🎯
                     </button>
                 </div>

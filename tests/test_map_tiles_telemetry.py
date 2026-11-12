@@ -63,6 +63,9 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         self.assertIn("window.flyToPortal = function", map_js)
         self.assertIn("distMeters > 80", map_js)
         self.assertIn("flyToBounds", map_js)
+        # Selecting portal in directory pans smoothly into view
+        self.assertIn("window.panToPortal = function", map_js)
+        self.assertIn("panToPortal('${p.id}')", map_js)
 
     def test_directory_selected_panel_in_templates_and_css(self):
         map_tab = (WEB_DIR / "templates" / "partials" / "map_tab.html").read_text(encoding="utf-8")
