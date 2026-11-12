@@ -45,6 +45,13 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
             self.assertIn("biome", first)
             self.assertIn("biome_icon", first)
 
+    def test_map_js_preserves_route_selection_on_view_both_ends(self):
+        map_js = (WEB_DIR / "static" / "js" / "map.js").read_text(encoding="utf-8")
+        self.assertIn("function syncSelectionAndHoverHighlights()", map_js)
+        self.assertIn("window.zoomToShowPortalRoute = function", map_js)
+        self.assertNotIn("marker.on('popupclose'", map_js)
+        self.assertIn("event.stopPropagation(); zoomToShowPortalRoute", map_js)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.2';
+    window.WORLD_MAP_VERSION = '2.3';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -20,6 +20,9 @@
     let currentMapData = null;
     let currentlySelectedPortal = null;
     let currentlyHoveredPortal = null;
+    let currentlyHoveredLine = null;
+    let suppressMapClickUntil = 0;
+    let cameraActionToken = 0;
     let lastMouseLatLng = null;
     let telemetryView = null;
     let telemetryLoading = false;
@@ -229,6 +232,9 @@
         currentFilteredPortals = allPortalsData;
         currentlySelectedPortal = null;
         currentlyHoveredPortal = null;
+        currentlyHoveredLine = null;
+        suppressMapClickUntil = 0;
+        cameraActionToken = 0;
 
         // Load binary telemetry grid for instant 60fps cursor height/biome lookups
         loadTelemetryGrid(initialData.telemetry_url);
@@ -302,6 +308,7 @@
 
         // Deselect portal when clicking empty map canvas
         mapInstance.on('click', function (e) {
+            if (Date.now() < suppressMapClickUntil) return;
             if (currentlySelectedPortal && (!e.originalEvent || !e.originalEvent._portalClicked)) {
                 deselectPortal();
             }
@@ -474,23 +481,22 @@
 
                         // Hover on line: highlight line and both endpoints in yellow
                         polyline.on('mouseover', function () {
-                            setLineState(lineRecord, true);
-                            highlightPinYellow(p.id, true);
-                            highlightPinYellow(peer.id, true);
+                            currentlyHoveredLine = lineRecord;
+                            syncSelectionAndHoverHighlights();
                         });
 
                         polyline.on('mouseout', function () {
-                            if (!isLineSelected(lineRecord)) {
-                                setLineState(lineRecord, false);
-                                if (currentlySelectedPortal !== p.id) highlightPinYellow(p.id, false);
-                                if (currentlySelectedPortal !== peer.id) highlightPinYellow(peer.id, false);
+                            if (currentlyHoveredLine === lineRecord) {
+                                currentlyHoveredLine = null;
                             }
+                            syncSelectionAndHoverHighlights();
                         });
 
                         // Click on line: select nearest endpoint and zoom to show both ends
                         polyline.on('click', function (e) {
                             L.DomEvent.stopPropagation(e);
                             if (e.originalEvent) e.originalEvent._portalClicked = true;
+                            suppressMapClickUntil = Date.now() + 350;
 
                             const p1LL = L.latLng(displayedLatLngMap[p.id] || start);
                             const p2LL = L.latLng(displayedLatLngMap[peer.id] || end);
@@ -498,7 +504,7 @@
                             const d2 = e.latlng.distanceTo(p2LL);
 
                             const nearest = d1 <= d2 ? p : peer;
-                            selectPortal(nearest.id, true);
+                            window.zoomToShowPortalRoute(nearest.id);
                         });
 
                         portalLines.push(lineRecord);
@@ -578,7 +584,7 @@
                                 const sibMeta = stackMeta[sib.id] || {};
                                 const arrow = sibMeta.floorArrow || (sib.y > p.y ? '↑' : '↓');
                                 return `
-                                    <button type="button" class="stacked-sibling-chip" onclick="selectPortal('${sib.id}', false)" title="Switch selection to ${escapeHtml(sib.tag)} (Y: ${sib.y}m)">
+                                    <button type="button" class="stacked-sibling-chip" onclick="event.stopPropagation(); selectPortal('${sib.id}', false)" title="Switch selection to ${escapeHtml(sib.tag)} (Y: ${sib.y}m)">
                                         <span>${sib.linked ? '⚡' : '◇'}</span>
                                         <strong>"${escapeHtml(sib.tag)}"</strong>
                                         <span style="opacity:0.75;">${arrow}${sib.y}m</span>
@@ -603,10 +609,10 @@
                                     <div style="font-size:0.72rem; color:var(--text-muted);">[${peer.x}, ${peer.z}] (${Math.round(distance(p.x, p.z, peer.x, peer.z))}m away)</div>
                                 </div>
                                 <div style="display:flex; gap:0.3rem;">
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
                                         🔭 Both Ends
                                     </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="flyToPortal('${peer.id}')" title="Pan Camera to this portal">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); flyToPortal('${peer.id}')" title="Pan Camera to this portal">
                                         ✈️ Fly To
                                     </button>
                                 </div>
@@ -621,12 +627,12 @@
             const actionsRowHtml = (isLinked || showHubBtn) ? `
                 <div style="margin-top:0.65rem; padding-top:0.5rem; border-top:1px dashed rgba(255,255,255,0.1); display:flex; gap:0.4rem; flex-wrap:wrap;">
                     ${showHubBtn ? `
-                        <button type="button" class="btn btn-secondary btn-sm popup-hub-zoom-row" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomIntoPortalHub('${p.id}')" title="Zoom closely into this portal hub to separate overlapping pins & show tags">
+                        <button type="button" class="btn btn-secondary btn-sm popup-hub-zoom-row" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="event.stopPropagation(); zoomIntoPortalHub('${p.id}')" title="Zoom closely into this portal hub to separate overlapping pins & show tags">
                             🔍 Zoom Hub
                         </button>
                     ` : ''}
                     ${isLinked ? `
-                        <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
+                        <button type="button" class="btn btn-secondary btn-sm" style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.35rem;" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends of this route">
                             🔭 View Both Ends
                         </button>
                     ` : ''}
@@ -676,47 +682,21 @@
             // Hover: highlight portal and connecting line in yellow
             marker.on('mouseover', function () {
                 currentlyHoveredPortal = p.id;
-                highlightPinYellow(p.id, true);
-
-                if (isLinked && p.paired_with) {
-                    p.paired_with.forEach(peer => highlightPinYellow(peer.id, true));
-                    portalLines.forEach(l => {
-                        if (l.p1.id === p.id || l.p2.id === p.id) {
-                            setLineState(l, true);
-                        }
-                    });
-                }
+                syncSelectionAndHoverHighlights();
             });
 
             marker.on('mouseout', function () {
-                currentlyHoveredPortal = null;
-                if (currentlySelectedPortal !== p.id) {
-                    highlightPinYellow(p.id, false);
-                    if (isLinked && p.paired_with) {
-                        p.paired_with.forEach(peer => {
-                            if (currentlySelectedPortal !== peer.id) {
-                                highlightPinYellow(peer.id, false);
-                            }
-                        });
-                        portalLines.forEach(l => {
-                            if (!isLineSelected(l)) {
-                                setLineState(l, false);
-                            }
-                        });
-                    }
+                if (currentlyHoveredPortal === p.id) {
+                    currentlyHoveredPortal = null;
                 }
+                syncSelectionAndHoverHighlights();
             });
 
             // Click: select portal
             marker.on('click', function (e) {
                 if (e.originalEvent) e.originalEvent._portalClicked = true;
+                suppressMapClickUntil = Date.now() + 350;
                 selectPortal(p.id, false);
-            });
-
-            marker.on('popupclose', function () {
-                if (currentlySelectedPortal === p.id) {
-                    deselectPortal();
-                }
             });
         });
 
@@ -754,6 +734,7 @@
             portalLines.forEach(l => {
                 l.polyline.setLatLngs([l.start, l.end]);
             });
+            syncSelectionAndHoverHighlights();
             return;
         }
 
@@ -916,6 +897,7 @@
             const e = displayedLatLngMap[l.p2.id] || l.end;
             l.polyline.setLatLngs([s, e]);
         });
+        syncSelectionAndHoverHighlights();
     }
 
     function setLineState(l, isHighlighted) {
@@ -944,9 +926,46 @@
         }
     }
 
+    function getSelectedPortalIds() {
+        const ids = new Set();
+        if (!currentlySelectedPortal) return ids;
+        ids.add(currentlySelectedPortal);
+        const p = allPortalsData.find(item => item.id === currentlySelectedPortal);
+        if (p && p.linked && p.paired_with) {
+            p.paired_with.forEach(peer => ids.add(peer.id));
+        }
+        return ids;
+    }
+
+    function getHoveredPortalIds() {
+        const ids = new Set();
+        if (currentlyHoveredPortal) {
+            ids.add(currentlyHoveredPortal);
+            const p = allPortalsData.find(item => item.id === currentlyHoveredPortal);
+            if (p && p.linked && p.paired_with) {
+                p.paired_with.forEach(peer => ids.add(peer.id));
+            }
+        }
+        if (currentlyHoveredLine) {
+            ids.add(currentlyHoveredLine.p1.id);
+            ids.add(currentlyHoveredLine.p2.id);
+        }
+        return ids;
+    }
+
     function isLineSelected(l) {
-        if (!currentlySelectedPortal) return false;
-        return l.p1.id === currentlySelectedPortal || l.p2.id === currentlySelectedPortal;
+        if (!currentlySelectedPortal || !l) return false;
+        const selectedIds = getSelectedPortalIds();
+        return selectedIds.has(l.p1.id) && selectedIds.has(l.p2.id);
+    }
+
+    function isLineHovered(l) {
+        if (!l) return false;
+        if (currentlyHoveredLine && currentlyHoveredLine.pairKey === l.pairKey) return true;
+        if (currentlyHoveredPortal) {
+            return l.p1.id === currentlyHoveredPortal || l.p2.id === currentlyHoveredPortal;
+        }
+        return false;
     }
 
     function highlightPinYellow(portalId, highlight) {
@@ -957,65 +976,66 @@
         }
     }
 
-    window.selectPortal = function (portalId, zoomToBounds = false) {
+    function syncSelectionAndHoverHighlights() {
+        const selectedIds = getSelectedPortalIds();
+        const hoveredIds = getHoveredPortalIds();
+
+        allPortalsData.forEach(p => {
+            const isSel = selectedIds.has(p.id);
+            const isHov = hoveredIds.has(p.id);
+            highlightPinYellow(p.id, isSel || isHov);
+
+            const m = portalMarkersMap[p.id];
+            if (m) {
+                if (p.id === currentlySelectedPortal) {
+                    m.setZIndexOffset(1000);
+                } else if (isSel) {
+                    m.setZIndexOffset(950);
+                } else if (isHov) {
+                    m.setZIndexOffset(600);
+                } else {
+                    m.setZIndexOffset(0);
+                }
+            }
+        });
+
+        portalLines.forEach(l => {
+            const active = isLineSelected(l) || isLineHovered(l);
+            setLineState(l, active);
+        });
+    }
+
+    window.selectPortal = function (portalId, zoomToBounds = false, openPopup = true) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p) return;
 
-        // Reset previous z-index offset
-        if (currentlySelectedPortal && portalMarkersMap[currentlySelectedPortal]) {
-            portalMarkersMap[currentlySelectedPortal].setZIndexOffset(0);
-        }
-
+        suppressMapClickUntil = Date.now() + 350;
         currentlySelectedPortal = portalId;
+        syncSelectionAndHoverHighlights();
 
-        // Reset pin highlights, then highlight selected and connected peers
-        document.querySelectorAll('.portal-marker-pin').forEach(pin => {
-            pin.classList.remove('portal-highlight-yellow');
-        });
-        highlightPinYellow(portalId, true);
-
-        if (p.linked && p.paired_with) {
-            p.paired_with.forEach(peer => highlightPinYellow(peer.id, true));
-            portalLines.forEach(l => {
-                if (l.p1.id === portalId || l.p2.id === portalId) {
-                    setLineState(l, true);
-                } else {
-                    setLineState(l, false);
-                }
-            });
-
-            if (zoomToBounds && mapInstance) {
-                const points = [
-                    gameToLeaflet(p.x, p.z),
-                    ...p.paired_with.map(peer => gameToLeaflet(peer.x, peer.z))
-                ];
-                mapInstance.fitBounds(L.latLngBounds(points), {
-                    padding: [100, 100],
-                    maxZoom: 9.0,
-                    animate: true
-                });
-            }
-        } else {
-            portalLines.forEach(l => setLineState(l, false));
+        if (zoomToBounds && p.linked && p.paired_with && p.paired_with.length > 0 && mapInstance) {
+            window.zoomToShowPortalRoute(portalId);
+            return;
         }
 
         const marker = portalMarkersMap[portalId];
         if (marker) {
-            marker.setZIndexOffset(1000);
-            marker.openPopup();
+            if (openPopup) {
+                marker.openPopup();
+            }
             pulseMarkerPin(portalId);
+        }
+        if (!openPopup && p.linked && p.paired_with) {
+            p.paired_with.forEach(peer => pulseMarkerPin(peer.id));
         }
     };
 
     function deselectPortal() {
-        if (currentlySelectedPortal && portalMarkersMap[currentlySelectedPortal]) {
-            portalMarkersMap[currentlySelectedPortal].setZIndexOffset(0);
-        }
         currentlySelectedPortal = null;
-        document.querySelectorAll('.portal-marker-pin').forEach(pin => {
-            pin.classList.remove('portal-highlight-yellow');
-        });
-        portalLines.forEach(l => setLineState(l, false));
+        if (mapInstance) {
+            mapInstance.closePopup();
+        }
+        syncSelectionAndHoverHighlights();
     }
 
     function getIdealPortalZoom(p) {
@@ -1036,16 +1056,20 @@
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 450;
+
         const targetZoom = Math.max(8.75, mapInstance.getZoom() + 1.5);
         const clampedZoom = Math.min(MAX_ZOOM, targetZoom);
         const target = gameToLeaflet(p.x, p.z);
 
         let handled = false;
         const onArrived = () => {
-            if (handled) return;
+            if (handled || myToken !== cameraActionToken) return;
             handled = true;
             updatePortalLayoutForZoom();
-            window.selectPortal(portalId, false);
+            window.selectPortal(portalId, false, true);
         };
 
         mapInstance.once('moveend', onArrived);
@@ -1060,6 +1084,7 @@
     // Zoom all the way out to view the entire circular Midgard map
     window.fitWholeMap = function () {
         if (!mapInstance) return;
+        cameraActionToken++;
         syncDynamicMinZoom();
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
         mapInstance.flyToBounds(bounds, {
@@ -1069,28 +1094,56 @@
         });
     };
 
-    // Zoom out to show both ends of a portal route
+    // Zoom out to show both ends of a portal route while keeping the route selected
     window.zoomToShowPortalRoute = function (portalId, peerId = null) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 500;
+
         let points = [];
+        let peerIds = [];
         if (peerId) {
             const peer = allPortalsData.find(item => item.id === peerId);
             if (peer) {
                 points = [gameToLeaflet(p.x, p.z), gameToLeaflet(peer.x, peer.z)];
+                peerIds = [peer.id];
             }
         } else if (p.paired_with && p.paired_with.length > 0) {
             points = [
                 gameToLeaflet(p.x, p.z),
                 ...p.paired_with.map(peer => gameToLeaflet(peer.x, peer.z))
             ];
+            peerIds = p.paired_with.map(peer => peer.id);
         }
 
         if (points.length >= 2) {
-            window.selectPortal(portalId, false);
+            currentlySelectedPortal = portalId;
+            currentlyHoveredPortal = null;
+            currentlyHoveredLine = null;
+
+            // Close any open popup so it neither obscures one end of the route nor pans the camera via _adjustPan
+            mapInstance.closePopup();
+            syncSelectionAndHoverHighlights();
+
+            let settled = false;
+            const onRouteFitted = () => {
+                if (settled || myToken !== cameraActionToken) return;
+                settled = true;
+                updatePortalLayoutForZoom();
+                syncSelectionAndHoverHighlights();
+                pulseMarkerPin(portalId);
+                peerIds.forEach(id => pulseMarkerPin(id));
+            };
+
+            mapInstance.once('moveend', onRouteFitted);
+            setTimeout(onRouteFitted, 600);
+
             mapInstance.fitBounds(L.latLngBounds(points), {
-                padding: [100, 100],
+                paddingTopLeft: [80, 90],
+                paddingBottomRight: [80, 70],
                 maxZoom: 9.0,
                 animate: true
             });
@@ -1111,6 +1164,7 @@
             return;
         }
 
+        cameraActionToken++;
         const points = currentFilteredPortals.map(p => gameToLeaflet(p.x, p.z));
         mapInstance.fitBounds(L.latLngBounds(points), {
             padding: [80, 80],
@@ -1123,19 +1177,23 @@
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 450;
+
         const idealZoom = Math.min(MAX_ZOOM, Math.max(getIdealPortalZoom(p), mapInstance.getZoom()));
         const target = gameToLeaflet(p.x, p.z);
 
         let opened = false;
         const finishSelect = () => {
-            if (opened) return;
+            if (opened || myToken !== cameraActionToken) return;
             opened = true;
             updatePortalLayoutForZoom();
             const finalPos = displayedLatLngMap[portalId];
             if (finalPos && mapInstance) {
                 mapInstance.panTo(finalPos, { animate: true, duration: 0.25 });
             }
-            window.selectPortal(portalId, false);
+            window.selectPortal(portalId, false, true);
         };
 
         mapInstance.once('moveend', finishSelect);
