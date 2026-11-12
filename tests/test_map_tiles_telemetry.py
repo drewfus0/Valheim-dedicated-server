@@ -59,6 +59,10 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         # Portals no longer use floating map popups
         render_portals_code = map_js.split("function renderPortals(")[1].split("function updatePortalLayoutForZoom")[0]
         self.assertNotIn("marker.bindPopup", render_portals_code)
+        # Fly to portal uses cinematic 2-phase zoom animation
+        self.assertIn("window.flyToPortal = function", map_js)
+        self.assertIn("distMeters > 80", map_js)
+        self.assertIn("flyToBounds", map_js)
 
     def test_directory_selected_panel_in_templates_and_css(self):
         map_tab = (WEB_DIR / "templates" / "partials" / "map_tab.html").read_text(encoding="utf-8")

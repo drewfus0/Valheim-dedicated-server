@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '3.0';
+    window.WORLD_MAP_VERSION = '3.1';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -1280,30 +1280,106 @@
 
         cameraActionToken++;
         const myToken = cameraActionToken;
-        suppressMapClickUntil = Date.now() + 450;
+        suppressMapClickUntil = Date.now() + 5500;
 
-        const idealZoom = Math.min(MAX_ZOOM, Math.max(getIdealPortalZoom(p), mapInstance.getZoom()));
         const target = gameToLeaflet(p.x, p.z);
+        const idealZoom = Math.min(MAX_ZOOM, Math.max(getIdealPortalZoom(p), 8.25));
 
-        let opened = false;
-        const finishSelect = () => {
-            if (opened || myToken !== cameraActionToken) return;
-            opened = true;
-            updatePortalLayoutForZoom();
-            const finalPos = displayedLatLngMap[portalId];
-            if (finalPos && mapInstance) {
-                mapInstance.panTo(finalPos, { animate: true, duration: 0.25 });
+        // Determine origin for the 2-phase flight:
+        // Use currentlySelectedPortal if available and different, otherwise use current map center
+        let origin = null;
+        if (currentlySelectedPortal && currentlySelectedPortal !== portalId) {
+            origin = allPortalsData.find(item => item.id === currentlySelectedPortal);
+        }
+        const originLatLng = origin ? gameToLeaflet(origin.x, origin.z) : mapInstance.getCenter();
+
+        // Calculate game distance to determine whether to perform 2-phase flight
+        const originGamePos = origin ? { x: origin.x, z: origin.z } : leafletToGame(originLatLng.lat, originLatLng.lng);
+        const distMeters = distance(originGamePos.x, originGamePos.z, p.x, p.z);
+
+        // Safe right padding calculation for drawer
+        const canvasEl = document.getElementById('world-map-canvas');
+        const wrapperEl = document.getElementById('map-viewport-wrapper');
+        const drawerEl = document.getElementById('map-portal-drawer');
+        if (canvasEl) void canvasEl.offsetWidth;
+        if (mapInstance) mapInstance.invalidateSize({ pan: false });
+
+        const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
+        let rightPadding = 85;
+        if (isDrawerOpen) {
+            const canvasW = canvasEl ? canvasEl.offsetWidth : 0;
+            const wrapperW = wrapperEl ? wrapperEl.offsetWidth : 0;
+            if (canvasW >= wrapperW - 20) {
+                rightPadding += 330;
             }
-            window.selectPortal(portalId, false);
-        };
+        }
 
-        mapInstance.once('moveend', finishSelect);
-        setTimeout(finishSelect, 1400);
+        // If distance is significant (> 80m), perform the 2-phase cinematic flight:
+        // Phase 1: 2-3 sec zoom out to "both ends"
+        // Phase 2: 2-3 sec zoom in to the destination
+        if (distMeters > 80) {
+            // Pulse the origin pin if known
+            if (origin) pulseMarkerPin(origin.id);
 
-        mapInstance.flyTo(target, idealZoom, {
-            duration: 1.1,
-            easeLinearity: 0.25
-        });
+            // Phase 1: Zoom out to show both ends
+            const flightBounds = L.latLngBounds([originLatLng, target]);
+            mapInstance.flyToBounds(flightBounds, {
+                duration: 2.3,
+                easeLinearity: 0.25,
+                paddingTopLeft: [85, 85],
+                paddingBottomRight: [rightPadding, 75],
+                maxZoom: 7.25
+            });
+
+            let phase1Done = false;
+            const runPhase2 = () => {
+                if (phase1Done || myToken !== cameraActionToken) return;
+                phase1Done = true;
+
+                // Phase 2: Zoom into the new end over 2.3s
+                let phase2Done = false;
+                const finishArrival = () => {
+                    if (phase2Done || myToken !== cameraActionToken) return;
+                    phase2Done = true;
+                    updatePortalLayoutForZoom();
+                    const finalPos = displayedLatLngMap[portalId] || target;
+                    if (finalPos && mapInstance) {
+                        mapInstance.panTo(finalPos, { animate: true, duration: 0.2 });
+                    }
+                    window.selectPortal(portalId, false);
+                    pulseMarkerPin(portalId);
+                };
+
+                mapInstance.once('moveend', finishArrival);
+                setTimeout(finishArrival, 2600);
+
+                mapInstance.flyTo(target, idealZoom, {
+                    duration: 2.3,
+                    easeLinearity: 0.25
+                });
+            };
+
+            mapInstance.once('moveend', runPhase2);
+            setTimeout(runPhase2, 2600);
+        } else {
+            // Short-distance flight: single smooth 1.5s zoom
+            let done = false;
+            const finishDirect = () => {
+                if (done || myToken !== cameraActionToken) return;
+                done = true;
+                updatePortalLayoutForZoom();
+                window.selectPortal(portalId, false);
+                pulseMarkerPin(portalId);
+            };
+
+            mapInstance.once('moveend', finishDirect);
+            setTimeout(finishDirect, 1700);
+
+            mapInstance.flyTo(target, idealZoom, {
+                duration: 1.5,
+                easeLinearity: 0.25
+            });
+        }
     };
 
     window.flyToSpawn = function () {
