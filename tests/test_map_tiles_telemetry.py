@@ -51,6 +51,8 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         self.assertIn("window.zoomToShowPortalRoute = function", map_js)
         self.assertNotIn("marker.on('popupclose'", map_js)
         self.assertIn("event.stopPropagation(); zoomToShowPortalRoute", map_js)
+        self.assertIn("drawerPadding", map_js)
+        self.assertIn("drawer-active", map_js)
 
 
 if __name__ == "__main__":

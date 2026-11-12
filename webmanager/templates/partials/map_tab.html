@@ -49,14 +49,14 @@
 
     <!-- Map Viewport Wrapper with On-Map Controls and Collapsible Portal Drawer -->
     <div class="map-viewport-wrapper" id="map-viewport-wrapper">
-        <!-- On-Map Floating Overlay: Search, Filters, Directory, Fullscreen (Usable in Fullscreen) -->
+        <!-- On-Map Top Floating Search & Filter Bar (Aligned with clean wrap & space for drawer) -->
         <div class="map-floating-overlay" id="map-floating-overlay">
             <div class="map-floating-search-bar">
                 <span class="search-icon">🔍</span>
                 <input type="text" 
                        id="map-portal-search" 
                        class="map-search-input" 
-                       placeholder="Search portals, builders, or coords (x:1370 y:73)..." 
+                       placeholder="Search portals, builders, or coords..." 
                        oninput="applyMapFilters()"
                        onkeydown="if(event.key==='Enter') fitMatchingPortals()">
                 <button type="button" 
@@ -74,41 +74,45 @@
                         style="display: none;">✕</button>
             </div>
 
-            <div class="map-floating-actions">
+            <div class="map-floating-filters">
                 <select id="map-player-filter" class="form-control map-control-select" onchange="applyMapFilters()" title="Filter by builder">
-                    <option value="all">🛡️ All Builders</option>
+                    <option value="all">🛡️ Builder</option>
                 </select>
 
                 <select id="map-status-filter" class="form-control map-control-select" onchange="applyMapFilters()" title="Filter by connection status">
-                    <option value="all">⚡ All Statuses</option>
-                    <option value="linked">⚡ Linked Only</option>
-                    <option value="solo">◇ Solo Only</option>
+                    <option value="all">⚡ Status</option>
+                    <option value="linked">⚡ Linked</option>
+                    <option value="solo">◇ Solo</option>
                 </select>
 
-                <button type="button" class="btn btn-secondary btn-sm map-control-btn" onclick="fitWholeMap()" title="Zoom all the way out to view the entire world map">
-                    🌍 Whole Map
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm map-control-btn" onclick="flyToSpawn()" title="Center camera on Sacrificial Stones">
-                    🏛️ Spawn
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm map-control-btn" id="drawer-toggle-btn" onclick="togglePortalDrawer()" title="View full portal directory">
+                <button type="button" class="btn btn-secondary btn-sm map-directory-btn" id="drawer-toggle-btn" onclick="togglePortalDrawer()" title="View full portal directory">
                     📜 Directory
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm map-control-btn" id="map-fullscreen-btn" onclick="toggleMapFullscreen()" title="Toggle Fullscreen Map">
-                    ⛶ Fullscreen
-                </button>
             </div>
+        </div>
+
+        <!-- Left-Side Vertical Action Tools (Docked below Leaflet Zoom Controls) -->
+        <div class="map-left-tools-stack" id="map-left-tools-stack">
+            <button type="button" class="map-tool-icon-btn" onclick="fitWholeMap()" title="🌍 Whole Map (Zoom to full world overview)">
+                🌍
+            </button>
+            <button type="button" class="map-tool-icon-btn" onclick="flyToSpawn()" title="🏛️ Sacrificial Stones (Awakening Altar)">
+                🏛️
+            </button>
+            <button type="button" class="map-tool-icon-btn" id="map-fullscreen-btn" onclick="toggleMapFullscreen()" title="⛶ Fullscreen (Toggle Fullscreen Map)">
+                ⛶
+            </button>
         </div>
 
         <!-- Interactive Leaflet Canvas Container -->
         <div id="world-map-canvas" class="world-map-canvas"></div>
 
-        <!-- In-Game Real-Time Telemetry & Coordinate Info Panel (Docked at bottom of map viewport) -->
-        <div class="map-coord-pill" id="map-coord-hud" title="Move your mouse over Midgard to inspect biome, elevation, canopy, and in-game coordinates">
-            <span>🧭 Move mouse over Midgard to inspect biome, elevation &amp; coordinates</span>
+        <!-- In-Game Real-Time Telemetry & Coordinate Info Panel (Compact, Left-Aligned) -->
+        <div class="map-coord-pill" id="map-coord-hud" title="Move your mouse over Midgard to inspect biome, elevation, and coordinates">
+            <span>🧭 Midgard Telemetry</span>
         </div>
 
-        <!-- Collapsible Portal Directory Drawer -->
+        <!-- Collapsible Portal Directory Drawer (Docked & Non-Overlapping) -->
         <div class="map-portal-drawer" id="map-portal-drawer">
             <div class="drawer-header">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -118,7 +122,7 @@
                         {{ map_data.stats.total_portals }}
                     </span>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePortalDrawer()">✕</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePortalDrawer()" title="Close Directory">✕</button>
             </div>
             <div class="drawer-body" id="map-drawer-portal-list">
                 <!-- Dynamically populated by map.js -->
@@ -131,7 +135,7 @@
     // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        const REQUIRED_VER = '2.5';
+        const REQUIRED_VER = '2.6';
 
         function bootMap() {
             if (typeof window.initWorldMap === 'function') {

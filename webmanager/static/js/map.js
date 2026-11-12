@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.5';
+    window.WORLD_MAP_VERSION = '2.6';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -174,12 +174,10 @@
         if (distFromCenter > GAME_RADIUS + 150) {
             hudEl.innerHTML = `
                 <span class="telem-biome-badge" style="color: #fca5a5; background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35);">
-                    ⚠️ Edge of Midgard (Void)
+                    🌌 Void
                 </span>
                 <span class="telem-sep">•</span>
-                <span class="telem-seg">🧭 <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span>
-                <span class="telem-sep">•</span>
-                <span class="telem-seg" style="opacity:0.75;">📏 ${Math.round(distFromCenter)}m</span>
+                <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong></span>
             `;
             return;
         }
@@ -187,9 +185,9 @@
         const sample = sampleTelemetry(coords.rawX, coords.rawZ);
         if (!sample) {
             hudEl.innerHTML = `
-                <span class="telem-seg">🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span>
+                <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong></span>
                 <span class="telem-sep">•</span>
-                <span class="telem-seg" style="opacity:0.75;">📏 ${Math.round(distFromCenter)}m</span>
+                <span class="telem-seg" style="opacity:0.75;">${Math.round(distFromCenter)}m</span>
             `;
             return;
         }
@@ -197,21 +195,19 @@
         const meta = BIOME_META[sample.biomeCode] || BIOME_META[0];
         const alt = sample.height - 30.0;
         const isWater = alt < 0;
-        const elevLabel = isWater
-            ? `🌊 Depth: <strong style="color:#38bdf8;">${alt.toFixed(1)}m</strong> <span style="opacity:0.65;">(Y: ${sample.height.toFixed(1)}m)</span>`
-            : `⛰️ Alt: <strong style="color:#facc15;">+${alt.toFixed(1)}m</strong> <span style="opacity:0.65;">(Y: ${sample.height.toFixed(1)}m)</span>`;
-        const featureText = describeTerrainFeature(sample.biomeCode, sample.height, sample.forest);
+        const elevText = isWater
+            ? `<span style="color:#38bdf8; font-weight:600;">${alt.toFixed(1)}m</span>`
+            : `<span style="color:#facc15; font-weight:600;">+${alt.toFixed(1)}m</span>`;
+        const distStr = distFromCenter >= 1000.0 ? `${(distFromCenter / 1000.0).toFixed(1)}k` : `${Math.round(distFromCenter)}m`;
 
         hudEl.innerHTML = `
             <span class="telem-biome-badge" style="color: ${meta.color}; background: ${meta.bg}; border-color: ${meta.color}55;">
-                ${meta.icon} <strong>${meta.name}</strong>
+                ${meta.icon} ${meta.name}
             </span>
             <span class="telem-sep">•</span>
-            <span class="telem-seg">${elevLabel}</span>
+            <span class="telem-seg">${isWater ? '🌊' : '⛰️'} ${elevText}</span>
             <span class="telem-sep">•</span>
-            <span class="telem-seg telem-feature">${featureText}</span>
-            <span class="telem-sep">•</span>
-            <span class="telem-seg">🧭 <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong> <span style="opacity:0.65;">(${Math.round(distFromCenter)}m)</span></span>
+            <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong> <span style="opacity:0.65;">(${distStr})</span></span>
         `;
     }
 
@@ -1141,9 +1137,14 @@
             mapInstance.once('moveend', onRouteFitted);
             setTimeout(onRouteFitted, 600);
 
+            // If the portal directory drawer is open on desktop, compensate right padding so no route end is hidden
+            const drawerEl = document.getElementById('map-portal-drawer');
+            const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
+            const drawerPadding = (isDrawerOpen && window.innerWidth >= 768) ? 330 : 0;
+
             mapInstance.fitBounds(L.latLngBounds(points), {
-                paddingTopLeft: [80, 90],
-                paddingBottomRight: [80, 70],
+                paddingTopLeft: [70, 70],
+                paddingBottomRight: [70 + drawerPadding, 60],
                 maxZoom: 9.0,
                 animate: true
             });
@@ -1321,16 +1322,23 @@
     };
 
     window.togglePortalDrawer = function () {
+        const wrapper = document.getElementById('map-viewport-wrapper');
         const drawer = document.getElementById('map-portal-drawer');
         const btn = document.getElementById('drawer-toggle-btn');
         if (!drawer) return;
         const isOpen = drawer.classList.toggle('open');
+        if (wrapper) {
+            wrapper.classList.toggle('drawer-active', isOpen);
+        }
         if (btn) {
             btn.innerHTML = isOpen ? '✕ Directory' : '📜 Directory';
         }
+        if (mapInstance) {
+            mapInstance.invalidateSize({ pan: false });
+        }
         setTimeout(() => {
             if (mapInstance) {
-                mapInstance.invalidateSize();
+                mapInstance.invalidateSize({ pan: false });
                 syncDynamicMinZoom();
             }
         }, 300);
@@ -1358,8 +1366,8 @@
         const btn = document.getElementById('map-fullscreen-btn');
         const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
         if (btn) {
-            btn.innerHTML = isFs ? '🗗 Exit Fullscreen' : '⛶ Fullscreen';
-            btn.title = isFs ? 'Exit Fullscreen Map' : 'Toggle Fullscreen Map';
+            btn.innerHTML = isFs ? '🗗' : '⛶';
+            btn.title = isFs ? '🗗 Exit Fullscreen' : '⛶ Fullscreen (Toggle Fullscreen Map)';
         }
         if (mapInstance) {
             setTimeout(() => {
@@ -1410,7 +1418,7 @@
         });
 
         const sorted = Array.from(playersSet).sort();
-        let html = '<option value="all">🛡️ All Builders</option>';
+        let html = '<option value="all">🛡️ Builder</option>';
         sorted.forEach(name => {
             html += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
         });
