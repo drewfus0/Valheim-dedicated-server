@@ -56,7 +56,8 @@
                 <input type="text" 
                        id="map-portal-search" 
                        class="map-search-input" 
-                       placeholder="Search portals, builders, or coords..." 
+                       placeholder="Search (e.g. p=drew, b=thor, s=c)..." 
+                       title="Search portals by text or syntax: p=name, b=builder, s=c (connected), s=s (solo)"
                        oninput="applyMapFilters()"
                        onkeydown="if(event.key==='Enter') fitMatchingPortals()">
                 <button type="button" 
@@ -135,7 +136,7 @@
     // Initialize map immediately upon tab render (hot-upgrade assets if needed)
     (function() {
         const rawData = {{ map_data | tojson }};
-        const REQUIRED_VER = '2.7';
+        const REQUIRED_VER = '2.8';
 
         function bootMap() {
             if (typeof window.initWorldMap === 'function') {

@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.7';
+    window.WORLD_MAP_VERSION = '2.8';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -293,9 +293,14 @@
 
         mapInstance.on('zoomend', function () {
             updatePortalLayoutForZoom();
+            updateDrawerVisibleHighlights();
             if (lastMouseLatLng) {
                 updateCoordHud(lastMouseLatLng);
             }
+        });
+
+        mapInstance.on('moveend', function () {
+            updateDrawerVisibleHighlights();
         });
 
         mapInstance.on('resize', function () {
@@ -1216,6 +1221,45 @@
         }
     }
 
+    function parseSearchFilters(query) {
+        let cleanQuery = query;
+        let portalFilter = null;
+        let builderFilter = null;
+        let statusFilter = null;
+
+        // Match prefix tokens: p=..., b=..., s=... (with optional colon: p:..., b:..., s:...)
+        // Supports quoted values e.g. p="main hub" or unquoted p=drew
+        const tokenRegex = /\b([pbs])[:=](?:"([^"]+)"|'([^']+)'|([^\s]+))/gi;
+        let match;
+        while ((match = tokenRegex.exec(query)) !== null) {
+            const prefix = match[1].toLowerCase();
+            const val = (match[2] || match[3] || match[4] || '').trim().toLowerCase();
+            if (prefix === 'p') {
+                portalFilter = val;
+            } else if (prefix === 'b') {
+                builderFilter = val;
+            } else if (prefix === 's') {
+                // s=c / s=connected / s=l / s=linked -> linked
+                // s=s / s=solo / s=u / s=unconnected -> solo
+                if (val.startsWith('c') || val.startsWith('l')) {
+                    statusFilter = 'linked';
+                } else if (val.startsWith('s') || val.startsWith('u')) {
+                    statusFilter = 'solo';
+                }
+            }
+        }
+
+        // Strip matched tokens from residual general text search
+        cleanQuery = query.replace(tokenRegex, ' ').replace(/\s+/g, ' ').trim();
+
+        return {
+            portalFilter,
+            builderFilter,
+            statusFilter,
+            residualQuery: cleanQuery
+        };
+    }
+
     function parseCoordinateQuery(query) {
         // Supports "x:1370 y:73", "x=1370 z=73", "1370, 73", "1370 73"
         const namedMatch = query.match(/x\s*[:=]?\s*(-?\d+(?:\.\d+)?)[\s,;]+(?:y|z)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
@@ -1232,11 +1276,12 @@
     // Filter Portals by Player, Link Status, Search String, or Coordinate Pair
     window.applyMapFilters = function () {
         const searchInput = document.getElementById('map-portal-search');
-        const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const rawQuery = (searchInput ? searchInput.value : '').trim();
+        const queryLower = rawQuery.toLowerCase();
 
         const clearBtn = document.getElementById('map-search-clear');
         if (clearBtn) {
-            clearBtn.style.display = query.length > 0 ? 'flex' : 'none';
+            clearBtn.style.display = rawQuery.length > 0 ? 'flex' : 'none';
         }
 
         const playerSelect = document.getElementById('map-player-filter');
@@ -1245,22 +1290,37 @@
         const statusSelect = document.getElementById('map-status-filter');
         const selectedStatus = statusSelect ? statusSelect.value : 'all';
 
-        const coordQuery = query ? parseCoordinateQuery(query) : null;
+        // Parse search query for filter prefixes: p=..., b=..., s=...
+        const parsed = parseSearchFilters(queryLower);
+        const effectiveStatus = parsed.statusFilter || selectedStatus;
+        const coordQuery = parsed.residualQuery ? parseCoordinateQuery(parsed.residualQuery) : null;
 
         const filtered = allPortalsData.filter(p => {
+            // Builder filter from dropdown
             if (selectedPlayer !== 'all' && p.author.toLowerCase() !== selectedPlayer.toLowerCase()) {
                 return false;
             }
-            if (selectedStatus === 'linked' && !p.linked) return false;
-            if (selectedStatus === 'solo' && p.linked) return false;
-            if (query) {
+            // Explicit b=... filter in search bar
+            if (parsed.builderFilter && !p.author.toLowerCase().includes(parsed.builderFilter)) {
+                return false;
+            }
+            // Explicit p=... filter in search bar (portal name/tag)
+            if (parsed.portalFilter && !p.tag.toLowerCase().includes(parsed.portalFilter)) {
+                return false;
+            }
+            // Status filter (dropdown or s=... token)
+            if (effectiveStatus === 'linked' && !p.linked) return false;
+            if (effectiveStatus === 'solo' && p.linked) return false;
+
+            // Residual query match (portal tag, author, or coords)
+            if (parsed.residualQuery) {
                 if (coordQuery) {
                     return distance(p.x, p.z, coordQuery.x, coordQuery.z) <= 60.0;
                 }
                 const coordStr = `${p.x}, ${p.z}`;
-                if (!p.tag.toLowerCase().includes(query) &&
-                    !p.author.toLowerCase().includes(query) &&
-                    !coordStr.includes(query)) {
+                if (!p.tag.toLowerCase().includes(parsed.residualQuery) &&
+                    !p.author.toLowerCase().includes(parsed.residualQuery) &&
+                    !coordStr.includes(parsed.residualQuery)) {
                     return false;
                 }
             }
@@ -1432,7 +1492,7 @@
         }
 
         listEl.innerHTML = portals.map(p => `
-            <div class="drawer-portal-item" onclick="flyToPortal('${p.id}')">
+            <div class="drawer-portal-item" id="drawer-item-${p.id}" data-portal-id="${p.id}" onclick="flyToPortal('${p.id}')">
                 <div class="drawer-portal-left">
                     <span class="portal-status-dot ${p.linked ? 'is-linked' : 'is-solo'}" title="${p.linked ? 'Linked Network' : 'Solo'}"></span>
                     <div>
@@ -1459,6 +1519,28 @@
                 </div>
             </div>
         `).join('');
+
+        updateDrawerVisibleHighlights();
+    }
+
+    /**
+     * Highlights portals in the directory drawer that are currently visible within the map viewport bounds.
+     */
+    function updateDrawerVisibleHighlights() {
+        if (!mapInstance) return;
+        const bounds = mapInstance.getBounds();
+        const items = document.querySelectorAll('.drawer-portal-item');
+        if (!items || items.length === 0) return;
+
+        items.forEach(item => {
+            const pid = item.getAttribute('data-portal-id');
+            const latlng = displayedLatLngMap[pid];
+            if (latlng && bounds.contains(latlng)) {
+                item.classList.add('is-in-view');
+            } else {
+                item.classList.remove('is-in-view');
+            }
+        });
     }
 
     function distance(x1, z1, x2, z2) {

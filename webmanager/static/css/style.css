@@ -3711,6 +3711,15 @@ table.data-table tr:hover td {
     transition: all 0.15s ease;
 }
 
+.drawer-portal-item.is-in-view {
+    border-left: 3px solid var(--nordic-cyan);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.drawer-portal-item.is-in-view .drawer-portal-tag strong {
+    color: var(--nordic-cyan);
+}
+
 .drawer-portal-item:hover {
     background: var(--bg-surface-elevated);
     border-color: rgba(6, 182, 212, 0.4);
