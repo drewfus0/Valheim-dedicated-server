@@ -372,7 +372,7 @@ def get_world_map_data(world_name: Optional[str] = None, force_refresh: bool = F
                 "center_y_px": MAP_CENTER_Y,
                 "scale": MAP_SCALE,
             },
-            "tiles_url": "/static/img/tiles/{z}/{x}/{y}.webp?v=2",
+            "tiles_url": "/static/img/tiles/{z}/{x}/{y}.webp?v=3",
             "tile_size": 1024,
             "max_native_zoom": 4,
             "telemetry_url": "/static/img/tiles/telemetry_1024.bin",

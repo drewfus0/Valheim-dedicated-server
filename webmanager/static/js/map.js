@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.4';
+    window.WORLD_MAP_VERSION = '2.5';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -259,7 +259,7 @@
         });
 
         // 2. Multi-Zoom High-Res WebP Tile Pyramid (16384x16384 native at z=4)
-        const tilesUrl = initialData.tiles_url || '/static/img/tiles/{z}/{x}/{y}.webp?v=2';
+        const tilesUrl = initialData.tiles_url || '/static/img/tiles/{z}/{x}/{y}.webp?v=3';
         L.tileLayer(tilesUrl, {
             tileSize: TILE_SIZE,
             minZoom: MIN_ZOOM_FALLBACK,
