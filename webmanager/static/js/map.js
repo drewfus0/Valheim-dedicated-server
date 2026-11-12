@@ -5,7 +5,7 @@
  */
 
 (function () {
-    window.WORLD_MAP_VERSION = '2.8';
+    window.WORLD_MAP_VERSION = '2.9';
 
     let mapInstance = null;
     let spawnLayer = null;
@@ -21,6 +21,7 @@
     let currentlySelectedPortal = null;
     let currentlyHoveredPortal = null;
     let currentlyHoveredLine = null;
+    let currentStackMeta = {};
     let suppressMapClickUntil = 0;
     let cameraActionToken = 0;
     let lastMouseLatLng = null;
@@ -315,6 +316,13 @@
             }
         });
 
+        // Deselect portal on Escape key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && currentlySelectedPortal) {
+                deselectPortal();
+            }
+        });
+
         // 8. Ensure size calculation & minZoom are accurate after HTMX load
         setTimeout(() => {
             if (mapInstance) {
@@ -439,6 +447,7 @@
         currentFilteredPortals = portalsList;
 
         const stackMeta = computeStackAndHubMetadata(portalsList);
+        currentStackMeta = stackMeta;
 
         // 1. Connection lines: always visible, highlighted yellow on hover or selection
         const drawnPairs = new Set();
@@ -703,6 +712,10 @@
 
         // 3. Apply zoom-aware screen-space separation if currently zoomed into a hub
         updatePortalLayoutForZoom();
+
+        if (currentlySelectedPortal) {
+            updateDrawerSelectedPanel(currentlySelectedPortal);
+        }
     }
 
     /**
@@ -1006,6 +1019,178 @@
         });
     }
 
+    /**
+     * Renders or clears the Selected Portal & Link Info Panel at the top of the Directory Drawer.
+     */
+    function updateDrawerSelectedPanel(portalId) {
+        const panel = document.getElementById('map-drawer-selected-panel');
+        if (!panel) return;
+
+        // Sync selection highlight in the directory list below
+        document.querySelectorAll('.drawer-portal-item').forEach(el => {
+            if (portalId && el.dataset.portalId === portalId) {
+                el.classList.add('is-selected');
+                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+                el.classList.remove('is-selected');
+            }
+        });
+
+        if (!portalId) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            return;
+        }
+
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            return;
+        }
+
+        const meta = (currentStackMeta && currentStackMeta[p.id]) || {
+            stackedPeers: [],
+            hubPeerCount: 0,
+            floorArrow: '',
+            floorDesc: ''
+        };
+
+        const isLinked = Boolean(p.linked && p.paired_with && p.paired_with.length > 0);
+        const pColor = p.author_color || 'var(--nordic-cyan)';
+
+        // Connected destination peers
+        let pairedHtml = '';
+        if (isLinked) {
+            pairedHtml = `
+                <div class="selected-link-section">
+                    <div class="selected-section-title">
+                        <span>⚡ Connected Link${p.paired_with.length > 1 ? `s (${p.paired_with.length})` : ''}</span>
+                    </div>
+                    ${p.paired_with.map(peer => {
+                        const distMeters = Math.round(distance(p.x, p.z, peer.x, peer.z));
+                        return `
+                            <div class="selected-peer-card">
+                                <div class="peer-header-row">
+                                    <div class="peer-author">
+                                        <span>${peer.author_avatar || '🛡️'}</span>
+                                        <strong style="color: ${peer.author_color || 'var(--text-primary)'};">${escapeHtml(peer.author)}</strong>
+                                        <span class="peer-dist-badge">~${distMeters}m</span>
+                                    </div>
+                                </div>
+                                <div class="peer-coords-row">
+                                    <span>[${peer.x}, ${peer.z}]</span>${peer.y != null ? ` &bull; <span>${peer.y}m</span>` : ''}
+                                </div>
+                                <div class="peer-actions-row">
+                                    <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
+                                        🔭 Both Ends
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); flyToPortal('${peer.id}')" title="Fly camera to this destination node">
+                                        ✈️ Fly To
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Stacked co-located siblings (multi-floor hub)
+        let stackedHtml = '';
+        if (meta.stackedPeers && meta.stackedPeers.length > 0) {
+            stackedHtml = `
+                <div class="selected-stacked-section">
+                    <div class="selected-section-title">
+                        <span>🏢 Stacked Nodes (Same Base)</span>
+                    </div>
+                    <div class="selected-stacked-list">
+                        ${meta.stackedPeers.map(sib => {
+                            const diff = sib.y - p.y;
+                            const arrow = diff > 0.3 ? '↑ +' : (diff < -0.3 ? '↓ ' : '≈ ');
+                            return `
+                                <button type="button" class="stacked-sib-btn" onclick="event.stopPropagation(); selectPortal('${sib.id}', false, true)" title="Switch to this stacked portal">
+                                    <span><strong>"${escapeHtml(sib.tag)}"</strong> <span style="font-size:0.68rem; color:var(--text-muted);">&bull; ${escapeHtml(sib.author)}</span></span>
+                                    <span style="color:#facc15; font-size:0.68rem;">${arrow}${Math.abs(diff).toFixed(1)}m</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        const showHubBtn = meta.hubPeerCount >= 1;
+
+        panel.innerHTML = `
+            <div class="selected-panel-header">
+                <div class="selected-panel-title-group">
+                    <span class="selected-panel-eyebrow">
+                        ${isLinked ? '⚡ Selected Route' : '◇ Selected Portal'}
+                    </span>
+                    <div class="selected-panel-tag" title="${escapeHtml(p.tag)}">
+                        <span class="portal-status-dot ${isLinked ? 'is-linked' : 'is-solo'}"></span>
+                        <strong>"${escapeHtml(p.tag)}"</strong>
+                    </div>
+                </div>
+                <button type="button" class="selected-panel-close-btn" onclick="deselectPortal()" title="Deselect Portal (Esc)">✕</button>
+            </div>
+
+            <div class="selected-panel-body">
+                <div class="selected-node-card">
+                    <div class="selected-node-row">
+                        <div class="selected-author-badge" style="border-left-color: ${pColor};">
+                            <span>${p.author_avatar || '🛡️'}</span>
+                            <strong style="color: ${pColor};">${escapeHtml(p.author)}</strong>
+                        </div>
+                        <span class="badge ${isLinked ? 'badge-running' : 'badge-starting'}" style="font-size:0.68rem;">
+                            ${isLinked ? `⚡ Linked (${p.pair_count} nodes)` : '◇ Solo (Unmatched)'}
+                        </span>
+                    </div>
+
+                    <div class="selected-specs-grid">
+                        <div class="selected-spec-item">
+                            <span class="spec-label">Biome</span>
+                            <span class="spec-val">${p.biome_icon || '🌲'} ${escapeHtml(p.biome || 'Midgard')}</span>
+                        </div>
+                        <div class="selected-spec-item">
+                            <span class="spec-label">Coordinates</span>
+                            <span class="spec-val">X: ${p.x}, Z: ${p.z}</span>
+                        </div>
+                        <div class="selected-spec-item full-width">
+                            <span class="spec-label">Elevation (Y)</span>
+                            <span class="spec-val">
+                                ${p.y}m${meta.floorDesc ? `<span class="floor-pill">${meta.floorArrow} ${meta.floorDesc}</span>` : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="selected-actions-row">
+                        <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); flyToPortal('${p.id}')" title="Center camera on this portal">
+                            🎯 Center
+                        </button>
+                        ${showHubBtn ? `
+                            <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomIntoPortalHub('${p.id}')" title="Zoom closely into hub">
+                                🔍 Zoom Hub
+                            </button>
+                        ` : ''}
+                        ${isLinked ? `
+                            <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Fit route on map">
+                                🔭 Both Ends
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${pairedHtml}
+                ${stackedHtml}
+            </div>
+        `;
+
+        panel.style.display = 'block';
+    }
+    window.updateDrawerSelectedPanel = updateDrawerSelectedPanel;
+
     window.selectPortal = function (portalId, zoomToBounds = false, openPopup = true) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p) return;
@@ -1013,6 +1198,7 @@
         suppressMapClickUntil = Date.now() + 350;
         currentlySelectedPortal = portalId;
         syncSelectionAndHoverHighlights();
+        updateDrawerSelectedPanel(portalId);
 
         if (zoomToBounds && p.linked && p.paired_with && p.paired_with.length > 0 && mapInstance) {
             window.zoomToShowPortalRoute(portalId);
@@ -1037,7 +1223,9 @@
             mapInstance.closePopup();
         }
         syncSelectionAndHoverHighlights();
+        updateDrawerSelectedPanel(null);
     }
+    window.deselectPortal = deselectPortal;
 
     function getIdealPortalZoom(p) {
         let minDist = Infinity;
@@ -1128,6 +1316,7 @@
             // Close any open popup so it neither obscures one end of the route nor pans the camera via _adjustPan
             mapInstance.closePopup();
             syncSelectionAndHoverHighlights();
+            updateDrawerSelectedPanel(portalId);
 
             let settled = false;
             const onRouteFitted = () => {
@@ -1377,17 +1566,19 @@
         }
     };
 
-    window.togglePortalDrawer = function () {
+    window.openPortalDrawer = function (force = true) {
         const wrapper = document.getElementById('map-viewport-wrapper');
         const drawer = document.getElementById('map-portal-drawer');
         const btn = document.getElementById('drawer-toggle-btn');
         if (!drawer) return;
-        const isOpen = drawer.classList.toggle('open');
+        const shouldOpen = Boolean(force);
+        if (drawer.classList.contains('open') === shouldOpen) return;
+        drawer.classList.toggle('open', shouldOpen);
         if (wrapper) {
-            wrapper.classList.toggle('drawer-active', isOpen);
+            wrapper.classList.toggle('drawer-active', shouldOpen);
         }
         if (btn) {
-            btn.innerHTML = isOpen ? '✕ Directory' : '📜 Directory';
+            btn.innerHTML = shouldOpen ? '✕ Directory' : '📜 Directory';
         }
         if (mapInstance) {
             mapInstance.invalidateSize({ pan: false });
@@ -1398,6 +1589,12 @@
                 syncDynamicMinZoom();
             }
         }, 300);
+    };
+
+    window.togglePortalDrawer = function () {
+        const drawer = document.getElementById('map-portal-drawer');
+        const isOpen = drawer ? drawer.classList.contains('open') : false;
+        window.openPortalDrawer(!isOpen);
     };
 
     window.toggleMapFullscreen = function () {
@@ -1521,6 +1718,9 @@
         `).join('');
 
         updateDrawerVisibleHighlights();
+        if (currentlySelectedPortal) {
+            updateDrawerSelectedPanel(currentlySelectedPortal);
+        }
     }
 
     /**

@@ -54,6 +54,18 @@ class TestMapTilesAndTelemetry(unittest.TestCase):
         self.assertIn("drawer-active", map_js)
         self.assertIn("parseSearchFilters", map_js)
         self.assertIn("updateDrawerVisibleHighlights", map_js)
+        self.assertIn("function updateDrawerSelectedPanel(portalId)", map_js)
+        self.assertIn("window.updateDrawerSelectedPanel = updateDrawerSelectedPanel", map_js)
+
+    def test_directory_selected_panel_in_templates_and_css(self):
+        map_tab = (WEB_DIR / "templates" / "partials" / "map_tab.html").read_text(encoding="utf-8")
+        self.assertIn('id="map-drawer-selected-panel"', map_tab)
+        self.assertIn('class="drawer-selected-panel"', map_tab)
+
+        style_css = (WEB_DIR / "static" / "css" / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".drawer-selected-panel", style_css)
+        self.assertIn(".selected-peer-card", style_css)
+        self.assertIn(".drawer-portal-item.is-selected", style_css)
 
 
 if __name__ == "__main__":

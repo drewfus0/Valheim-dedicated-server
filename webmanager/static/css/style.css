@@ -556,6 +556,13 @@ header.app-header {
     font-size: 0.8rem;
 }
 
+.btn-xs {
+    padding: 0.2rem 0.48rem;
+    font-size: 0.72rem;
+    border-radius: var(--radius-sm);
+    line-height: 1.25;
+}
+
 /* HTMX Request Indicator */
 .htmx-indicator {
     display: none;
@@ -3690,6 +3697,279 @@ table.data-table tr:hover td {
     background: rgba(15, 23, 42, 0.8);
 }
 
+/* Selected Portal & Route Info Panel (Pinned at Top of Directory Drawer) */
+.drawer-selected-panel {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.97) 100%);
+    border-bottom: 2px solid rgba(56, 189, 248, 0.4);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    padding: 0.75rem;
+    max-height: 52vh;
+    overflow-y: auto;
+    animation: fadeInSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-shrink: 0;
+}
+
+@keyframes fadeInSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.selected-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+}
+
+.selected-panel-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.selected-panel-eyebrow {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--nordic-cyan);
+}
+
+.selected-panel-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.selected-panel-tag strong {
+    color: #facc15;
+    font-weight: 700;
+}
+
+.selected-panel-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-sm);
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.selected-panel-close-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.selected-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.selected-node-card {
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.selected-node-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.selected-author-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    border-left: 2px solid var(--nordic-cyan);
+}
+
+.selected-specs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    font-size: 0.74rem;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+}
+
+.selected-spec-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.selected-spec-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.selected-spec-item .spec-label {
+    font-size: 0.63rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.selected-spec-item .spec-val {
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floor-pill {
+    color: #facc15;
+    font-size: 0.68rem;
+    font-weight: 600;
+    margin-left: 0.2rem;
+}
+
+.selected-actions-row {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+}
+
+.selected-actions-row .btn-xs,
+.selected-actions-row .btn-sm {
+    flex: 1;
+    min-width: 65px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+/* Link / Destination section */
+.selected-link-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.selected-section-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--nordic-cyan);
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.selected-peer-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px dashed rgba(56, 189, 248, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.peer-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.76rem;
+}
+
+.peer-author {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.peer-dist-badge {
+    font-size: 0.68rem;
+    background: rgba(250, 204, 21, 0.15);
+    color: #facc15;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.peer-coords-row {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.peer-actions-row {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.peer-actions-row .btn-xs,
+.peer-actions-row .btn-sm {
+    flex: 1;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.4rem;
+}
+
+/* Stacked / Co-located section */
+.selected-stacked-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.selected-stacked-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stacked-sib-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    color: var(--text-primary);
+    font-size: 0.73rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+}
+
+.stacked-sib-btn:hover {
+    background: var(--bg-surface-elevated);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: var(--nordic-cyan);
+}
+
 .drawer-body {
     flex: 1;
     overflow-y: auto;
@@ -3718,6 +3998,17 @@ table.data-table tr:hover td {
 
 .drawer-portal-item.is-in-view .drawer-portal-tag strong {
     color: var(--nordic-cyan);
+}
+
+.drawer-portal-item.is-selected {
+    border: 1px solid #facc15 !important;
+    border-left: 4px solid #facc15 !important;
+    background: rgba(250, 204, 21, 0.14) !important;
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.2);
+}
+
+.drawer-portal-item.is-selected .drawer-portal-tag strong {
+    color: #facc15 !important;
 }
 
 .drawer-portal-item:hover {
