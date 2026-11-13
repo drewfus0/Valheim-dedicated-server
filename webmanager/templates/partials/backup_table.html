@@ -1,4 +1,4 @@
-<div id="backup-table-container" class="card" hx-get="/partials/backups" hx-trigger="refreshBackups from:body" hx-swap="outerHTML">
+<div id="backup-table-container" class="card" hx-get="/partials/backups" hx-trigger="sse:refreshBackups delay:80ms" hx-swap="outerHTML">
     <div class="card-header">
         <div class="card-title">
             <span>💾</span> Server &amp; World Backup Archives

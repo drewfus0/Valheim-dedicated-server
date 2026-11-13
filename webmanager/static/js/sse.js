@@ -154,6 +154,7 @@ This extension adds support for Server Sent Events to htmx.  See /www/extensions
           }
           if (!api.bodyContains(elt)) {
             source.removeEventListener(ts.trigger.slice(4), listener)
+            return
           }
           // Trigger events to be handled by the rest of htmx
           htmx.trigger(elt, ts.trigger, event)

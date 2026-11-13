@@ -1,4 +1,4 @@
-<div id="server-history-panel" class="card" style="margin-top: 1.5rem;" hx-get="/partials/server-history" hx-trigger="serverHistoryUpdated from:body" hx-swap="outerHTML">
+<div id="server-history-panel" class="card" style="margin-top: 1.5rem;" hx-get="/partials/server-history" hx-trigger="sse:serverHistoryUpdated delay:80ms, sse:statusChanged delay:80ms" hx-swap="outerHTML">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
         <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
             <span>🖥️</span> Server Run History
@@ -86,7 +86,7 @@
             <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem;">🟢 Current Session</div>
             <div style="font-size: 1.1rem; font-weight: 700; color: #6ee7b7; font-family: var(--font-mono);">
                 {% if status.status == 'Running' and status.server_history and status.server_history.current_run %}
-                    {{ status.uptime }}
+                    <span data-telemetry="uptime">{{ status.uptime }}</span>
                 {% else %}
                     <span style="color: var(--text-muted); font-size: 0.95rem;">Offline</span>
                 {% endif %}
@@ -145,7 +145,7 @@
                         </td>
                         <td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); color: var(--nordic-cyan); font-weight: 600; font-size: 0.775rem;">
                             {% if run.status == 'Running' %}
-                                <span style="color: #6ee7b7; font-weight: 600;">{{ status.uptime if status.uptime != '--' else run.duration_str }}</span>
+                                <span style="color: #6ee7b7; font-weight: 600;" data-telemetry="uptime">{{ status.uptime if status.uptime != '--' else run.duration_str }}</span>
                             {% else %}
                                 {{ run.duration_str }}
                             {% endif %}

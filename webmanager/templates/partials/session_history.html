@@ -1,5 +1,5 @@
 {% if user and user.role == 'admin' %}
-<div id="session-history-panel" class="card admin-only" style="margin-top: 1.5rem;" hx-get="/partials/session-history" hx-trigger="sessionHistoryUpdated from:body, statusChanged from:body" hx-swap="outerHTML">
+<div id="session-history-panel" class="card admin-only" style="margin-top: 1.5rem;"{% if not embedded_in_players_tab %} hx-get="/partials/session-history" hx-trigger="sse:sessionHistoryUpdated delay:80ms, sse:statusChanged delay:80ms" hx-swap="outerHTML"{% endif %}>
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
         <div class="card-title" style="display: flex; align-items: center; gap: 0.55rem;">
             <span>📜</span> Viking Session History
@@ -27,7 +27,7 @@
             <!-- Manual Refresh Button -->
             <button type="button"
                     class="btn btn-secondary btn-sm"
-                    hx-get="/partials/session-history"
+                    hx-get="/partials/session-history{% if embedded_in_players_tab %}?embedded=1{% endif %}"
                     hx-target="#session-history-panel"
                     hx-swap="outerHTML"
                     style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; font-size: 0.775rem;"

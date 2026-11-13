@@ -105,48 +105,51 @@ class TestPlayersTab(unittest.TestCase):
 
     def test_event_driven_panels_no_polling_timers(self):
         with patch("app.get_current_user_from_request", return_value={"username": "drewfus", "role": "admin"}):
-            # 3. Roster - only event-driven, no 'every 5s'
+            # 1. Roster - SSE event-driven, no polling timers
             resp_players = self.client.get("/partials/players")
             self.assertEqual(resp_players.status_code, 200)
-            self.assertIn('statusChanged from:body', resp_players.text)
-            self.assertNotIn("every 5s", resp_players.text)
+            self.assertIn("sse:playersUpdated delay:80ms", resp_players.text)
+            self.assertIn("sse:statusChanged delay:80ms", resp_players.text)
+            self.assertNotIn("every ", resp_players.text)
 
-            # 4. Connection - only event-driven, no 'every 5s'
+            # 2. Connection - SSE event-driven, no polling timers
             resp_conn = self.client.get("/partials/connection")
             self.assertEqual(resp_conn.status_code, 200)
-            self.assertIn('hx-trigger="configUpdated from:body"', resp_conn.text)
-            self.assertNotIn("every 5s", resp_conn.text)
+            self.assertIn('hx-trigger="sse:configUpdated delay:80ms"', resp_conn.text)
+            self.assertNotIn("every ", resp_conn.text)
 
-            # 5. Accounts - only event-driven, no 'every 5s'
+            # 3. Accounts - SSE event-driven, no polling timers
             resp_acc = self.client.get("/partials/accounts")
             self.assertEqual(resp_acc.status_code, 200)
-            self.assertIn('hx-trigger="accountsUpdated from:body"', resp_acc.text)
-            self.assertNotIn("every 5s", resp_acc.text)
+            self.assertIn('hx-trigger="sse:accountsUpdated delay:80ms"', resp_acc.text)
+            self.assertNotIn("every ", resp_acc.text)
 
-            # 6. Server History - only event-driven, no 'every 15s'
+            # 4. Server History - SSE event-driven, no polling timers
             resp_srv = self.client.get("/partials/server-history")
             self.assertEqual(resp_srv.status_code, 200)
-            self.assertIn('hx-trigger="serverHistoryUpdated from:body"', resp_srv.text)
-            self.assertNotIn("every 15s", resp_srv.text)
+            self.assertIn('hx-trigger="sse:serverHistoryUpdated delay:80ms, sse:statusChanged delay:80ms"', resp_srv.text)
+            self.assertNotIn("every ", resp_srv.text)
 
-            # 7. Viking Session History - only event-driven, no 'every 15s'
+            # 5. Viking Session History - SSE event-driven, no polling timers
             resp_sess = self.client.get("/partials/session-history")
             self.assertEqual(resp_sess.status_code, 200)
-            self.assertIn('hx-trigger="sessionHistoryUpdated from:body, statusChanged from:body"', resp_sess.text)
-            self.assertNotIn("every 15s", resp_sess.text)
+            self.assertIn('hx-trigger="sse:sessionHistoryUpdated delay:80ms, sse:statusChanged delay:80ms"', resp_sess.text)
+            self.assertNotIn("every ", resp_sess.text)
 
-            # Check that 1, 2, 8 retain regular updates:
-            # 1. Header status badge
+            # 6. Base layout & header status badge - SSE event-driven, zero polling timers
             resp_base = self.client.get("/")
             self.assertEqual(resp_base.status_code, 200)
-            self.assertIn('hx-trigger="load, statusChanged from:body, every 3s"', resp_base.text)
+            self.assertIn('sse-connect="/api/stream/events"', resp_base.text)
+            self.assertIn('hx-trigger="sse:statusChanged delay:80ms"', resp_base.text)
+            self.assertNotIn('hx-trigger="every ', resp_base.text)
 
-            # 2. Status card retains every 2s
+            # 7. Status card - SSE event-driven, zero polling timers
             resp_stat = self.client.get("/partials/status")
             self.assertEqual(resp_stat.status_code, 200)
-            self.assertIn('hx-trigger="every 2s"', resp_stat.text)
+            self.assertIn('hx-trigger="sse:statusChanged delay:80ms"', resp_stat.text)
+            self.assertNotIn("every 2s", resp_stat.text)
 
-            # 8. Terminal retains sse-connect
+            # 8. Terminal retains separate sse-connect for logs
             self.assertIn('sse-connect="/api/stream/logs"', resp_base.text)
 
 

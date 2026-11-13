@@ -1,25 +1,139 @@
 /**
  * Valheim Dedicated Server - Interactive World Map Controller
- * Integrates Leaflet with 1:1 Valheim game coordinates, portal networks, and spawn tracking.
+ * Integrates Leaflet with 1:1 Valheim game coordinates, portal networks,
+ * full-world zoom out, deep hub zoom-in, and automatic portal hub de-overlapping.
  */
 
 (function () {
+    window.WORLD_MAP_VERSION = '3.2';
+
     let mapInstance = null;
     let spawnLayer = null;
+    let tethersLayer = null;
     let portalsLayer = null;
     let linesLayer = null;
     let allPortalsData = [];
+    let currentFilteredPortals = [];
     let portalMarkersMap = {};
+    let displayedLatLngMap = {};
     let portalLines = [];
     let currentMapData = null;
+    let currentlySelectedPortal = null;
+    let currentlyHoveredPortal = null;
+    let currentlyHoveredLine = null;
+    let currentStackMeta = {};
+    let suppressMapClickUntil = 0;
+    let cameraActionToken = 0;
+    let lastMouseLatLng = null;
+    let telemetryView = null;
+    let telemetryLoading = false;
 
     const MAP_WIDTH = 6144;
     const MAP_HEIGHT = 6144;
     const CENTER_X = 3072;
     const CENTER_Y = 3072;
-    const DISK_RADIUS_PX = 2629.6;
+    const WORLD_WIDTH = 24000;
+    const WORLD_HALF_WIDTH = 12000;
     const GAME_RADIUS = 10500;
-    const SCALE = DISK_RADIUS_PX / GAME_RADIUS; // ~0.25044 px/m
+    const SCALE = CENTER_X / WORLD_HALF_WIDTH; // Exact 0.256 CRS units per game meter
+    const DISK_RADIUS_PX = GAME_RADIUS * SCALE; // 2688.0
+    const TILE_SIZE = 1024;
+
+    // With CRS_SCALE = 1024 / 6144, zoom 0 is 1024x1024 px and zoom 4 is 16384x16384 px (16x16 tiles)
+    const MIN_ZOOM_FALLBACK = -1.5;
+    const MAX_ZOOM = 10.5;
+    const DEOVERLAP_MIN_ZOOM = 6.0;
+    const INLINE_LABEL_MIN_ZOOM = 7.75;
+
+    const BIOME_META = {
+        0: { name: 'World Edge', icon: '🌌', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.16)' },
+        1: { name: 'Meadows', icon: '🌿', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.16)' },
+        2: { name: 'Swamp', icon: '☠️', color: '#a3e635', bg: 'rgba(163, 230, 53, 0.16)' },
+        3: { name: 'Mountain', icon: '🏔️', color: '#e2e8f0', bg: 'rgba(226, 232, 240, 0.18)' },
+        4: { name: 'Black Forest', icon: '🌲', color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.16)' },
+        5: { name: 'Plains', icon: '🌾', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.16)' },
+        6: { name: 'Ashlands', icon: '🔥', color: '#f87171', bg: 'rgba(248, 113, 113, 0.18)' },
+        7: { name: 'Deep North', icon: '❄️', color: '#93c5fd', bg: 'rgba(147, 197, 253, 0.18)' },
+        8: { name: 'Ocean', icon: '🌊', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.18)' },
+        9: { name: 'Mistlands', icon: '🌫️', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.18)' }
+    };
+
+    function loadTelemetryGrid(url) {
+        if (telemetryView || telemetryLoading) return;
+        telemetryLoading = true;
+        fetch(url || '/static/img/tiles/telemetry_1024.bin')
+            .then(res => {
+                if (!res.ok) throw new Error('Telemetry fetch failed');
+                return res.arrayBuffer();
+            })
+            .then(buf => {
+                if (buf && buf.byteLength >= 1024 * 1024 * 4) {
+                    telemetryView = new DataView(buf);
+                    if (lastMouseLatLng) {
+                        updateCoordHud(lastMouseLatLng);
+                    }
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                telemetryLoading = false;
+            });
+    }
+
+    function sampleTelemetry(rawX, rawZ) {
+        if (!telemetryView) return null;
+        const sx = Math.max(0, Math.min(1023, Math.floor(((rawX + WORLD_HALF_WIDTH) / WORLD_WIDTH) * 1024)));
+        const sy = Math.max(0, Math.min(1023, Math.floor(((WORLD_HALF_WIDTH - rawZ) / WORLD_WIDTH) * 1024)));
+        const off = (sy * 1024 + sx) * 4;
+        const biomeCode = telemetryView.getUint8(off);
+        const forestRaw = telemetryView.getUint8(off + 1);
+        const heightDm = telemetryView.getInt16(off + 2, true);
+        const height = heightDm / 10.0;
+        const forest = forestRaw / 100.0;
+        return { biomeCode, height, forest };
+    }
+
+    function describeTerrainFeature(biomeCode, height, forest) {
+        const alt = height - 30.0;
+        if (alt < 0) {
+            const depth = -alt;
+            if (biomeCode === 8) {
+                return depth >= 12.0 ? '🐍 Deep Ocean (Serpents)' : '🌊 Ocean Waters';
+            }
+            if (depth < 2.2) return '🏖️ Shallow Wade / Shore';
+            return '⛵ Coastal Waters';
+        }
+        if (biomeCode === 1) {
+            if (alt < 1.3) return '🏖️ Meadow Shoreline';
+            if (forest < 0.85) return '🌳 Dense Forest';
+            if (forest < 1.15) return '🌲 Wooded Meadow';
+            return '☀️ Open Clearing';
+        }
+        if (biomeCode === 4) {
+            return forest < 0.6 ? '🌲 Dense Pine Woods' : '🌲 Black Forest';
+        }
+        if (biomeCode === 2) {
+            return alt < 1.0 ? '💧 Marsh / Leech Bog' : '🌧️ Sunken Swamp';
+        }
+        if (biomeCode === 3) {
+            if (height >= 120.0) return '💎 High Peak (Silver/Obsidian)';
+            if (height >= 95.0) return '🐺 Alpine Snow (Obsidian)';
+            return '🪨 Lower Mountain Slope';
+        }
+        if (biomeCode === 5) {
+            return forest < 1.15 ? '🌳 Birch Grove' : '🌾 Open Plains';
+        }
+        if (biomeCode === 9) {
+            return alt > 35.0 ? '⛰️ Mistlands Spire' : '🌫️ Shrouded Valley';
+        }
+        if (biomeCode === 6) {
+            return alt > 12.0 ? '🌋 Volcanic Interior' : '🔥 Ashlands Coast';
+        }
+        if (biomeCode === 7) {
+            return '❄️ Frozen Tundra';
+        }
+        return '🗺️ Midgard';
+    }
 
     function gameToLeaflet(x, z) {
         const px = CENTER_X + x * SCALE;
@@ -28,12 +142,74 @@
         return [MAP_HEIGHT - py, px];
     }
 
-    function leafletToGame(lat, lng) {
+    function leafletToGame(lat, lng, decimals = 0) {
         const px = lng;
         const py = MAP_HEIGHT - lat;
-        const x = Math.round((px - CENTER_X) / SCALE);
-        const z = Math.round((CENTER_Y - py) / SCALE);
-        return { x, z, px: Math.round(px), py: Math.round(py) };
+        const rawX = (px - CENTER_X) / SCALE;
+        const rawZ = (CENTER_Y - py) / SCALE;
+        const factor = decimals > 0 ? Math.pow(10, decimals) : 1;
+        const x = decimals > 0 ? Math.round(rawX * factor) / factor : Math.round(rawX);
+        const z = decimals > 0 ? Math.round(rawZ * factor) / factor : Math.round(rawZ);
+        return { x, z, rawX, rawZ, px: Math.round(px), py: Math.round(py) };
+    }
+
+    function syncDynamicMinZoom() {
+        if (!mapInstance) return;
+        const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        const fitZoom = mapInstance.getBoundsZoom(bounds, false, L.point(60, 110));
+        const computedMin = Math.min(-1.25, Math.floor((fitZoom - 0.5) * 4) / 4);
+        if (Number.isFinite(computedMin)) {
+            mapInstance.setMinZoom(computedMin);
+        }
+    }
+
+    function updateCoordHud(latlng) {
+        const hudEl = document.getElementById('map-coord-hud');
+        if (!hudEl || !mapInstance || !latlng) return;
+
+        const zLevel = mapInstance.getZoom();
+        const decimals = zLevel >= 6.5 ? 1 : 0;
+        const coords = leafletToGame(latlng.lat, latlng.lng, decimals);
+        const distFromCenter = Math.sqrt(coords.rawX * coords.rawX + coords.rawZ * coords.rawZ);
+
+        if (distFromCenter > GAME_RADIUS + 150) {
+            hudEl.innerHTML = `
+                <span class="telem-biome-badge" style="color: #fca5a5; background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35);">
+                    🌌 Void
+                </span>
+                <span class="telem-sep">•</span>
+                <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong></span>
+            `;
+            return;
+        }
+
+        const sample = sampleTelemetry(coords.rawX, coords.rawZ);
+        if (!sample) {
+            hudEl.innerHTML = `
+                <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong></span>
+                <span class="telem-sep">•</span>
+                <span class="telem-seg" style="opacity:0.75;">${Math.round(distFromCenter)}m</span>
+            `;
+            return;
+        }
+
+        const meta = BIOME_META[sample.biomeCode] || BIOME_META[0];
+        const alt = sample.height - 30.0;
+        const isWater = alt < 0;
+        const elevText = isWater
+            ? `<span style="color:#38bdf8; font-weight:600;">${alt.toFixed(1)}m</span>`
+            : `<span style="color:#facc15; font-weight:600;">+${alt.toFixed(1)}m</span>`;
+        const distStr = distFromCenter >= 1000.0 ? `${(distFromCenter / 1000.0).toFixed(1)}k` : `${Math.round(distFromCenter)}m`;
+
+        hudEl.innerHTML = `
+            <span class="telem-biome-badge" style="color: ${meta.color}; background: ${meta.bg}; border-color: ${meta.color}55;">
+                ${meta.icon} ${meta.name}
+            </span>
+            <span class="telem-sep">•</span>
+            <span class="telem-seg">${isWater ? '🌊' : '⛰️'} ${elevText}</span>
+            <span class="telem-sep">•</span>
+            <span class="telem-seg">🧭 <strong>${coords.x}, ${coords.z}</strong> <span style="opacity:0.65;">(${distStr})</span></span>
+        `;
     }
 
     window.initWorldMap = function (containerId, initialData) {
@@ -50,59 +226,115 @@
 
         currentMapData = initialData;
         allPortalsData = initialData.portals || [];
+        currentFilteredPortals = allPortalsData;
+        currentlySelectedPortal = null;
+        currentlyHoveredPortal = null;
+        currentlyHoveredLine = null;
+        suppressMapClickUntil = 0;
+        cameraActionToken = 0;
 
-        // 1. Initialize Leaflet Map with Flat Simple CRS
+        // Load binary telemetry grid for instant 60fps cursor height/biome lookups
+        loadTelemetryGrid(initialData.telemetry_url);
+
+        // 1. Initialize Leaflet Map with Tile-Calibrated Simple CRS
         const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        const crsScale = TILE_SIZE / MAP_WIDTH; // 1024 / 6144
+        const valheimCRS = L.extend({}, L.CRS.Simple, {
+            transformation: new L.Transformation(crsScale, 0, -crsScale, TILE_SIZE)
+        });
+
         mapInstance = L.map(containerId, {
-            crs: L.CRS.Simple,
-            minZoom: -2,
-            maxZoom: 3,
+            crs: valheimCRS,
+            minZoom: MIN_ZOOM_FALLBACK,
+            maxZoom: MAX_ZOOM,
             zoomSnap: 0.25,
             zoomDelta: 0.5,
+            wheelPxPerZoomLevel: 80,
             attributionControl: false,
-            maxBounds: [[-600, -600], [MAP_HEIGHT + 600, MAP_WIDTH + 600]],
+            maxBounds: [[-3000, -3000], [MAP_HEIGHT + 3000, MAP_WIDTH + 3000]],
             maxBoundsViscosity: 0.8
         });
 
-        // 2. Base High-Res Map Image Overlay
-        const imageUrl = initialData.image_url || '/static/img/world_map.webp';
-        L.imageOverlay(imageUrl, bounds).addTo(mapInstance);
+        // 2. Multi-Zoom High-Res WebP Tile Pyramid (16384x16384 native at z=4)
+        const tilesUrl = initialData.tiles_url || '/static/img/tiles/{z}/{x}/{y}.webp?v=3';
+        L.tileLayer(tilesUrl, {
+            tileSize: TILE_SIZE,
+            minZoom: MIN_ZOOM_FALLBACK,
+            maxZoom: MAX_ZOOM,
+            minNativeZoom: 0,
+            maxNativeZoom: initialData.max_native_zoom || 4,
+            bounds: bounds,
+            noWrap: true,
+            keepBuffer: 2,
+            updateWhenIdle: false
+        }).addTo(mapInstance);
 
-        // 3. Setup Layers
+        // 3. Setup Layers (tethers underneath lines & pins)
+        tethersLayer = L.layerGroup().addTo(mapInstance);
         linesLayer = L.layerGroup().addTo(mapInstance);
         portalsLayer = L.layerGroup().addTo(mapInstance);
         spawnLayer = L.layerGroup().addTo(mapInstance);
 
-        // 4. Initial View: Center on Spawn
-        const spawnPos = gameToLeaflet(initialData.spawn.x, initialData.spawn.z);
-        mapInstance.setView(spawnPos, -0.5);
+        // 4. Calibrate dynamic minZoom so whole map always fits any viewport
+        syncDynamicMinZoom();
 
-        // 5. Render POIs
+        // 5. Initial View: Center on Spawn
+        const spawnPos = gameToLeaflet(initialData.spawn.x, initialData.spawn.z);
+        mapInstance.setView(spawnPos, 2.0);
+
+        // 6. Render POIs
         renderSpawn(initialData.spawn);
         renderPortals(allPortalsData);
 
-        // 6. Live Coordinates HUD on Mouse Move
+        // 7. Live Coordinates HUD on Mouse Move & Zoom Change
         mapInstance.on('mousemove', function (e) {
-            const coords = leafletToGame(e.latlng.lat, e.latlng.lng);
-            const distFromCenter = Math.sqrt(coords.x * coords.x + coords.z * coords.z);
-            const hudEl = document.getElementById('map-coord-hud');
-            if (hudEl) {
-                if (distFromCenter > GAME_RADIUS + 200) {
-                    hudEl.innerHTML = `<span style="color: var(--status-stopped);">⚠️ Edge of Midgard (Void)</span> <span style="opacity:0.65;">[X: ${coords.x}, Z: ${coords.z}]</span>`;
-                } else {
-                    hudEl.innerHTML = `<span>🧭 In-Game: <strong>X: ${coords.x}</strong>, <strong>Z: ${coords.z}</strong></span> <span style="opacity:0.65; font-size:0.75rem;">(Dist: ${Math.round(distFromCenter)}m)</span>`;
-                }
+            lastMouseLatLng = e.latlng;
+            updateCoordHud(e.latlng);
+        });
+
+        mapInstance.on('zoomend', function () {
+            updatePortalLayoutForZoom();
+            updateDrawerVisibleHighlights();
+            if (lastMouseLatLng) {
+                updateCoordHud(lastMouseLatLng);
             }
         });
 
-        // 7. Ensure size calculation is correct after HTMX load
+        mapInstance.on('moveend', function () {
+            updateDrawerVisibleHighlights();
+        });
+
+        mapInstance.on('resize', function () {
+            syncDynamicMinZoom();
+        });
+
+        // Deselect portal when clicking empty map canvas
+        mapInstance.on('click', function (e) {
+            if (Date.now() < suppressMapClickUntil) return;
+            if (currentlySelectedPortal && (!e.originalEvent || !e.originalEvent._portalClicked)) {
+                deselectPortal();
+            }
+        });
+
+        // Deselect portal on Escape key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && currentlySelectedPortal) {
+                deselectPortal();
+            }
+        });
+
+        // 8. Ensure size calculation & minZoom are accurate after HTMX load
         setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+                syncDynamicMinZoom();
+            }
         }, 150);
 
         // Populate drawer and player filter dropdown
         populatePlayerFilter(allPortalsData);
         renderPortalDrawerList(allPortalsData);
+        updateFullscreenButtonState();
     };
 
     function renderSpawn(spawn) {
@@ -154,14 +386,70 @@
         `);
     }
 
+    function computeStackAndHubMetadata(portalsList) {
+        const metaMap = {};
+        portalsList.forEach(p => {
+            const stackedPeers = [];
+            let hubPeerCount = 0;
+
+            portalsList.forEach(q => {
+                if (q.id === p.id) return;
+                const d = distance(p.x, p.z, q.x, q.z);
+                if (d <= 2.2) {
+                    stackedPeers.push(q);
+                }
+                if (d <= 28.0) {
+                    hubPeerCount++;
+                }
+            });
+
+            // Sort co-located stack from highest elevation (top floor) to lowest
+            stackedPeers.sort((a, b) => (b.y - a.y) || a.tag.localeCompare(b.tag));
+
+            let floorArrow = '';
+            let floorDesc = '';
+            if (stackedPeers.length > 0) {
+                const allYs = [p.y, ...stackedPeers.map(s => s.y)];
+                const maxY = Math.max(...allYs);
+                const minY = Math.min(...allYs);
+                if (maxY - minY >= 1.5) {
+                    if (p.y >= maxY - 0.3) {
+                        floorArrow = '↑';
+                        floorDesc = 'Upper Floor';
+                    } else if (p.y <= minY + 0.3) {
+                        floorArrow = '↓';
+                        floorDesc = 'Lower Floor';
+                    } else {
+                        floorArrow = '↕';
+                        floorDesc = 'Mid Floor';
+                    }
+                }
+            }
+
+            metaMap[p.id] = {
+                stackedPeers,
+                hubPeerCount,
+                floorArrow,
+                floorDesc
+            };
+        });
+        return metaMap;
+    }
+
     function renderPortals(portalsList) {
-        if (!portalsLayer || !linesLayer) return;
+        if (!portalsLayer || !linesLayer || !tethersLayer) return;
         portalsLayer.clearLayers();
         linesLayer.clearLayers();
+        tethersLayer.clearLayers();
         portalMarkersMap = {};
+        displayedLatLngMap = {};
         portalLines = [];
+        currentFilteredPortals = portalsList;
 
-        // 1. Draw Connection Lines between paired portals first (underneath markers)
+        const stackMeta = computeStackAndHubMetadata(portalsList);
+        currentStackMeta = stackMeta;
+
+        // 1. Connection lines: always visible, highlighted yellow on hover or selection
         const drawnPairs = new Set();
         portalsList.forEach(p => {
             if (p.linked && p.paired_with && p.paired_with.length > 0) {
@@ -171,26 +459,65 @@
                         drawnPairs.add(pairKey);
                         const start = gameToLeaflet(p.x, p.z);
                         const end = gameToLeaflet(peer.x, peer.z);
+
+                        const isCurrentlyActive = currentlySelectedPortal &&
+                            (currentlySelectedPortal === p.id || currentlySelectedPortal === peer.id);
+
+                        const defaultColor = p.author_color || '#38bdf8';
+
                         const polyline = L.polyline([start, end], {
-                            color: p.author_color || '#38bdf8',
-                            weight: 2.2,
-                            opacity: 0.65,
-                            dashArray: '6, 8',
-                            className: 'portal-network-route'
+                            color: isCurrentlyActive ? '#facc15' : defaultColor,
+                            weight: isCurrentlyActive ? 4.0 : 2.5,
+                            opacity: isCurrentlyActive ? 1.0 : 0.75,
+                            dashArray: isCurrentlyActive ? null : '6, 8',
+                            className: 'portal-network-route' + (isCurrentlyActive ? ' portal-network-route-yellow' : '')
                         }).addTo(linesLayer);
 
-                        polyline.bindTooltip(`⚡ Connected Tag: "${p.tag}" (${p.author} ↔ ${peer.author})`, {
+                        polyline.bindTooltip(`⚡ Connected Tag: "${escapeHtml(p.tag)}" (${escapeHtml(p.author)} ↔ ${escapeHtml(peer.author)}) — Click to view route`, {
                             sticky: true,
                             className: 'viking-line-tooltip'
                         });
 
-                        portalLines.push({
+                        const lineRecord = {
                             polyline,
                             pairKey,
-                            p1: p.id,
-                            p2: peer.id,
-                            tag: p.tag
+                            p1: p,
+                            p2: peer,
+                            start,
+                            end,
+                            tag: p.tag,
+                            defaultColor: defaultColor
+                        };
+
+                        // Hover on line: highlight line and both endpoints in yellow
+                        polyline.on('mouseover', function () {
+                            currentlyHoveredLine = lineRecord;
+                            syncSelectionAndHoverHighlights();
                         });
+
+                        polyline.on('mouseout', function () {
+                            if (currentlyHoveredLine === lineRecord) {
+                                currentlyHoveredLine = null;
+                            }
+                            syncSelectionAndHoverHighlights();
+                        });
+
+                        // Click on line: select nearest endpoint and zoom to show both ends
+                        polyline.on('click', function (e) {
+                            L.DomEvent.stopPropagation(e);
+                            if (e.originalEvent) e.originalEvent._portalClicked = true;
+                            suppressMapClickUntil = Date.now() + 350;
+
+                            const p1LL = L.latLng(displayedLatLngMap[p.id] || start);
+                            const p2LL = L.latLng(displayedLatLngMap[peer.id] || end);
+                            const d1 = e.latlng.distanceTo(p1LL);
+                            const d2 = e.latlng.distanceTo(p2LL);
+
+                            const nearest = d1 <= d2 ? p : peer;
+                            window.zoomToShowPortalRoute(nearest.id);
+                        });
+
+                        portalLines.push(lineRecord);
                     }
                 });
             }
@@ -199,36 +526,54 @@
         // 2. Render Portal Markers
         portalsList.forEach(p => {
             const latlng = gameToLeaflet(p.x, p.z);
+            displayedLatLngMap[p.id] = latlng;
+
             const isLinked = p.linked;
             const pColor = p.author_color || '#38bdf8';
+            const isSelected = currentlySelectedPortal === p.id;
+            const meta = stackMeta[p.id] || { stackedPeers: [], hubPeerCount: 0, floorArrow: '', floorDesc: '' };
+
+            const floorBadgeHtml = meta.floorArrow
+                ? `<span class="portal-floor-badge" title="${meta.floorDesc} (${p.y}m)">${meta.floorArrow}</span>`
+                : '';
+            const labelPrefix = meta.floorArrow ? `${meta.floorArrow} ` : '';
 
             const portalIcon = L.divIcon({
                 className: 'valheim-portal-icon-wrapper',
                 html: `
-                    <div class="portal-marker-pin ${isLinked ? 'is-linked' : 'is-solo'}" 
+                    <div class="portal-marker-pin ${isLinked ? 'is-linked' : 'is-solo'} ${isSelected ? 'portal-highlight-yellow' : ''}" 
                          id="pin-${p.id}" 
                          style="--portal-color: ${pColor};"
-                         title="Portal: ${escapeHtml(p.tag)} (${p.author})">
+                         title="Portal: ${escapeHtml(p.tag)} (${escapeHtml(p.author)})${meta.floorDesc ? ' • ' + meta.floorDesc + ' ' + p.y + 'm' : ''}">
                         <div class="portal-halo"></div>
                         <div class="portal-gem">${isLinked ? '⚡' : '◇'}</div>
+                        ${floorBadgeHtml}
                         <span class="portal-player-badge" style="background: ${pColor};" title="Built by ${escapeHtml(p.author)}">${p.author_avatar || '🛡️'}</span>
+                        <span class="portal-inline-label">${labelPrefix}${escapeHtml(p.tag)}</span>
                     </div>
                 `,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
 
-            const marker = L.marker(latlng, { icon: portalIcon }).addTo(portalsLayer);
+            const marker = L.marker(latlng, {
+                icon: portalIcon,
+                riseOnHover: true,
+                riseOffset: 300,
+                zIndexOffset: isSelected ? 1000 : 0
+            }).addTo(portalsLayer);
             portalMarkersMap[p.id] = marker;
 
             // Hover tooltip
+            const tooltipFloorText = meta.floorDesc ? ` &bull; <span style="color:#facc15;">${meta.floorArrow} ${p.y}m</span>` : '';
+            const tooltipBiomeText = p.biome ? ` &bull; <span>${p.biome_icon || '🌲'} ${escapeHtml(p.biome)}</span>` : '';
             marker.bindTooltip(`
                 <div style="font-weight:600; font-size:0.82rem; display:flex; align-items:center; gap:0.35rem;">
                     <span>${isLinked ? '⚡' : '◇'}</span>
                     <span style="color: var(--nordic-cyan);">"${escapeHtml(p.tag)}"</span>
                 </div>
                 <div style="font-size:0.75rem; color: var(--text-secondary);">
-                    <span>${escapeHtml(p.author)}</span> &bull; <span>[${p.x}, ${p.z}]</span>
+                    <span>${escapeHtml(p.author)}</span>${tooltipBiomeText} &bull; <span>[${p.x}, ${p.z}]</span>${tooltipFloorText}
                 </div>
             `, {
                 direction: 'top',
@@ -236,104 +581,834 @@
                 className: 'viking-portal-tooltip'
             });
 
-            // Click Popup with complete Viking metadata & Destination Fly buttons
-            let pairedHtml = '';
-            if (isLinked && p.paired_with && p.paired_with.length > 0) {
-                pairedHtml = `
-                    <div class="popup-destinations">
-                        <div class="popup-dest-title">⚡ Connected Destinations:</div>
-                        ${p.paired_with.map(peer => `
-                            <div class="popup-dest-item">
-                                <div>
-                                    <strong style="color: ${peer.author_color || 'var(--text-primary)'};">${escapeHtml(peer.author)}</strong>'s Node
-                                    <div style="font-size:0.72rem; color:var(--text-muted);">[${peer.x}, ${peer.z}] (${Math.round(distance(p.x, p.z, peer.x, peer.z))}m away)</div>
-                                </div>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="flyToPortal('${peer.id}')" title="Pan Camera to this portal">
-                                    ✈️ Fly To
-                                </button>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+            // Hover: highlight portal and connecting line in yellow
+            marker.on('mouseover', function () {
+                currentlyHoveredPortal = p.id;
+                syncSelectionAndHoverHighlights();
+            });
+
+            marker.on('mouseout', function () {
+                if (currentlyHoveredPortal === p.id) {
+                    currentlyHoveredPortal = null;
+                }
+                syncSelectionAndHoverHighlights();
+            });
+
+            // Click: select portal and open directory drawer info panel
+            marker.on('click', function (e) {
+                if (e.originalEvent) e.originalEvent._portalClicked = true;
+                suppressMapClickUntil = Date.now() + 350;
+                selectPortal(p.id, false);
+            });
+        });
+
+        // 3. Apply zoom-aware screen-space separation if currently zoomed into a hub
+        updatePortalLayoutForZoom();
+
+        if (currentlySelectedPortal) {
+            updateDrawerSelectedPanel(currentlySelectedPortal);
+        }
+    }
+
+    /**
+     * Automatically separates overlapping & vertically-stacked portal pins in screen space
+     * when zoomed in (>= DEOVERLAP_MIN_ZOOM), drawing subtle ground-anchor tethers and
+     * toggling inline portal name labels at deep zoom (>= INLINE_LABEL_MIN_ZOOM).
+     */
+    function updatePortalLayoutForZoom() {
+        if (!mapInstance || !tethersLayer) return;
+
+        const zoom = mapInstance.getZoom();
+        const canvasEl = document.getElementById('world-map-canvas');
+        const showLabels = zoom >= INLINE_LABEL_MIN_ZOOM;
+
+        if (canvasEl) {
+            canvasEl.classList.toggle('map-zoom-labels', showLabels);
+            canvasEl.classList.toggle('map-hub-zoomed', zoom >= 8.25);
+        }
+
+        tethersLayer.clearLayers();
+
+        // At overview zoom levels, keep markers at exact world coordinates
+        if (zoom < DEOVERLAP_MIN_ZOOM || currentFilteredPortals.length <= 1) {
+            currentFilteredPortals.forEach(p => {
+                const exactLL = gameToLeaflet(p.x, p.z);
+                displayedLatLngMap[p.id] = exactLL;
+                const m = portalMarkersMap[p.id];
+                if (m) m.setLatLng(exactLL);
+            });
+            portalLines.forEach(l => {
+                l.polyline.setLatLngs([l.start, l.end]);
+            });
+            syncSelectionAndHoverHighlights();
+            return;
+        }
+
+        const sepX = showLabels ? 68.0 : 34.0;
+        const sepY = showLabels ? 46.0 : 34.0;
+
+        // Project portals into CRS pixel space at current zoom
+        const nodes = currentFilteredPortals.map(p => {
+            const trueLL = gameToLeaflet(p.x, p.z);
+            const pt = mapInstance.project(trueLL, zoom);
+            return {
+                p,
+                trueLL,
+                ox: pt.x,
+                oy: pt.y,
+                x: pt.x,
+                y: pt.y
+            };
+        });
+
+        // Partition into spatial connected components so isolated portals do zero work
+        const n = nodes.length;
+        const visited = new Array(n).fill(false);
+        const reachX = sepX * 2.2;
+        const reachY = sepY * 2.2;
+
+        for (let i = 0; i < n; i++) {
+            if (visited[i]) continue;
+            visited[i] = true;
+            const queue = [i];
+            const comp = [];
+
+            while (queue.length > 0) {
+                const cur = queue.pop();
+                comp.push(nodes[cur]);
+                const cx = nodes[cur].ox;
+                const cy = nodes[cur].oy;
+                for (let j = 0; j < n; j++) {
+                    if (!visited[j]) {
+                        if (Math.abs(cx - nodes[j].ox) < reachX && Math.abs(cy - nodes[j].oy) < reachY) {
+                            visited[j] = true;
+                            queue.push(j);
+                        }
+                    }
+                }
             }
 
-            marker.bindPopup(`
-                <div class="viking-map-popup">
-                    <div class="popup-header">
-                        <span class="popup-icon" style="color: ${pColor}; font-size: 1.3rem;">⚡</span>
-                        <div>
-                            <h4>Portal "${escapeHtml(p.tag)}"</h4>
-                            <div class="popup-subtitle" style="display:flex; align-items:center; gap:0.4rem;">
-                                <span>${p.author_avatar || '🛡️'}</span>
-                                <span style="color: ${pColor}; font-weight:600;">${escapeHtml(p.author)}</span>
-                            </div>
-                        </div>
+            if (comp.length === 1) {
+                const single = comp[0];
+                displayedLatLngMap[single.p.id] = single.trueLL;
+                const m = portalMarkersMap[single.p.id];
+                if (m) m.setLatLng(single.trueLL);
+                continue;
+            }
+
+            // Sort deterministically: highest elevation (Y) first so upper-floor pins stay above lower-floor pins
+            comp.sort((a, b) => (b.p.y - a.p.y) || a.p.tag.localeCompare(b.p.tag) || a.p.id.localeCompare(b.p.id));
+
+            // Seed co-located vertical stacks before relaxation
+            const seeded = new Array(comp.length).fill(false);
+            for (let a = 0; a < comp.length; a++) {
+                if (seeded[a]) continue;
+                const stack = [a];
+                seeded[a] = true;
+                for (let b = a + 1; b < comp.length; b++) {
+                    if (!seeded[b] && Math.hypot(comp[b].ox - comp[a].ox, comp[b].oy - comp[a].oy) < 4.0) {
+                        stack.push(b);
+                        seeded[b] = true;
+                    }
+                }
+                if (stack.length === 2) {
+                    comp[stack[0]].y -= sepY * 0.45;
+                    comp[stack[1]].y += sepY * 0.45;
+                } else if (stack.length > 2) {
+                    const mid = (stack.length - 1) / 2.0;
+                    stack.forEach((idx, k) => {
+                        comp[idx].y += (k - mid) * sepY * 0.65;
+                        comp[idx].x += (k % 2 === 0 ? 4.0 : -4.0);
+                    });
+                }
+            }
+
+            // Elliptical pairwise separation with gentle anchor spring
+            for (let iter = 0; iter < 45; iter++) {
+                for (let a = 0; a < comp.length; a++) {
+                    for (let b = a + 1; b < comp.length; b++) {
+                        const dx = comp[b].x - comp[a].x;
+                        const dy = comp[b].y - comp[a].y;
+                        const nx = dx / sepX;
+                        const ny = dy / sepY;
+                        const nd = Math.hypot(nx, ny);
+                        if (nd < 1.0) {
+                            let ux, uy, push;
+                            if (nd < 0.001) {
+                                ux = 0.0;
+                                uy = 1.0;
+                                push = 0.5;
+                            } else {
+                                ux = nx / nd;
+                                uy = ny / nd;
+                                push = (1.0 - nd) * 0.52;
+                            }
+                            comp[a].x -= ux * push * sepX;
+                            comp[a].y -= uy * push * sepY;
+                            comp[b].x += ux * push * sepX;
+                            comp[b].y += uy * push * sepY;
+                        }
+                    }
+                }
+                if (iter < 30) {
+                    for (let a = 0; a < comp.length; a++) {
+                        comp[a].x += (comp[a].ox - comp[a].x) * 0.06;
+                        comp[a].y += (comp[a].oy - comp[a].y) * 0.06;
+                    }
+                }
+            }
+
+            // Apply separated coordinates and draw subtle ground-anchor tethers
+            const drawnAnchorDots = [];
+            comp.forEach(node => {
+                const dispLatLngObj = mapInstance.unproject([node.x, node.y], zoom);
+                const dispArr = [dispLatLngObj.lat, dispLatLngObj.lng];
+                displayedLatLngMap[node.p.id] = dispArr;
+
+                const m = portalMarkersMap[node.p.id];
+                if (m) m.setLatLng(dispArr);
+
+                const dispPx = Math.hypot(node.x - node.ox, node.y - node.oy);
+                if (dispPx > 5.0) {
+                    const pColor = node.p.author_color || '#38bdf8';
+                    L.polyline([node.trueLL, dispArr], {
+                        color: pColor,
+                        weight: 1.5,
+                        opacity: 0.6,
+                        dashArray: '2, 3',
+                        interactive: false,
+                        className: 'portal-anchor-tether'
+                    }).addTo(tethersLayer);
+
+                    const alreadyMarked = drawnAnchorDots.some(pt => Math.hypot(pt.x - node.ox, pt.y - node.oy) < 2.5);
+                    if (!alreadyMarked) {
+                        drawnAnchorDots.push({ x: node.ox, y: node.oy });
+                        L.circleMarker(node.trueLL, {
+                            radius: 2.5,
+                            color: '#facc15',
+                            weight: 1,
+                            fillColor: '#0f172a',
+                            fillOpacity: 0.9,
+                            interactive: false,
+                            className: 'portal-anchor-tether'
+                        }).addTo(tethersLayer);
+                    }
+                }
+            });
+        }
+
+        // Update route polyline endpoints so routes connect seamlessly into displaced pins
+        portalLines.forEach(l => {
+            const s = displayedLatLngMap[l.p1.id] || l.start;
+            const e = displayedLatLngMap[l.p2.id] || l.end;
+            l.polyline.setLatLngs([s, e]);
+        });
+        syncSelectionAndHoverHighlights();
+    }
+
+    function setLineState(l, isHighlighted) {
+        if (!l || !l.polyline) return;
+        if (isHighlighted) {
+            l.polyline.setStyle({
+                color: '#facc15',
+                weight: 4.0,
+                opacity: 1.0,
+                dashArray: null
+            });
+            if (l.polyline._path) {
+                l.polyline._path.classList.add('portal-network-route-yellow');
+            }
+            l.polyline.bringToFront();
+        } else {
+            l.polyline.setStyle({
+                color: l.defaultColor || '#38bdf8',
+                weight: 2.5,
+                opacity: 0.75,
+                dashArray: '6, 8'
+            });
+            if (l.polyline._path) {
+                l.polyline._path.classList.remove('portal-network-route-yellow');
+            }
+        }
+    }
+
+    function getSelectedPortalIds() {
+        const ids = new Set();
+        if (!currentlySelectedPortal) return ids;
+        ids.add(currentlySelectedPortal);
+        const p = allPortalsData.find(item => item.id === currentlySelectedPortal);
+        if (p && p.linked && p.paired_with) {
+            p.paired_with.forEach(peer => ids.add(peer.id));
+        }
+        return ids;
+    }
+
+    function getHoveredPortalIds() {
+        const ids = new Set();
+        if (currentlyHoveredPortal) {
+            ids.add(currentlyHoveredPortal);
+            const p = allPortalsData.find(item => item.id === currentlyHoveredPortal);
+            if (p && p.linked && p.paired_with) {
+                p.paired_with.forEach(peer => ids.add(peer.id));
+            }
+        }
+        if (currentlyHoveredLine) {
+            ids.add(currentlyHoveredLine.p1.id);
+            ids.add(currentlyHoveredLine.p2.id);
+        }
+        return ids;
+    }
+
+    function isLineSelected(l) {
+        if (!currentlySelectedPortal || !l) return false;
+        const selectedIds = getSelectedPortalIds();
+        return selectedIds.has(l.p1.id) && selectedIds.has(l.p2.id);
+    }
+
+    function isLineHovered(l) {
+        if (!l) return false;
+        if (currentlyHoveredLine && currentlyHoveredLine.pairKey === l.pairKey) return true;
+        if (currentlyHoveredPortal) {
+            return l.p1.id === currentlyHoveredPortal || l.p2.id === currentlyHoveredPortal;
+        }
+        return false;
+    }
+
+    function highlightPinYellow(portalId, highlight) {
+        const pin = document.getElementById(`pin-${portalId}`);
+        if (pin) {
+            if (highlight) pin.classList.add('portal-highlight-yellow');
+            else pin.classList.remove('portal-highlight-yellow');
+        }
+    }
+
+    function syncSelectionAndHoverHighlights() {
+        const selectedIds = getSelectedPortalIds();
+        const hoveredIds = getHoveredPortalIds();
+
+        allPortalsData.forEach(p => {
+            const isSel = selectedIds.has(p.id);
+            const isHov = hoveredIds.has(p.id);
+            highlightPinYellow(p.id, isSel || isHov);
+
+            const m = portalMarkersMap[p.id];
+            if (m) {
+                if (p.id === currentlySelectedPortal) {
+                    m.setZIndexOffset(1000);
+                } else if (isSel) {
+                    m.setZIndexOffset(950);
+                } else if (isHov) {
+                    m.setZIndexOffset(600);
+                } else {
+                    m.setZIndexOffset(0);
+                }
+            }
+        });
+
+        portalLines.forEach(l => {
+            const active = isLineSelected(l) || isLineHovered(l);
+            setLineState(l, active);
+        });
+    }
+
+    /**
+     * Renders or clears the Selected Portal & Link Info Panel at the top of the Directory Drawer.
+     */
+    function updateDrawerSelectedPanel(portalId) {
+        const panel = document.getElementById('map-drawer-selected-panel');
+        if (!panel) return;
+
+        // Sync selection highlight in the directory list below
+        document.querySelectorAll('.drawer-portal-item').forEach(el => {
+            if (portalId && el.dataset.portalId === portalId) {
+                el.classList.add('is-selected');
+                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+                el.classList.remove('is-selected');
+            }
+        });
+
+        if (!portalId) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            return;
+        }
+
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            return;
+        }
+
+        const meta = (currentStackMeta && currentStackMeta[p.id]) || {
+            stackedPeers: [],
+            hubPeerCount: 0,
+            floorArrow: '',
+            floorDesc: ''
+        };
+
+        const isLinked = Boolean(p.linked && p.paired_with && p.paired_with.length > 0);
+        const pColor = p.author_color || 'var(--nordic-cyan)';
+
+        // Connected destination peers
+        let pairedHtml = '';
+        if (isLinked) {
+            pairedHtml = `
+                <div class="selected-link-section">
+                    <div class="selected-section-title">
+                        <span>⚡ Connected Link${p.paired_with.length > 1 ? `s (${p.paired_with.length})` : ''}</span>
                     </div>
-                    <div class="popup-body">
-                        <div class="popup-row">
-                            <span>Status:</span>
-                            <span class="badge ${isLinked ? 'badge-running' : 'badge-starting'}">
-                                ${isLinked ? `⚡ Linked (${p.pair_count} nodes)` : '◇ Solo (Unmatched)'}
-                            </span>
-                        </div>
-                        <div class="popup-row">
-                            <span>Coordinates:</span>
-                            <strong>X: ${p.x}, Z: ${p.z}</strong>
-                        </div>
-                        <div class="popup-row">
-                            <span>Elevation (Y):</span>
-                            <strong>${p.y}m</strong>
-                        </div>
-                        ${pairedHtml}
+                    ${p.paired_with.map(peer => {
+                        const distMeters = Math.round(distance(p.x, p.z, peer.x, peer.z));
+                        return `
+                            <div class="selected-peer-card">
+                                <div class="peer-header-row">
+                                    <div class="peer-author">
+                                        <span>${peer.author_avatar || '🛡️'}</span>
+                                        <strong style="color: ${peer.author_color || 'var(--text-primary)'};">${escapeHtml(peer.author)}</strong>
+                                        <span class="peer-dist-badge">~${distMeters}m</span>
+                                    </div>
+                                </div>
+                                <div class="peer-coords-row">
+                                    <span>[${peer.x}, ${peer.z}]</span>${peer.y != null ? ` &bull; <span>${peer.y}m</span>` : ''}
+                                </div>
+                                <div class="peer-actions-row">
+                                    <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}', '${peer.id}')" title="Zoom out to show both ends">
+                                        🔭 Both Ends
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); flyToPortal('${peer.id}')" title="Fly camera to this destination node">
+                                        ✈️ Fly To
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Stacked co-located siblings (multi-floor hub)
+        let stackedHtml = '';
+        if (meta.stackedPeers && meta.stackedPeers.length > 0) {
+            stackedHtml = `
+                <div class="selected-stacked-section">
+                    <div class="selected-section-title">
+                        <span>🏢 Stacked Nodes (Same Base)</span>
+                    </div>
+                    <div class="selected-stacked-list">
+                        ${meta.stackedPeers.map(sib => {
+                            const diff = sib.y - p.y;
+                            const arrow = diff > 0.3 ? '↑ +' : (diff < -0.3 ? '↓ ' : '≈ ');
+                            return `
+                                <button type="button" class="stacked-sib-btn" onclick="event.stopPropagation(); panToPortal('${sib.id}')" title="Switch to this stacked portal">
+                                    <span><strong>"${escapeHtml(sib.tag)}"</strong> <span style="font-size:0.68rem; color:var(--text-muted);">&bull; ${escapeHtml(sib.author)}</span></span>
+                                    <span style="color:#facc15; font-size:0.68rem;">${arrow}${Math.abs(diff).toFixed(1)}m</span>
+                                </button>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
-            `);
+            `;
+        }
 
-            // Highlight connected routes on hover
-            marker.on('mouseover', function () {
-                highlightPortalRoutes(p.id, true);
-            });
-            marker.on('mouseout', function () {
-                highlightPortalRoutes(p.id, false);
-            });
-        });
+        const showHubBtn = meta.hubPeerCount >= 1;
+
+        panel.innerHTML = `
+            <div class="selected-panel-header">
+                <div class="selected-panel-title-group">
+                    <span class="selected-panel-eyebrow">
+                        ${isLinked ? '⚡ Selected Route' : '◇ Selected Portal'}
+                    </span>
+                    <div class="selected-panel-tag" title="${escapeHtml(p.tag)}">
+                        <span class="portal-status-dot ${isLinked ? 'is-linked' : 'is-solo'}"></span>
+                        <strong>"${escapeHtml(p.tag)}"</strong>
+                    </div>
+                </div>
+                <button type="button" class="selected-panel-close-btn" onclick="deselectPortal()" title="Deselect Portal (Esc)">✕</button>
+            </div>
+
+            <div class="selected-panel-body">
+                <div class="selected-node-card">
+                    <div class="selected-node-row">
+                        <div class="selected-author-badge" style="border-left-color: ${pColor};">
+                            <span>${p.author_avatar || '🛡️'}</span>
+                            <strong style="color: ${pColor};">${escapeHtml(p.author)}</strong>
+                        </div>
+                        <span class="badge ${isLinked ? 'badge-running' : 'badge-starting'}" style="font-size:0.68rem;">
+                            ${isLinked ? `⚡ Linked (${p.pair_count} nodes)` : '◇ Solo (Unmatched)'}
+                        </span>
+                    </div>
+
+                    <div class="selected-specs-grid">
+                        <div class="selected-spec-item">
+                            <span class="spec-label">Biome</span>
+                            <span class="spec-val">${p.biome_icon || '🌲'} ${escapeHtml(p.biome || 'Midgard')}</span>
+                        </div>
+                        <div class="selected-spec-item">
+                            <span class="spec-label">Coordinates</span>
+                            <span class="spec-val">X: ${p.x}, Z: ${p.z}</span>
+                        </div>
+                        <div class="selected-spec-item full-width">
+                            <span class="spec-label">Elevation (Y)</span>
+                            <span class="spec-val">
+                                ${p.y}m${meta.floorDesc ? `<span class="floor-pill">${meta.floorArrow} ${meta.floorDesc}</span>` : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="selected-actions-row">
+                        <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); panToPortal('${p.id}')" title="Pan to bring this portal into view">
+                            🎯 Center
+                        </button>
+                        ${showHubBtn ? `
+                            <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomIntoPortalHub('${p.id}')" title="Zoom closely into hub">
+                                🔍 Zoom Hub
+                            </button>
+                        ` : ''}
+                        ${isLinked ? `
+                            <button type="button" class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Fit route on map">
+                                🔭 Both Ends
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${pairedHtml}
+                ${stackedHtml}
+            </div>
+        `;
+
+        panel.style.display = 'block';
     }
+    window.updateDrawerSelectedPanel = updateDrawerSelectedPanel;
 
-    function highlightPortalRoutes(portalId, highlight) {
-        portalLines.forEach(l => {
-            if (l.p1 === portalId || l.p2 === portalId) {
-                l.polyline.setStyle({
-                    weight: highlight ? 4.5 : 2.2,
-                    opacity: highlight ? 1.0 : 0.65,
-                    color: highlight ? 'var(--nordic-gold)' : undefined
-                });
+    window.selectPortal = function (portalId, zoomToBounds = false) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p) return;
+
+        suppressMapClickUntil = Date.now() + 350;
+        currentlySelectedPortal = portalId;
+        syncSelectionAndHoverHighlights();
+
+        // Ensure directory drawer is open to show this portal's info panel
+        window.openPortalDrawer(true);
+        updateDrawerSelectedPanel(portalId);
+
+        if (zoomToBounds && p.linked && p.paired_with && p.paired_with.length > 0 && mapInstance) {
+            window.zoomToShowPortalRoute(portalId);
+            return;
+        }
+
+        pulseMarkerPin(portalId);
+        if (p.linked && p.paired_with) {
+            p.paired_with.forEach(peer => pulseMarkerPin(peer.id));
+        }
+    };
+
+    function deselectPortal() {
+        currentlySelectedPortal = null;
+        if (mapInstance) {
+            mapInstance.closePopup();
+        }
+        syncSelectionAndHoverHighlights();
+        updateDrawerSelectedPanel(null);
+    }
+    window.deselectPortal = deselectPortal;
+
+    function getIdealPortalZoom(p) {
+        let minDist = Infinity;
+        currentFilteredPortals.forEach(other => {
+            if (other.id !== p.id) {
+                const d = distance(p.x, p.z, other.x, other.z);
+                if (d < minDist) minDist = d;
             }
         });
+        if (minDist <= 2.5) return 9.0;   // Vertically stacked / ultra-dense hub
+        if (minDist <= 12.0) return 8.25; // Portal hub ring
+        if (minDist <= 40.0) return 6.75; // Multi-portal base compound
+        return 4.75;                      // Isolated outpost
     }
+
+    window.zoomIntoPortalHub = function (portalId) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 450;
+
+        const targetZoom = Math.max(8.75, mapInstance.getZoom() + 1.5);
+        const clampedZoom = Math.min(MAX_ZOOM, targetZoom);
+        const target = gameToLeaflet(p.x, p.z);
+
+        let handled = false;
+        const onArrived = () => {
+            if (handled || myToken !== cameraActionToken) return;
+            handled = true;
+            updatePortalLayoutForZoom();
+            window.selectPortal(portalId, false);
+        };
+
+        mapInstance.once('moveend', onArrived);
+        setTimeout(onArrived, 1100);
+
+        mapInstance.flyTo(target, clampedZoom, {
+            duration: 0.85,
+            easeLinearity: 0.25
+        });
+    };
+
+    // Zoom all the way out to view the entire circular Midgard map
+    window.fitWholeMap = function () {
+        if (!mapInstance) return;
+        cameraActionToken++;
+        syncDynamicMinZoom();
+        const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+        mapInstance.flyToBounds(bounds, {
+            paddingTopLeft: [32, 72],
+            paddingBottomRight: [32, 52],
+            duration: 1.0
+        });
+    };
+
+    // Zoom out to show both ends of a portal route while keeping the route selected
+    window.zoomToShowPortalRoute = function (portalId, peerId = null) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 500;
+
+        let points = [];
+        let peerIds = [];
+        if (peerId) {
+            const peer = allPortalsData.find(item => item.id === peerId);
+            if (peer) {
+                points = [gameToLeaflet(p.x, p.z), gameToLeaflet(peer.x, peer.z)];
+                peerIds = [peer.id];
+            }
+        } else if (p.paired_with && p.paired_with.length > 0) {
+            points = [
+                gameToLeaflet(p.x, p.z),
+                ...p.paired_with.map(peer => gameToLeaflet(peer.x, peer.z))
+            ];
+            peerIds = p.paired_with.map(peer => peer.id);
+        }
+
+        if (points.length >= 2) {
+            currentlySelectedPortal = portalId;
+            currentlyHoveredPortal = null;
+            currentlyHoveredLine = null;
+
+            // Close any open popup and ensure directory drawer is open so the user sees the route info card
+            mapInstance.closePopup();
+            window.openPortalDrawer(true);
+            updateDrawerSelectedPanel(portalId);
+            syncSelectionAndHoverHighlights();
+
+            const canvasEl = document.getElementById('world-map-canvas');
+            const wrapperEl = document.getElementById('map-viewport-wrapper');
+            const drawerEl = document.getElementById('map-portal-drawer');
+
+            // Force layout reflow and update Leaflet dimensions immediately
+            if (canvasEl) void canvasEl.offsetWidth;
+            if (mapInstance) mapInstance.invalidateSize({ pan: false });
+
+            // Determine safe right padding:
+            // If the drawer is open and canvas did not shrink (e.g. mobile or overlay), compensate right padding by 330px
+            const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
+            let rightPadding = 85;
+            if (isDrawerOpen) {
+                const canvasW = canvasEl ? canvasEl.offsetWidth : 0;
+                const wrapperW = wrapperEl ? wrapperEl.offsetWidth : 0;
+                if (canvasW >= wrapperW - 20) {
+                    rightPadding += 330;
+                }
+            }
+
+            let settled = false;
+            const onRouteFitted = () => {
+                if (settled || myToken !== cameraActionToken) return;
+                settled = true;
+                updatePortalLayoutForZoom();
+                syncSelectionAndHoverHighlights();
+                pulseMarkerPin(portalId);
+                peerIds.forEach(id => pulseMarkerPin(id));
+            };
+
+            mapInstance.once('moveend', onRouteFitted);
+            setTimeout(onRouteFitted, 600);
+
+            // Fit the route cleanly centered in the active map area
+            mapInstance.fitBounds(L.latLngBounds(points), {
+                paddingTopLeft: [85, 85],
+                paddingBottomRight: [rightPadding, 75],
+                maxZoom: 9.0,
+                animate: true
+            });
+        } else {
+            window.flyToPortal(portalId);
+        }
+    };
+
+    // Zoom to show all portals matching current search/filters
+    window.fitMatchingPortals = function () {
+        if (!mapInstance || !currentFilteredPortals || currentFilteredPortals.length === 0) {
+            if (window.showToast) window.showToast('No matching portals to fit in view', 'info');
+            return;
+        }
+
+        if (currentFilteredPortals.length === 1) {
+            window.flyToPortal(currentFilteredPortals[0].id);
+            return;
+        }
+
+        cameraActionToken++;
+        const points = currentFilteredPortals.map(p => gameToLeaflet(p.x, p.z));
+        mapInstance.fitBounds(L.latLngBounds(points), {
+            padding: [80, 80],
+            maxZoom: 9.0,
+            animate: true
+        });
+    };
 
     window.flyToPortal = function (portalId) {
         const p = allPortalsData.find(item => item.id === portalId);
         if (!p || !mapInstance) return;
 
-        const target = gameToLeaflet(p.x, p.z);
-        mapInstance.flyTo(target, 1.25, {
-            duration: 1.2,
-            easeLinearity: 0.25
-        });
+        cameraActionToken++;
+        const myToken = cameraActionToken;
+        suppressMapClickUntil = Date.now() + 5500;
 
-        setTimeout(() => {
-            const marker = portalMarkersMap[portalId];
-            if (marker) {
-                marker.openPopup();
-                pulseMarkerPin(portalId);
+        const target = gameToLeaflet(p.x, p.z);
+        const idealZoom = Math.min(MAX_ZOOM, Math.max(getIdealPortalZoom(p), 8.25));
+
+        // Determine origin for the 2-phase flight:
+        // Use currentlySelectedPortal if available and different, otherwise use current map center
+        let origin = null;
+        if (currentlySelectedPortal && currentlySelectedPortal !== portalId) {
+            origin = allPortalsData.find(item => item.id === currentlySelectedPortal);
+        }
+        const originLatLng = origin ? gameToLeaflet(origin.x, origin.z) : mapInstance.getCenter();
+
+        // Calculate game distance to determine whether to perform 2-phase flight
+        const originGamePos = origin ? { x: origin.x, z: origin.z } : leafletToGame(originLatLng.lat, originLatLng.lng);
+        const distMeters = distance(originGamePos.x, originGamePos.z, p.x, p.z);
+
+        // Safe right padding calculation for drawer
+        const canvasEl = document.getElementById('world-map-canvas');
+        const wrapperEl = document.getElementById('map-viewport-wrapper');
+        const drawerEl = document.getElementById('map-portal-drawer');
+        if (canvasEl) void canvasEl.offsetWidth;
+        if (mapInstance) mapInstance.invalidateSize({ pan: false });
+
+        const isDrawerOpen = drawerEl && drawerEl.classList.contains('open');
+        let rightPadding = 85;
+        if (isDrawerOpen) {
+            const canvasW = canvasEl ? canvasEl.offsetWidth : 0;
+            const wrapperW = wrapperEl ? wrapperEl.offsetWidth : 0;
+            if (canvasW >= wrapperW - 20) {
+                rightPadding += 330;
             }
-        }, 1300);
+        }
+
+        // If distance is significant (> 80m), perform the 2-phase cinematic flight:
+        // Phase 1: 2-3 sec zoom out to "both ends"
+        // Phase 2: 2-3 sec zoom in to the destination
+        if (distMeters > 80) {
+            // Pulse the origin pin if known
+            if (origin) pulseMarkerPin(origin.id);
+
+            // Phase 1: Zoom out to show both ends
+            const flightBounds = L.latLngBounds([originLatLng, target]);
+            mapInstance.flyToBounds(flightBounds, {
+                duration: 2.3,
+                easeLinearity: 0.25,
+                paddingTopLeft: [85, 85],
+                paddingBottomRight: [rightPadding, 75],
+                maxZoom: 7.25
+            });
+
+            let phase1Done = false;
+            const runPhase2 = () => {
+                if (phase1Done || myToken !== cameraActionToken) return;
+                phase1Done = true;
+
+                // Phase 2: Zoom into the new end over 2.3s
+                let phase2Done = false;
+                const finishArrival = () => {
+                    if (phase2Done || myToken !== cameraActionToken) return;
+                    phase2Done = true;
+                    updatePortalLayoutForZoom();
+                    const finalPos = displayedLatLngMap[portalId] || target;
+                    if (finalPos && mapInstance) {
+                        mapInstance.panTo(finalPos, { animate: true, duration: 0.2 });
+                    }
+                    window.selectPortal(portalId, false);
+                    pulseMarkerPin(portalId);
+                };
+
+                mapInstance.once('moveend', finishArrival);
+                setTimeout(finishArrival, 2600);
+
+                mapInstance.flyTo(target, idealZoom, {
+                    duration: 2.3,
+                    easeLinearity: 0.25
+                });
+            };
+
+            mapInstance.once('moveend', runPhase2);
+            setTimeout(runPhase2, 2600);
+        } else {
+            // Short-distance flight: single smooth 1.5s zoom
+            let done = false;
+            const finishDirect = () => {
+                if (done || myToken !== cameraActionToken) return;
+                done = true;
+                updatePortalLayoutForZoom();
+                window.selectPortal(portalId, false);
+                pulseMarkerPin(portalId);
+            };
+
+            mapInstance.once('moveend', finishDirect);
+            setTimeout(finishDirect, 1700);
+
+            mapInstance.flyTo(target, idealZoom, {
+                duration: 1.5,
+                easeLinearity: 0.25
+            });
+        }
+    };
+
+    window.panToPortal = function (portalId) {
+        const p = allPortalsData.find(item => item.id === portalId);
+        if (!p || !mapInstance) return;
+
+        cameraActionToken++;
+        suppressMapClickUntil = Date.now() + 650;
+
+        const target = gameToLeaflet(p.x, p.z);
+
+        // Select the portal and show its card in the directory
+        window.selectPortal(portalId, false);
+        pulseMarkerPin(portalId);
+
+        // Smoothly pan to bring the portal into view (preserving current zoom if already zoomed in)
+        const currentZoom = mapInstance.getZoom();
+        const minUsefulZoom = 4.5;
+        if (currentZoom < minUsefulZoom) {
+            mapInstance.flyTo(target, minUsefulZoom, { duration: 0.75, easeLinearity: 0.25 });
+        } else {
+            mapInstance.panTo(target, { animate: true, duration: 0.5 });
+        }
     };
 
     window.flyToSpawn = function () {
         if (!currentMapData || !mapInstance) return;
         const target = gameToLeaflet(currentMapData.spawn.x, currentMapData.spawn.z);
-        mapInstance.flyTo(target, 0.75, { duration: 1.2 });
+        mapInstance.flyTo(target, 3.25, { duration: 1.2 });
     };
 
     function pulseMarkerPin(portalId) {
@@ -344,10 +1419,68 @@
         }
     }
 
-    // Filter Portals by Player, Link Status, or Search String
+    function parseSearchFilters(query) {
+        let cleanQuery = query;
+        let portalFilter = null;
+        let builderFilter = null;
+        let statusFilter = null;
+
+        // Match prefix tokens: p=..., b=..., s=... (with optional colon: p:..., b:..., s:...)
+        // Supports quoted values e.g. p="main hub" or unquoted p=drew
+        const tokenRegex = /\b([pbs])[:=](?:"([^"]+)"|'([^']+)'|([^\s]+))/gi;
+        let match;
+        while ((match = tokenRegex.exec(query)) !== null) {
+            const prefix = match[1].toLowerCase();
+            const val = (match[2] || match[3] || match[4] || '').trim().toLowerCase();
+            if (prefix === 'p') {
+                portalFilter = val;
+            } else if (prefix === 'b') {
+                builderFilter = val;
+            } else if (prefix === 's') {
+                // s=c / s=connected / s=l / s=linked -> linked
+                // s=s / s=solo / s=u / s=unconnected -> solo
+                if (val.startsWith('c') || val.startsWith('l')) {
+                    statusFilter = 'linked';
+                } else if (val.startsWith('s') || val.startsWith('u')) {
+                    statusFilter = 'solo';
+                }
+            }
+        }
+
+        // Strip matched tokens from residual general text search
+        cleanQuery = query.replace(tokenRegex, ' ').replace(/\s+/g, ' ').trim();
+
+        return {
+            portalFilter,
+            builderFilter,
+            statusFilter,
+            residualQuery: cleanQuery
+        };
+    }
+
+    function parseCoordinateQuery(query) {
+        // Supports "x:1370 y:73", "x=1370 z=73", "1370, 73", "1370 73"
+        const namedMatch = query.match(/x\s*[:=]?\s*(-?\d+(?:\.\d+)?)[\s,;]+(?:y|z)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+        if (namedMatch) {
+            return { x: parseFloat(namedMatch[1]), z: parseFloat(namedMatch[2]) };
+        }
+        const pairMatch = query.match(/^(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)$/);
+        if (pairMatch) {
+            return { x: parseFloat(pairMatch[1]), z: parseFloat(pairMatch[2]) };
+        }
+        return null;
+    }
+
+    // Filter Portals by Player, Link Status, Search String, or Coordinate Pair
     window.applyMapFilters = function () {
         const searchInput = document.getElementById('map-portal-search');
-        const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const rawQuery = (searchInput ? searchInput.value : '').trim();
+        const queryLower = rawQuery.toLowerCase();
+
+        const clearBtn = document.getElementById('map-search-clear');
+        if (clearBtn) {
+            clearBtn.style.display = rawQuery.length > 0 ? 'flex' : 'none';
+        }
 
         const playerSelect = document.getElementById('map-player-filter');
         const selectedPlayer = playerSelect ? playerSelect.value : 'all';
@@ -355,14 +1488,39 @@
         const statusSelect = document.getElementById('map-status-filter');
         const selectedStatus = statusSelect ? statusSelect.value : 'all';
 
+        // Parse search query for filter prefixes: p=..., b=..., s=...
+        const parsed = parseSearchFilters(queryLower);
+        const effectiveStatus = parsed.statusFilter || selectedStatus;
+        const coordQuery = parsed.residualQuery ? parseCoordinateQuery(parsed.residualQuery) : null;
+
         const filtered = allPortalsData.filter(p => {
+            // Builder filter from dropdown
             if (selectedPlayer !== 'all' && p.author.toLowerCase() !== selectedPlayer.toLowerCase()) {
                 return false;
             }
-            if (selectedStatus === 'linked' && !p.linked) return false;
-            if (selectedStatus === 'solo' && p.linked) return false;
-            if (query && !p.tag.toLowerCase().includes(query) && !p.author.toLowerCase().includes(query)) {
+            // Explicit b=... filter in search bar
+            if (parsed.builderFilter && !p.author.toLowerCase().includes(parsed.builderFilter)) {
                 return false;
+            }
+            // Explicit p=... filter in search bar (portal name/tag)
+            if (parsed.portalFilter && !p.tag.toLowerCase().includes(parsed.portalFilter)) {
+                return false;
+            }
+            // Status filter (dropdown or s=... token)
+            if (effectiveStatus === 'linked' && !p.linked) return false;
+            if (effectiveStatus === 'solo' && p.linked) return false;
+
+            // Residual query match (portal tag, author, or coords)
+            if (parsed.residualQuery) {
+                if (coordQuery) {
+                    return distance(p.x, p.z, coordQuery.x, coordQuery.z) <= 60.0;
+                }
+                const coordStr = `${p.x}, ${p.z}`;
+                if (!p.tag.toLowerCase().includes(parsed.residualQuery) &&
+                    !p.author.toLowerCase().includes(parsed.residualQuery) &&
+                    !coordStr.includes(parsed.residualQuery)) {
+                    return false;
+                }
             }
             return true;
         });
@@ -371,11 +1529,22 @@
         renderPortals(filtered);
         renderPortalDrawerList(filtered);
 
-        // Update count badge
+        // Update fit button label & count badge
+        const fitBtn = document.getElementById('map-fit-btn');
+        if (fitBtn) {
+            fitBtn.innerText = filtered.length === allPortalsData.length ? '🎯 Fit All' : `🎯 Fit (${filtered.length})`;
+        }
+
         const countBadge = document.getElementById('map-filtered-count');
         if (countBadge) {
             countBadge.textContent = `${filtered.length} / ${allPortalsData.length}`;
         }
+    };
+
+    window.clearMapSearch = function () {
+        const searchInput = document.getElementById('map-portal-search');
+        if (searchInput) searchInput.value = '';
+        window.applyMapFilters();
     };
 
     window.toggleMapLayer = function (layerName) {
@@ -390,8 +1559,10 @@
         } else if (layerName === 'portals') {
             const checkbox = document.getElementById('toggle-layer-portals');
             if (checkbox && checkbox.checked) {
+                if (!mapInstance.hasLayer(tethersLayer)) tethersLayer.addTo(mapInstance);
                 if (!mapInstance.hasLayer(portalsLayer)) portalsLayer.addTo(mapInstance);
             } else {
+                if (mapInstance.hasLayer(tethersLayer)) mapInstance.removeLayer(tethersLayer);
                 if (mapInstance.hasLayer(portalsLayer)) mapInstance.removeLayer(portalsLayer);
             }
         } else if (layerName === 'lines') {
@@ -404,35 +1575,86 @@
         }
     };
 
-    window.togglePortalDrawer = function () {
+    window.openPortalDrawer = function (force = true) {
+        const wrapper = document.getElementById('map-viewport-wrapper');
         const drawer = document.getElementById('map-portal-drawer');
         const btn = document.getElementById('drawer-toggle-btn');
         if (!drawer) return;
-        const isOpen = drawer.classList.toggle('open');
+        const shouldOpen = Boolean(force);
+
+        drawer.classList.toggle('open', shouldOpen);
+        if (wrapper) {
+            wrapper.classList.toggle('drawer-active', shouldOpen);
+        }
         if (btn) {
-            btn.innerHTML = isOpen ? '✕ Close Directory' : '📜 Portal Directory';
+            btn.innerHTML = shouldOpen ? '✕ Directory' : '📜 Directory';
+            btn.classList.toggle('active', shouldOpen);
+            btn.classList.toggle('is-open', shouldOpen);
+            btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+        if (mapInstance) {
+            mapInstance.invalidateSize({ pan: false });
         }
         setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
-        }, 300);
+            if (mapInstance) {
+                mapInstance.invalidateSize({ pan: false });
+                syncDynamicMinZoom();
+            }
+        }, 150);
+        setTimeout(() => {
+            if (mapInstance) {
+                mapInstance.invalidateSize({ pan: false });
+            }
+        }, 320);
+    };
+
+    window.togglePortalDrawer = function () {
+        const drawer = document.getElementById('map-portal-drawer');
+        const isOpen = drawer ? drawer.classList.contains('open') : false;
+        window.openPortalDrawer(!isOpen);
     };
 
     window.toggleMapFullscreen = function () {
         const container = document.getElementById('map-viewport-wrapper');
         if (!container) return;
-        if (!document.fullscreenElement) {
-            container.requestFullscreen().catch(() => {});
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (container.requestFullscreen) {
+                container.requestFullscreen().catch(() => {});
+            } else if (container.webkitRequestFullscreen) {
+                container.webkitRequestFullscreen();
+            }
         } else {
-            document.exitFullscreen().catch(() => {});
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
         }
-        setTimeout(() => {
-            if (mapInstance) mapInstance.invalidateSize();
-        }, 200);
     };
 
-    window.refreshMapData = async function () {
-        const btn = document.getElementById('map-refresh-btn');
+    function updateFullscreenButtonState() {
+        const btn = document.getElementById('map-fullscreen-btn');
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
         if (btn) {
+            btn.innerHTML = isFs ? '🗗' : '⛶';
+            btn.title = isFs ? '🗗 Exit Fullscreen' : '⛶ Fullscreen (Toggle Fullscreen Map)';
+        }
+        if (mapInstance) {
+            setTimeout(() => {
+                if (mapInstance) {
+                    mapInstance.invalidateSize();
+                    syncDynamicMinZoom();
+                }
+            }, 150);
+        }
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenButtonState);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButtonState);
+
+    window.refreshMapData = async function (silent = false) {
+        const btn = document.getElementById('map-refresh-btn');
+        if (btn && !silent) {
             btn.classList.add('loading');
             btn.disabled = true;
         }
@@ -443,12 +1665,12 @@
             const data = await res.json();
             currentMapData = data;
             allPortalsData = data.portals || [];
-            applyMapFilters();
-            if (window.showToast) window.showToast('World map & portals updated from active chunk', 'success');
+            window.applyMapFilters();
+            if (!silent && window.showToast) window.showToast('World map & portals updated from active chunk', 'success');
         } catch (e) {
-            if (window.showToast) window.showToast('Error refreshing portals: ' + e.message, 'error');
+            if (!silent && window.showToast) window.showToast('Error refreshing portals: ' + e.message, 'error');
         } finally {
-            if (btn) {
+            if (btn && !silent) {
                 btn.classList.remove('loading');
                 btn.disabled = false;
             }
@@ -466,7 +1688,7 @@
         });
 
         const sorted = Array.from(playersSet).sort();
-        let html = '<option value="all">🛡️ All Builders</option>';
+        let html = '<option value="all">🛡️ Builder</option>';
         sorted.forEach(name => {
             html += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
         });
@@ -484,7 +1706,7 @@
         }
 
         listEl.innerHTML = portals.map(p => `
-            <div class="drawer-portal-item" onclick="flyToPortal('${p.id}')">
+            <div class="drawer-portal-item" id="drawer-item-${p.id}" data-portal-id="${p.id}" onclick="panToPortal('${p.id}')">
                 <div class="drawer-portal-left">
                     <span class="portal-status-dot ${p.linked ? 'is-linked' : 'is-solo'}" title="${p.linked ? 'Linked Network' : 'Solo'}"></span>
                     <div>
@@ -499,11 +1721,43 @@
                         </div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" title="Center map on this portal">
-                    🎯
-                </button>
+                <div style="display:flex; gap:0.25rem;">
+                    ${p.linked ? `
+                        <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" onclick="event.stopPropagation(); zoomToShowPortalRoute('${p.id}')" title="Zoom out to show both ends">
+                            🔭
+                        </button>
+                    ` : ''}
+                    <button type="button" class="btn btn-secondary btn-sm drawer-portal-btn" onclick="event.stopPropagation(); panToPortal('${p.id}')" title="Pan to bring this portal into view">
+                        🎯
+                    </button>
+                </div>
             </div>
         `).join('');
+
+        updateDrawerVisibleHighlights();
+        if (currentlySelectedPortal) {
+            updateDrawerSelectedPanel(currentlySelectedPortal);
+        }
+    }
+
+    /**
+     * Highlights portals in the directory drawer that are currently visible within the map viewport bounds.
+     */
+    function updateDrawerVisibleHighlights() {
+        if (!mapInstance) return;
+        const bounds = mapInstance.getBounds();
+        const items = document.querySelectorAll('.drawer-portal-item');
+        if (!items || items.length === 0) return;
+
+        items.forEach(item => {
+            const pid = item.getAttribute('data-portal-id');
+            const latlng = displayedLatLngMap[pid];
+            if (latlng && bounds.contains(latlng)) {
+                item.classList.add('is-in-view');
+            } else {
+                item.classList.remove('is-in-view');
+            }
+        });
     }
 
     function distance(x1, z1, x2, z2) {

@@ -132,8 +132,15 @@ def _background_monitor_loop(interval_seconds: int = 60):
     while True:
         try:
             tunnel = detect_playit_tunnel("2456")
+            changed = False
             with _LOCK:
-                _CACHED_TUNNEL = tunnel
+                if tunnel != _CACHED_TUNNEL:
+                    _CACHED_TUNNEL = tunnel
+                    changed = True
+            if changed:
+                from core.events import EVENT_BUS
+
+                EVENT_BUS.publish("configUpdated")
         except Exception:
             pass
         time.sleep(interval_seconds)

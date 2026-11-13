@@ -30,6 +30,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │   ├── server_history.py # Server run session & world save event tracking
 │   │   ├── world_stats.py   # World telemetry, in-game clock, celestial sunset/sunrise & boss sagas
 │   │   ├── map.py           # World map coordinate calibration & active chunk portal extractor
+│   │   ├── events.py        # Multi-client SSE EventBus pub/sub broker & Last-Event-ID replay buffer
 │   │   ├── logs.py          # Reverse-seeking log tailer & SSE stream generator
 │   │   └── backups.py       # Backup lifecycle (create, list, download, restore, delete)
 │   ├── templates/           # Jinja2 HTML Templates & HTMX Partials
@@ -50,7 +51,7 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 │   │       └── timers_dropdown.html
 │   └── static/              # Local static assets
 │       ├── css/style.css    # Viking dark dashboard theme & animations
-│       └── js/              # Vendored & client libraries (htmx.min.js, sse.js, timers.js)
+│       └── js/              # Vendored & client libraries (htmx.min.js, sse.js, telemetry.js, timers.js)
 └── .agents/
     └── AGENTS.md            # AI Agent Project Specification (This File)
 ```
@@ -69,7 +70,10 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - **Attached PID Management**: Correctly targets both spawned subprocesses and attached pre-existing PIDs (`self.existing_pid`) found via `pgrep -f valheim_server.x86_64`.
   - **Safe Log Rotation**: Archives existing `valheim_server.log` to `logs/valheim_server_<timestamp>.log` on startup before launching a new process.
   - **Non-blocking Log Tailing**: Reverse-seeks from EOF to retrieve only the last `N` lines rather than full-file reads.
-  - **Real-Time Streaming**: Exposes Server-Sent Events (SSE) at `/api/stream/logs` streaming live terminal logs directly into HTMX without polling.
+  - **Real-Time Streaming (Zero Polling)**:
+    - Exposes two separate Server-Sent Events (SSE) streams with zero `every Xs` HTMX polling intervals anywhere in the UI:
+      1. `GET /api/stream/events` (`core/events.py` `EVENT_BUS` connected on `<body hx-ext="sse" sse-connect="/api/stream/events">`): broadcasts named state-change events (`statusChanged`, `playersUpdated`, `sessionHistoryUpdated`, `serverHistoryUpdated`, `worldSagaUpdated`, `raidAlertUpdated`, `configUpdated`, `refreshBackups`, `accountsUpdated`, `mapUpdated`, `timelineUpdated`) with `Last-Event-ID` replay ring buffer across all open browser tabs, plus lightweight `telemetry` JSON frames while `Running` consumed by `static/js/telemetry.js` for live CPU/RAM/CPU-clocks and 1s client-side clock interpolation.
+      2. `GET /api/stream/logs` (`core/logs.py` connected on `partials/terminal.html`): streams live terminal logs directly into HTMX when the Live Console tab is open.
   - **Crash-Loop Throttling**: Tracks crash timestamps in `self.crash_history`. If 3 crashes occur within a 60-second window, `auto_restart` is paused to avoid rapid crash loops.
   - **Auto-Start on Boot**: If `auto_start_on_boot` is enabled and no running server is attached, `check_auto_start_on_boot()` automatically launches the Valheim dedicated server on application startup and logs the run trigger as `"Auto-Start on Boot"`.
   - **Memory Metrics**: Queries process RSS via `ps -p <PID> -o %cpu,rss` and formats RAM as `MB` (if <1024MB) or `GB` (if >=1024MB).
@@ -93,15 +97,19 @@ This project provides an automated, locally managed host setup for a Valheim Ded
   - `-resetmodifiers`: wipes active world modifiers back to game defaults on start.
   - Valheim persists modifiers into the active `.db`/`.fwl` world save once initialized. `webmanager/core/server.py` builds the CLI vector via `build_valheim_command()`.
 
-### 3. Systemd Integration (`valheim.service`) & Power Management
-- Service location: `~/.config/systemd/user/valheim.service`
-- Command: `/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py`
-- `KillMode=process`: Systemd stop/restart commands exclusively signal the launcher/inhibitor, leaving running Valheim server processes detached and intact.
+### 3. Systemd Integration (`valheim.service` & `valheim-web.service`) & Power Management
+- **Headless Game Server Unit (`~/.config/systemd/user/valheim.service`)**:
+  - Dynamically generated and managed by `write_valheim_service_unit()` in `webmanager/core/server.py` whenever server settings or world modifiers change.
+  - Explicitly strips desktop/Wayland/X11 environment variables (`UnsetEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP ...`) so `valheim_server.x86_64` is completely isolated from `kwin_wayland` and `plasmashell` render loops.
+  - Lifecycle controlled via `systemctl --user [start|stop|restart|status] valheim.service` (`KillSignal=SIGINT`, `TimeoutStopSec=35` for graceful `ZNet` world saves).
+  - Live log streaming and tailing powered by `journalctl --user -u valheim.service` in `webmanager/core/logs.py`, with background `_journal_sync_loop` mirroring stdout to `valheim_server.log` for telemetry and history parsers.
+- **Headless Web Manager Unit (`~/.config/systemd/user/valheim-web.service`)**:
+  - Command: `/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep --who="Valheim Dedicated Server" --why="Dedicated game server hosting" --mode=block /usr/bin/python3 manager.py`
+  - `KillMode=process`: Systemd stop/restart commands on the web manager leave the running `valheim.service` game server untouched.
 - **Hot-Reload Development Architecture**:
   - `manager.py` executes Uvicorn with `reload=True` watching `webmanager/` (`reload_dirs=[str(WEB_DIR)]`, `reload_includes=["*.py"]`, excluding `.venv`, `__pycache__`, logs).
-  - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active Valheim dedicated server.
-  - `ValheimServerManager` spawns the game server binary with `start_new_session=True` so it runs in its own session ID and process group, immune to web worker restarts.
-  - On web worker startup/reload, `find_existing_pid()` detects the running process, attaches to it, and restores the true uptime using process `etimes`.
+  - Code changes in Python and templates hot-reload in under 1 second without restarting or interrupting the active `valheim.service` game server.
+  - On web worker startup/reload, `find_existing_pid()` queries `systemctl --user show valheim.service` (with `pgrep` fallback), attaches to the active `MainPID`, and restores true uptime using process `etimes`.
 - **Native Power & Display Policy**:
   - Automatically sets and confirms system power profile to `performance` (via D-Bus `net.hadess.PowerProfiles` / `tuned-adm`).
   - Holds low-level `handle-lid-switch` and `sleep` inhibitor lock via `systemd-inhibit` to prevent host laptop suspend when headless/at SDDM login screen before user login or on lid-close.
@@ -129,9 +137,10 @@ This project provides an automated, locally managed host setup for a Valheim Ded
 - `POST /api/backups/restore/{filename}`: Safely restores backup components with clean server shutdown beforehand, pre-restore safety snapshot, manifest-driven active world purge (removing stale/orphaned chunks while leaving other worlds untouched), and optional post-restore restart.
 - `DELETE /api/backups/delete/{filename}`: Deletes a backup archive.
 - `GET /api/backups/download/{filename}`: Direct download of backup zip archive.
+- `GET /api/stream/events`: Server-Sent Events (SSE) live state-change & telemetry event bus stream (`Last-Event-ID` replay supported).
 - `GET /api/stream/logs`: Server-Sent Events (SSE) live stream of `valheim_server.log`.
-- `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with real-time coordinate HUD, filterable POIs, and portal directory.
-- `GET /api/map/data`: Returns full world map dataset, spawn altar coordinates, and active portal networks with builder identities and paired routes.
+- `GET /partials/tabs/map`: Serves the interactive Leaflet World Map tab partial with multi-zoom WebP tile pyramid (`16,384 × 16,384` px across zoom levels `0..4`), real-time bottom cursor telemetry panel (biome, elevation/depth, canopy/terrain feature, coordinates, and distance from center via `telemetry_1024.bin`), filterable POIs, and portal directory.
+- `GET /api/map/data`: Returns full world map dataset, tile/telemetry URLs, spawn altar coordinates, and active portal networks enriched with biome, builder identities, and paired routes.
 - `POST /api/map/refresh`: Re-scans the active world chunk file (`00_01__*.chunk`) to invalidate cache and refresh portals.
 - `GET /api/status`, `GET /api/config`, `GET /api/backups`, `GET /api/logs`: JSON REST endpoints for backwards compatibility.
 
